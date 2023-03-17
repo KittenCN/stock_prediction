@@ -142,3 +142,7 @@ Meteorological forecast/data/TXT
 *.pth
 *.py~
 *.sh~
+
+!/fig_lstm/*
+!/fig_transformer/*
+!/readme/*
