@@ -233,6 +233,7 @@ def contrast_lines(test_code):
     test_model.eval()
     test_optimizer.zero_grad()
     if len(stock_test) < common.BATCH_SIZE:
+        print("Error: len(stock_test) < common.BATCH_SIZE")
         return
     test_bar = tqdm(total=len(dataloader))
     for i,(data,label) in enumerate(dataloader):
