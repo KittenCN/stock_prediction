@@ -402,6 +402,10 @@ if __name__=="__main__":
             code_bar.update(1)
         code_bar.close()
         print("Training finished!")
+        print("Start create image for loss and pred-real")
+        while contrast_lines(test_code) == -1:
+            test_index = random.randint(0, len(ts_codes) - 1)
+            test_code = [ts_codes[test_index]]
     elif mode == "test":
         while contrast_lines(test_code) == -1:
             test_index = random.randint(0, len(ts_codes) - 1)
