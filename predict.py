@@ -15,6 +15,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import os
+import time
 from tqdm import tqdm
 from cycler import cycler# 用于定制线条颜色
 from datetime import datetime
@@ -22,6 +23,7 @@ from datetime import datetime
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode")
 args = parser.parse_args()
+last_save_time = 0
 
 #数据清洗：丢弃行，或用上一行的值填充
 def data_wash(dataset,keepTime=False):
@@ -131,7 +133,7 @@ def draw_Kline(df,period,symbol):
     plt.show()
 
 def train(epoch, dataloader):
-    global loss
+    global loss, last_save_time
     model.train()
     global loss_list
     global iteration
@@ -149,12 +151,15 @@ def train(epoch, dataloader):
         if i%20==0:
             loss_list.append(loss.item())
             # print("epoch=",epoch,"iteration=",iteration,"loss=",loss.item())
-        if iteration%common.SAVE_NUM_ITER==0:
+        
+        if iteration%common.SAVE_NUM_ITER==0 and time.time() - last_save_time >= common.SAVE_INTERVAL:
             torch.save(model.state_dict(),save_path+"_Model.pkl")
             torch.save(optimizer.state_dict(),save_path+"_Optimizer.pkl")
-    if (epoch+1)%common.SAVE_NUM_EPOCH==0 or (epoch+1)==common.EPOCH:
+            last_save_time = time.time()
+    if ((epoch+1)%common.SAVE_NUM_EPOCH==0 or (epoch+1)==common.EPOCH) and time.time() - last_save_time >= common.SAVE_INTERVAL:
         torch.save(model.state_dict(),save_path+"_Model.pkl")
         torch.save(optimizer.state_dict(),save_path+"_Optimizer.pkl")
+        last_save_time = time.time()
     subbar.close()
 
 def test(dataloader):
