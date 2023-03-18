@@ -213,7 +213,7 @@ def contrast_lines(test_code):
     train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
     if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
         print("Error: train_size is too small or too large")
-        return
+        return -1
     Train_data=data[:train_size+common.SEQ_LEN]
     Test_data=data[train_size-common.SEQ_LEN:]
     if Train_data is None or Test_data is None:
@@ -398,7 +398,9 @@ if __name__=="__main__":
         code_bar.close()
         print("Training finished!")
     elif mode == "test":
-        contrast_lines(test_code)
+        while contrast_lines(test_code) == -1:
+            test_index = random.randint(0, len(ts_codes) - 1)
+            test_code = [ts_codes[test_index]]
 
     # print("Create the png for loss")
     # #绘制损失函数下降曲线    
