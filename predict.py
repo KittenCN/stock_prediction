@@ -16,6 +16,7 @@ import torch.optim as optim
 import os
 from tqdm import tqdm
 from cycler import cycler# 用于定制线条颜色
+from datetime import datetime
 
 #数据清洗：丢弃行，或用上一行的值填充
 def data_wash(dataset,keepTime=False):
@@ -234,7 +235,7 @@ def contrast_lines(test_code):
     test_optimizer.zero_grad()
     if len(stock_test) < common.BATCH_SIZE:
         print("Error: len(stock_test) < common.BATCH_SIZE")
-        return
+        return -1
     test_bar = tqdm(total=len(dataloader))
     for i,(data,label) in enumerate(dataloader):
         with torch.no_grad():            
@@ -271,9 +272,13 @@ def contrast_lines(test_code):
     plt.plot(x,np.array(real_list),label="real")
     plt.plot(x,np.array(prediction_list),label="prediction")
     plt.legend()
-    if os.path.exists("./png/predict/") == False:
+    if os.path.exists("./png") == False:
+        os.mkdir("./png")
+    if os.path.exists("./png/predict/") ==False:
         os.mkdir("./png/predict/")
-    plt.savefig("./png/predict/"+cnname+"_Pre.png",dpi=3000)
+    now = datetime.now()
+    date_string = now.strftime("%Y%m%d%H%M%S")
+    plt.savefig("./png/predict/"+cnname+"_"+date_string+"_Pre.png",dpi=3000)
     # plt.show()
 
 def load_data(ts_codes):
