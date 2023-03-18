@@ -199,9 +199,12 @@ def contrast_lines(test_code):
     predict_list=[]
     accuracy_list=[]
 
+    print("test_code=",test_code)
     load_data(test_code)
     data = common.data_queue.get()
+    print("data.shape=",data.shape)
     if data.empty or data["ts_code"][0] == "None":
+        print("Error: data is empty or ts_code is None")
         return
     if data['ts_code'][0] != test_code[0]:
         print("Error: ts_code is not match")
