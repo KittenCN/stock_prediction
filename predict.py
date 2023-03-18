@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+import argparse
 import glob
 import random
 import threading
@@ -17,6 +18,10 @@ import os
 from tqdm import tqdm
 from cycler import cycler# 用于定制线条颜色
 from datetime import datetime
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--mode', default="train", type=str, help="select running mode")
+args = parser.parse_args()
 
 #数据清洗：丢弃行，或用上一行的值填充
 def data_wash(dataset,keepTime=False):
@@ -290,7 +295,7 @@ def load_data(ts_codes):
 
 if __name__=="__main__":
     global test_loss
-    mode = 'test'
+    mode = args.mode
     test_loss = 0.00
     symbol = 'Generic.Data'
     # symbol = '000001.SZ'
