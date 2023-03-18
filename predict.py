@@ -227,7 +227,7 @@ def contrast_lines(test_code):
     test_criterion=nn.MSELoss()
     test_optimizer=optim.Adam(test_model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)
     if os.path.exists(save_path+"_Model.pkl") and os.path.exists(save_path+"_Optimizer.pkl"):
-        # print("Load model and optimizer from file")
+        print("Load model and optimizer from file")
         test_model.load_state_dict(torch.load(save_path+"_Model.pkl"))
         test_optimizer.load_state_dict(torch.load(save_path+"_Optimizer.pkl"))
     test_model.eval()
@@ -271,8 +271,8 @@ def contrast_lines(test_code):
     plt.plot(x,np.array(real_list),label="real")
     plt.plot(x,np.array(prediction_list),label="prediction")
     plt.legend()
-    if os.path.exists("./png/predict/"):
-        os.remove("./png/predict/")
+    if os.path.exists("./png/predict/") == False:
+        os.mkdir("./png/predict/")
     plt.savefig("./png/predict/"+cnname+"_Pre.png",dpi=3000)
     # plt.show()
 
