@@ -122,15 +122,16 @@ class PositionalEncoding(nn.Module):
         return x+self.pe[:x.size(0),:]
 
 class TransAm(nn.Module):
-    def __init__(self,feature_size=8,num_layers=6,dropout=0.1):
+    def __init__(self,feature_size=8,num_layers=6,dropout=0.1,nhead=8,d_model=512):
         super(TransAm,self).__init__()
         self.model_type='Transformer'
         self.src_mask=None
-        self.pos_encoder=PositionalEncoding(feature_size)
-        self.encoder_layer=nn.TransformerEncoderLayer(d_model=feature_size,nhead=8,dropout=dropout)
+        self.embedding=nn.Linear(feature_size,d_model)
+        self.pos_encoder=PositionalEncoding(d_model)
+        self.encoder_layer=nn.TransformerEncoderLayer(d_model=d_model,nhead=nhead,dropout=dropout)
         self.transformer_encoder=nn.TransformerEncoder(self.encoder_layer,num_layers=num_layers)
         #全连接层代替decoder
-        self.decoder=nn.Linear(feature_size,1)
+        self.decoder=nn.Linear(d_model,1)
         self.linear1=nn.Linear(SEQ_LEN,1)
         self.init_weights()
         self.src_key_padding_mask=None

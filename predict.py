@@ -2,6 +2,7 @@
 # coding: utf-8
 
 import glob
+import random
 import threading
 import pandas as pd
 import numpy as np
@@ -13,7 +14,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import os
-from getdata import get_stock_list, get_stock_data
 from tqdm import tqdm
 from cycler import cycler# 用于定制线条颜色
 
@@ -153,6 +153,7 @@ def train(epoch, dataloader):
 
 def test(dataloader):
     global accuracy_list, predict_list, test_loss, loss
+
     lock = threading.Lock()
     with lock:
         test_criterion=nn.MSELoss()
@@ -190,20 +191,81 @@ def loss_curve(loss_list):
     plt.savefig("./png/train_loss/"+cnname+"_train_loss.png",dpi=3000)
     # plt.show()
 
-def contrast_lines(predict_list):
+def contrast_lines(test_code):
+    global stock_test, test_loss
+
     real_list=[]
     prediction_list=[]
+    predict_list=[]
+    accuracy_list=[]
+
+    load_data(test_code)
+    data = common.data_queue.get()
+    if data.empty or data["ts_code"][0] == "None":
+        return
+    if data['ts_code'][0] != test_code[0]:
+        print("Error: ts_code is not match")
+        return
+    data.drop(['ts_code','Date'],axis=1,inplace = True)    
+    train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
+    if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
+        print("Error: train_size is too small or too large")
+        return
+    Train_data=data[:train_size+common.SEQ_LEN]
+    Test_data=data[train_size-common.SEQ_LEN:]
+    if Train_data is None or Test_data is None:
+        print("Error: Train_data or Test_data is None")
+        return
+    stock_train=common.Stock_Data(train=True, dataFrame=Train_data)
+    stock_test=common.Stock_Data(train=False, dataFrame=Test_data)
+
     dataloader=common.DataLoaderX(dataset=stock_test,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
+
+    test_criterion=nn.MSELoss()
+    test_optimizer=optim.Adam(test_model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)
+    if os.path.exists(save_path+"_Model.pkl") and os.path.exists(save_path+"_Optimizer.pkl"):
+        # print("Load model and optimizer from file")
+        test_model.load_state_dict(torch.load(save_path+"_Model.pkl"))
+        test_optimizer.load_state_dict(torch.load(save_path+"_Optimizer.pkl"))
+    test_model.eval()
+    test_optimizer.zero_grad()
+    if len(stock_test) < common.BATCH_SIZE:
+        return
+    test_bar = tqdm(total=len(dataloader))
+    for i,(data,label) in enumerate(dataloader):
+        with torch.no_grad():            
+            # data,label=data.to(common.device),label.to(common.device)
+            test_optimizer.zero_grad()
+            predict=test_model.forward(data)
+            predict_list.append(predict)
+            loss=test_criterion(predict,label)
+            accuracy_fn=nn.MSELoss()
+            accuracy=accuracy_fn(predict,label)
+            accuracy_list.append(accuracy.item())
+        test_bar.update(1)
+    test_bar.close()
+    print("test_data MSELoss:(pred-real)/real=",np.mean(accuracy_list))
+    if len(accuracy_list) == 0:
+        test_loss = 0.00
+    else:
+        test_loss = np.mean(accuracy_list)
+
+    test_bar = tqdm(total=len(dataloader) * common.BATCH_SIZE)
     for i,(data,label) in enumerate(dataloader):
         for idx in range(common.BATCH_SIZE):
             real_list.append(np.array(label[idx]*common.std_list[0]+common.mean_list[0]))
+            test_bar.update(1)
+    test_bar.close()
+    test_bar = tqdm(total=len(predict_list) * common.BATCH_SIZE)
     for item in predict_list:
         item=item.to("cpu")
         for idx in range(common.BATCH_SIZE):
             prediction_list.append(np.array((item[idx]*common.std_list[0]+common.mean_list[0])))
+            test_bar.update(1)
+    test_bar.close()
     x=np.linspace(1,len(real_list),len(real_list))
     plt.plot(x,np.array(real_list),label="real")
-    # plt.plot(x,np.array(prediction_list),label="prediction")
+    plt.plot(x,np.array(prediction_list),label="prediction")
     plt.legend()
     plt.savefig("./png/predict/"+cnname+"_Pre.png",dpi=3000)
     # plt.show()
@@ -221,6 +283,7 @@ def load_data(ts_codes):
 
 if __name__=="__main__":
     global test_loss
+    mode = 'test'
     test_loss = 0.00
     symbol = 'Generic.Data'
     # symbol = '000001.SZ'
@@ -265,66 +328,71 @@ if __name__=="__main__":
             ts_codes.append(os.path.basename(csv_file).rsplit(".", 1)[0])
     else:
         ts_codes = [symbol]
-    data_thread = threading.Thread(target=load_data, args=(ts_codes,))
-    data_thread.start()
-    code_bar = tqdm(total=len(ts_codes))
-    for index, ts_code in enumerate(ts_codes):
-        try:
-            # if common.GET_DATA:
-            #     dataFrame = get_stock_data(ts_code, False)
-            # data = import_csv(ts_code, dataFrame)
-            data = common.data_queue.get()
-            data_len = common.data_queue.qsize()
-            if data.empty or data["ts_code"][0] == "None":
+    test_index = random.randint(0, len(ts_codes) - 1)
+    test_code = [ts_codes[test_index]]
+    if mode == 'train':
+        data_thread = threading.Thread(target=load_data, args=(ts_codes,))
+        data_thread.start()
+        code_bar = tqdm(total=len(ts_codes))
+        for index, ts_code in enumerate(ts_codes):
+            try:
+                # if common.GET_DATA:
+                #     dataFrame = get_stock_data(ts_code, False)
+                # data = import_csv(ts_code, dataFrame)
+                data = common.data_queue.get()
+                data_len = common.data_queue.qsize()
+                if data.empty or data["ts_code"][0] == "None":
+                    code_bar.update(1)
+                    continue
+                if data['ts_code'][0] != ts_code:
+                    print("Error: ts_code is not match")
+                    exit(0)
+                code_bar.set_description("%s %d:%d" % (ts_code,index,data_len))
+                df_draw=data[-period:]
+                # draw_Kline(df_draw,period,symbol)
+                data.drop(['ts_code','Date'],axis=1,inplace = True)    
+                train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
+                # print("Split the data for trainning and testing...")
+                if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
+                    code_bar.update(1)
+                    continue
+                Train_data=data[:train_size+common.SEQ_LEN]
+                Test_data=data[train_size-common.SEQ_LEN:]
+                if Train_data is None or Test_data is None:
+                    code_bar.update(1)
+                    continue
+                # Train_data.to_csv(common.train_path,sep=',',index=False,header=False)
+                # Test_data.to_csv(common.test_path,sep=',',index=False,header=False)
+                stock_train=common.Stock_Data(train=True, dataFrame=Train_data)
+                # stock_test=common.Stock_Data(train=False, dataFrame=Test_data)
+                iteration=0
+                loss_list=[]
+            except Exception as e:
+                print(e)
                 code_bar.update(1)
                 continue
-            if data['ts_code'][0] != ts_code:
-                print("Error: ts_code is not match")
-                exit(0)
-            code_bar.set_description("%s %d:%d" % (ts_code,index,data_len))
-            df_draw=data[-period:]
-            # draw_Kline(df_draw,period,symbol)
-            data.drop(['ts_code','Date'],axis=1,inplace = True)    
-            train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
-            # print("Split the data for trainning and testing...")
-            if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
-                code_bar.update(1)
-                continue
-            Train_data=data[:train_size+common.SEQ_LEN]
-            Test_data=data[train_size-common.SEQ_LEN:]
-            if Train_data is None or Test_data is None:
-                code_bar.update(1)
-                continue
-            # Train_data.to_csv(common.train_path,sep=',',index=False,header=False)
-            # Test_data.to_csv(common.test_path,sep=',',index=False,header=False)
-            stock_train=common.Stock_Data(train=True, dataFrame=Train_data)
-            stock_test=common.Stock_Data(train=False, dataFrame=Test_data)
-            iteration=0
-            loss_list=[]
-        except Exception as e:
-            print(e)
+            #开始训练神经网络
+            # print("Start training the model...")
+            train_dataloader=common.DataLoaderX(dataset=stock_train,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
+            # test_dataloader=common.DataLoaderX(dataset=stock_test,batch_size=4,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
+            pbar = tqdm(total=common.EPOCH, leave=False)
+            for epoch in range(0,common.EPOCH):
+                predict_list=[]
+                accuracy_list=[]
+                train(epoch+1, train_dataloader)
+                # if (epoch+1)%common.TEST_NUM==0:
+                #     # test(test_dataloader)
+                #     test_thread = threading.Thread(target=test, args=(test_dataloader,))
+                #     test_thread.start()
+                # pbar.set_description("ep=%d,lo=%.4f,tl=%.4f"%(epoch+1,loss.item(),test_loss))
+                pbar.set_description("ep=%d,lo=%.4f"%(epoch+1,loss.item()))
+                pbar.update(1)
+            pbar.close()
             code_bar.update(1)
-            continue
-        #开始训练神经网络
-        # print("Start training the model...")
-        train_dataloader=common.DataLoaderX(dataset=stock_train,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
-        test_dataloader=common.DataLoaderX(dataset=stock_test,batch_size=4,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
-        pbar = tqdm(total=common.EPOCH, leave=False)
-        for epoch in range(0,common.EPOCH):
-            predict_list=[]
-            accuracy_list=[]
-            train(epoch+1, train_dataloader)
-            # if (epoch+1)%common.TEST_NUM==0:
-            #     # test(test_dataloader)
-            #     test_thread = threading.Thread(target=test, args=(test_dataloader,))
-            #     test_thread.start()
-            # pbar.set_description("ep=%d,lo=%.4f,tl=%.4f"%(epoch+1,loss.item(),test_loss))
-            pbar.set_description("ep=%d,lo=%.4f"%(epoch+1,loss.item()))
-            pbar.update(1)
-        pbar.close()
-        code_bar.update(1)
-    code_bar.close()
-    print("Training finished!")
+        code_bar.close()
+        print("Training finished!")
+    elif mode == "test":
+        contrast_lines(test_code)
 
     # print("Create the png for loss")
     # #绘制损失函数下降曲线    
