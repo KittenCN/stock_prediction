@@ -270,6 +270,8 @@ def contrast_lines(test_code):
     plt.plot(x,np.array(real_list),label="real")
     plt.plot(x,np.array(prediction_list),label="prediction")
     plt.legend()
+    if os.path.exists("./png/predict/"):
+        os.remove("./png/predict/")
     plt.savefig("./png/predict/"+cnname+"_Pre.png",dpi=3000)
     # plt.show()
 
