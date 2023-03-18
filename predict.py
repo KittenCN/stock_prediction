@@ -272,10 +272,6 @@ def contrast_lines(test_code):
     plt.plot(x,np.array(real_list),label="real")
     plt.plot(x,np.array(prediction_list),label="prediction")
     plt.legend()
-    if os.path.exists("./png") == False:
-        os.mkdir("./png")
-    if os.path.exists("./png/predict/") ==False:
-        os.mkdir("./png/predict/")
     now = datetime.now()
     date_string = now.strftime("%Y%m%d%H%M%S")
     plt.savefig("./png/predict/"+cnname+"_"+date_string+"_Pre.png",dpi=3000)
@@ -301,13 +297,11 @@ if __name__=="__main__":
     cnname = ""
     for item in symbol.split("."):
         cnname += item
-    if os.path.exists("./" + cnname) is False:
-        os.makedirs("./" + cnname)
+    common.check_exist("./" + cnname)
     lstm_path="./"+cnname+"/LSTM"
     transformer_path="./"+cnname+"/TRANSFORMER"
     save_path=lstm_path
 
-    #选择模型为LSTM或Transformer，注释掉一个
     model_mode="LSTM"
     if model_mode=="LSTM":
         model=common.LSTM(dimension=8)

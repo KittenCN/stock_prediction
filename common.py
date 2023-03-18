@@ -30,10 +30,17 @@ NoneDataFrame = pd.DataFrame(columns=["ts_code"])
 NoneDataFrame["ts_code"] = ["None"]
 
 device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
-if os.path.exists("./stock_handle/") == False:
-    os.mkdir("./stock_handle/")
-if os.path.exists("./stock_daily/") == False:
-    os.mkdir("./stock_daily/")
+
+def check_exist(address):
+    if os.path.exists(address) == False:
+        os.mkdir(address)
+
+check_exist("./stock_handle")
+check_exist("./stock_daily")
+check_exist("./png")
+check_exist("./png/train_loss/")
+check_exist("./png/predict/")
+
 train_path="./stock_handle/stock_train.csv"
 test_path="./stock_handle/stock_test.csv"
 
