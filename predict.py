@@ -353,6 +353,7 @@ if __name__=="__main__":
                 data = common.data_queue.get()
                 data_len = common.data_queue.qsize()
                 if data.empty or data["ts_code"][0] == "None":
+                    print("data is empty or data has invalid col")
                     code_bar.update(1)
                     continue
                 if data['ts_code'][0] != ts_code:
@@ -365,11 +366,13 @@ if __name__=="__main__":
                 train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
                 # print("Split the data for trainning and testing...")
                 if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
+                    print("train_size is too small or too large")
                     code_bar.update(1)
                     continue
                 Train_data=data[:train_size+common.SEQ_LEN]
                 Test_data=data[train_size-common.SEQ_LEN:]
                 if Train_data is None or Test_data is None:
+                    print("Train_data or Test_data is None")
                     code_bar.update(1)
                     continue
                 # Train_data.to_csv(common.train_path,sep=',',index=False,header=False)
@@ -402,7 +405,9 @@ if __name__=="__main__":
             code_bar.update(1)
         code_bar.close()
         print("Training finished!")
-        print("Start create image for loss and pred-real")
+        print("Start create image for loss")
+        loss_curve(loss_list)
+        print("Start create image for pred-real")
         while contrast_lines(test_code) == -1:
             test_index = random.randint(0, len(ts_codes) - 1)
             test_code = [ts_codes[test_index]]
