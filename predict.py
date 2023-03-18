@@ -21,7 +21,7 @@ from cycler import cycler# 用于定制线条颜色
 from datetime import datetime
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', default="train", type=str, help="select running mode")
+parser.add_argument('--mode', default="test", type=str, help="select running mode")
 args = parser.parse_args()
 last_save_time = 0
 
@@ -133,10 +133,8 @@ def draw_Kline(df,period,symbol):
     plt.show()
 
 def train(epoch, dataloader):
-    global loss, last_save_time
+    global loss, last_save_time, loss_list, iteration
     model.train()
-    global loss_list
-    global iteration
     subbar = tqdm(total=len(dataloader), leave=False)
     for i,(data,label) in enumerate(dataloader):
         iteration=iteration+1
@@ -156,7 +154,7 @@ def train(epoch, dataloader):
             torch.save(model.state_dict(),save_path+"_Model.pkl")
             torch.save(optimizer.state_dict(),save_path+"_Optimizer.pkl")
             last_save_time = time.time()
-    if ((epoch+1)%common.SAVE_NUM_EPOCH==0 or (epoch+1)==common.EPOCH) and time.time() - last_save_time >= common.SAVE_INTERVAL:
+    if (epoch%common.SAVE_NUM_EPOCH==0 and time.time() - last_save_time >= common.SAVE_INTERVAL) or epoch==common.EPOCH:
         torch.save(model.state_dict(),save_path+"_Model.pkl")
         torch.save(optimizer.state_dict(),save_path+"_Optimizer.pkl")
         last_save_time = time.time()
@@ -230,8 +228,8 @@ def contrast_lines(test_code):
     if Train_data is None or Test_data is None:
         print("Error: Train_data or Test_data is None")
         return
-    stock_train=common.Stock_Data(train=True, dataFrame=Train_data)
-    stock_test=common.Stock_Data(train=False, dataFrame=Test_data)
+    stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=8)
+    stock_test=common.Stock_Data(train=False, dataFrame=Test_data, label_num=8)
 
     dataloader=common.DataLoaderX(dataset=stock_test,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
 
@@ -278,9 +276,11 @@ def contrast_lines(test_code):
             prediction_list.append(np.array((item[idx]*common.std_list[0]+common.mean_list[0])))
             test_bar.update(1)
     test_bar.close()
-    x=np.linspace(1,len(real_list),len(real_list))
-    plt.plot(x,np.array(real_list),label="real")
-    plt.plot(x,np.array(prediction_list),label="prediction")
+    real_list = np.transpose(real_list)
+    predict_list = np.transpose(predict_list[0])
+    x=np.linspace(1,len(real_list[7]),len(real_list[7]))
+    plt.plot(x,np.array(real_list[7]),label="real")
+    plt.plot(x,np.array(prediction_list[7]),label="prediction")
     plt.legend()
     now = datetime.now()
     date_string = now.strftime("%Y%m%d%H%M%S")
@@ -354,6 +354,7 @@ if __name__=="__main__":
                 # if common.GET_DATA:
                 #     dataFrame = get_stock_data(ts_code, False)
                 # data = import_csv(ts_code, dataFrame)
+                lastFlag = 0
                 data = common.data_queue.get()
                 data_len = common.data_queue.qsize()
                 if data.empty or data["ts_code"][0] == "None":
@@ -381,7 +382,7 @@ if __name__=="__main__":
                     continue
                 # Train_data.to_csv(common.train_path,sep=',',index=False,header=False)
                 # Test_data.to_csv(common.test_path,sep=',',index=False,header=False)
-                stock_train=common.Stock_Data(train=True, dataFrame=Train_data)
+                stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=8)
                 # stock_test=common.Stock_Data(train=False, dataFrame=Test_data)
                 iteration=0
                 loss_list=[]

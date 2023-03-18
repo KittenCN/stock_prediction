@@ -51,7 +51,7 @@ class DataLoaderX(DataLoader):
 
 #完成数据集类
 class Stock_Data(Dataset):
-    def __init__(self,train=True,transform=None,dataFrame=None):       
+    def __init__(self,train=True,transform=None,dataFrame=None,label_num=1):       
         try:
             if train==True:
                 if dataFrame is None:
@@ -68,7 +68,7 @@ class Stock_Data(Dataset):
                     std_list.append(np.std(self.data[:,i]))
                     self.data[:,i]=(self.data[:,i]-np.mean(self.data[:,i]))/(np.std(self.data[:,i])+1e-8)
                 self.value=torch.rand(self.data.shape[0]-SEQ_LEN,SEQ_LEN,self.data.shape[1])
-                self.label=torch.rand(self.data.shape[0]-SEQ_LEN,1)
+                self.label=torch.rand(self.data.shape[0]-SEQ_LEN,label_num)
                 for i in range(self.data.shape[0]-SEQ_LEN):                  
                     self.value[i,:,:]=torch.from_numpy(self.data[i:i+SEQ_LEN,:].reshape(SEQ_LEN,self.data.shape[1]))    
                     self.label[i,:]=self.data[i+SEQ_LEN,0]
@@ -86,7 +86,7 @@ class Stock_Data(Dataset):
                 for i in range(len(self.data[0])):
                     self.data[:,i]=(self.data[:,i]-mean_list[i])/(std_list[i]+1e-8)
                 self.value=torch.rand(self.data.shape[0]-SEQ_LEN,SEQ_LEN,self.data.shape[1])
-                self.label=torch.rand(self.data.shape[0]-SEQ_LEN,1)
+                self.label=torch.rand(self.data.shape[0]-SEQ_LEN,label_num)
                 for i in range(self.data.shape[0]-SEQ_LEN):                  
                     self.value[i,:,:]=torch.from_numpy(self.data[i:i+SEQ_LEN,:].reshape(SEQ_LEN,self.data.shape[1]))    
                     self.label[i,:]=self.data[i+SEQ_LEN,0]
@@ -104,7 +104,7 @@ class LSTM(nn.Module):
         super(LSTM,self).__init__()
         self.lstm=nn.LSTM(input_size=dimension,hidden_size=128,num_layers=3,batch_first=True)
         self.linear1=nn.Linear(in_features=128,out_features=16)
-        self.linear2=nn.Linear(16,1)
+        self.linear2=nn.Linear(16,8)
         self.ReLU=nn.ReLU()
     def forward(self,x):
         out,_=self.lstm(x)
