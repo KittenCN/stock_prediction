@@ -228,8 +228,8 @@ def contrast_lines(test_code):
     if Train_data is None or Test_data is None:
         print("Error: Train_data or Test_data is None")
         return
-    stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=8)
-    stock_test=common.Stock_Data(train=False, dataFrame=Test_data, label_num=8)
+    stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPU_DIMENSION)
+    stock_test=common.Stock_Data(train=False, dataFrame=Test_data, label_num=common.OUTPU_DIMENSION)
 
     dataloader=common.DataLoaderX(dataset=stock_test,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
 
@@ -276,15 +276,23 @@ def contrast_lines(test_code):
             prediction_list.append(np.array((item[idx]*common.std_list[0]+common.mean_list[0])))
             test_bar.update(1)
     test_bar.close()
-    real_list = np.transpose(real_list)
-    predict_list = np.transpose(predict_list[0])
-    x=np.linspace(1,len(real_list[7]),len(real_list[7]))
-    plt.plot(x,np.array(real_list[7]),label="real")
-    plt.plot(x,np.array(prediction_list[7]),label="prediction")
-    plt.legend()
-    now = datetime.now()
-    date_string = now.strftime("%Y%m%d%H%M%S")
-    plt.savefig("./png/predict/"+cnname+"_"+date_string+"_Pre.png",dpi=3000)
+    pbar = tqdm(total=common.OUTPU_DIMENSION)
+    for i in range(common.OUTPU_DIMENSION):
+        try:
+            real_list = np.transpose(real_list)[i]
+            prediction_list = np.transpose(prediction_list)[i]
+            x=np.linspace(1,len(real_list),len(real_list))
+            plt.plot(x,np.array(real_list),label="real")
+            plt.plot(x,np.array(prediction_list),label="prediction")
+            plt.legend()
+            now = datetime.now()
+            date_string = now.strftime("%Y%m%d%H%M%S")
+            plt.savefig("./png/predict/"+cnname+"_"+str(i)+"_"+date_string+"_Pre.png",dpi=3000)
+            pbar.update(1)
+        except:
+            pbar.update(1)
+            continue
+    pbar.close()
     # plt.show()
 
 def load_data(ts_codes):
@@ -314,12 +322,12 @@ if __name__=="__main__":
 
     model_mode="LSTM"
     if model_mode=="LSTM":
-        model=common.LSTM(dimension=8)
-        test_model=common.LSTM(dimension=8)
+        model=common.LSTM(dimension=common.INPUT_DIMENSION)
+        test_model=common.LSTM(dimension=common.INPUT_DIMENSION)
         save_path=lstm_path
     elif model_mode=="TRANSFORMER":
-        model=common.TransAm(feature_size=8)
-        test_model=common.TransAm(feature_size=8)
+        model=common.TransAm(feature_size=common.INPUT_DIMENSION)
+        test_model=common.TransAm(feature_size=common.INPUT_DIMENSION)
         save_path=transformer_path
 
     model=model.to(common.device)
@@ -382,7 +390,7 @@ if __name__=="__main__":
                     continue
                 # Train_data.to_csv(common.train_path,sep=',',index=False,header=False)
                 # Test_data.to_csv(common.test_path,sep=',',index=False,header=False)
-                stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=8)
+                stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPU_DIMENSION)
                 # stock_test=common.Stock_Data(train=False, dataFrame=Test_data)
                 iteration=0
                 loss_list=[]
@@ -412,10 +420,10 @@ if __name__=="__main__":
         print("Training finished!")
         print("Start create image for loss")
         loss_curve(loss_list)
-        print("Start create image for pred-real")
-        while contrast_lines(test_code) == -1:
-            test_index = random.randint(0, len(ts_codes) - 1)
-            test_code = [ts_codes[test_index]]
+        # print("Start create image for pred-real")
+        # while contrast_lines(test_code) == -1:
+        #     test_index = random.randint(0, len(ts_codes) - 1)
+        #     test_code = [ts_codes[test_index]]
     elif mode == "test":
         while contrast_lines(test_code) == -1:
             test_index = random.randint(0, len(ts_codes) - 1)

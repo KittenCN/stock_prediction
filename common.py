@@ -19,6 +19,8 @@ SAVE_NUM_EPOCH=50
 GET_DATA=True
 TEST_NUM=25
 SAVE_INTERVAL=300
+OUTPU_DIMENSION=1
+INPUT_DIMENSION=8
 
 mean_list=[]
 std_list=[]
@@ -62,7 +64,7 @@ class Stock_Data(Dataset):
                         #self.data=np.concatenate((self.data,addi),axis=1)
                 else:
                     self.data=dataFrame.values
-                self.data=self.data[:,0:8]
+                self.data=self.data[:,0:INPUT_DIMENSION]
                 for i in range(len(self.data[0])):
                     mean_list.append(np.mean(self.data[:,i]))
                     std_list.append(np.std(self.data[:,i]))
@@ -82,7 +84,7 @@ class Stock_Data(Dataset):
                         #self.data=np.concatenate((self.data,addi),axis=1)
                 else:
                     self.data=dataFrame.values
-                self.data=self.data[:,0:8]
+                self.data=self.data[:,0:INPUT_DIMENSION]
                 for i in range(len(self.data[0])):
                     self.data[:,i]=(self.data[:,i]-mean_list[i])/(std_list[i]+1e-8)
                 self.value=torch.rand(self.data.shape[0]-SEQ_LEN,SEQ_LEN,self.data.shape[1])
@@ -104,7 +106,7 @@ class LSTM(nn.Module):
         super(LSTM,self).__init__()
         self.lstm=nn.LSTM(input_size=dimension,hidden_size=128,num_layers=3,batch_first=True)
         self.linear1=nn.Linear(in_features=128,out_features=16)
-        self.linear2=nn.Linear(16,8)
+        self.linear2=nn.Linear(16,OUTPU_DIMENSION)
         self.ReLU=nn.ReLU()
     def forward(self,x):
         out,_=self.lstm(x)
@@ -130,7 +132,7 @@ class PositionalEncoding(nn.Module):
         return x+self.pe[:x.size(0),:]
 
 class TransAm(nn.Module):
-    def __init__(self,feature_size=8,num_layers=6,dropout=0.1,nhead=8,d_model=512):
+    def __init__(self,feature_size=INPUT_DIMENSION,num_layers=6,dropout=0.1,nhead=8,d_model=512):
         super(TransAm,self).__init__()
         self.model_type='Transformer'
         self.src_mask=None
