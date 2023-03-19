@@ -21,7 +21,7 @@ from cycler import cycler# 用于定制线条颜色
 from datetime import datetime
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', default="test", type=str, help="select running mode")
+parser.add_argument('--mode', default="train", type=str, help="select running mode")
 args = parser.parse_args()
 last_save_time = 0
 
