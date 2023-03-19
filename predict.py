@@ -193,15 +193,20 @@ def test(dataloader):
             test_loss = np.mean(accuracy_list)
 
 def loss_curve(loss_list):
-    x=np.linspace(1,len(loss_list),len(loss_list))
-    x=20*x
-    plt.plot(x,np.array(loss_list),label="train_loss")
-    plt.ylabel("MSELoss")
-    plt.xlabel("iteration")
-    now = datetime.now()
-    date_string = now.strftime("%Y%m%d%H%M%S")
-    plt.savefig("./png/train_loss/"+cnname+"_"+date_string+"_train_loss.png",dpi=3000)
-    # plt.show()
+    try:
+        plt.figure()
+        x=np.linspace(1,len(loss_list),len(loss_list))
+        x=20*x
+        plt.plot(x,np.array(loss_list),label="train_loss")
+        plt.ylabel("MSELoss")
+        plt.xlabel("iteration")
+        now = datetime.now()
+        date_string = now.strftime("%Y%m%d%H%M%S")
+        plt.savefig("./png/train_loss/"+cnname+"_"+date_string+"_train_loss.png",dpi=3000)
+        # plt.show()
+        plt.close()
+    except Exception as e:
+        print("Error: loss_curve",e)
 
 def contrast_lines(test_code):
     global stock_test, test_loss
@@ -304,6 +309,7 @@ def contrast_lines(test_code):
         except:
             pbar.update(1)
             continue
+    plt.close()
     pbar.close()
     # plt.show()
 
@@ -420,16 +426,12 @@ if __name__=="__main__":
                 predict_list=[]
                 accuracy_list=[]
                 train(epoch+1, train_dataloader)
-                # if (epoch+1)%common.TEST_NUM==0:
-                #     # test(test_dataloader)
-                #     test_thread = threading.Thread(target=test, args=(test_dataloader,))
-                #     test_thread.start()
-                # pbar.set_description("ep=%d,lo=%.4f,tl=%.4f"%(epoch+1,loss.item(),test_loss))
                 pbar.set_description("ep=%d,lo=%.4f"%(epoch+1,loss.item()))
                 pbar.update(1)
-            torch.save(model.state_dict(),save_path+"_Model.pkl")
-            torch.save(optimizer.state_dict(),save_path+"_Optimizer.pkl")
-            last_save_time = time.time()
+            if time.time() - last_save_time >= common.SAVE_INTERVAL or index == len(ts_codes) - 1:
+                torch.save(model.state_dict(),save_path+"_Model.pkl")
+                torch.save(optimizer.state_dict(),save_path+"_Optimizer.pkl")
+                last_save_time = time.time()
             pbar.close()
             code_bar.update(1)
         code_bar.close()
@@ -444,13 +446,6 @@ if __name__=="__main__":
         while contrast_lines(test_code) == -1:
             test_index = random.randint(0, len(ts_codes) - 1)
             test_code = [ts_codes[test_index]]
-
-    # print("Create the png for loss")
-    # #绘制损失函数下降曲线    
-    # loss_curve(loss_list)
-    # print("Create the png for pred-real")
-    # #绘制测试集pred-real对比曲线
-    # contrast_lines(predict_list)
 
 
 
