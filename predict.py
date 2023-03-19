@@ -21,7 +21,7 @@ from cycler import cycler# 用于定制线条颜色
 from datetime import datetime
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', default="train", type=str, help="select running mode")
+parser.add_argument('--mode', default="test", type=str, help="select running mode")
 parser.add_argument('--batch_size', default=512, type=int, help="Batch_size")
 args = parser.parse_args()
 last_save_time = 0
@@ -266,18 +266,26 @@ def contrast_lines(test_code):
     else:
         test_loss = np.mean(accuracy_list)
 
-    test_bar = tqdm(total=len(dataloader) * common.BATCH_SIZE)
+    test_bar = tqdm(total=len(dataloader) * common.BATCH_SIZE * common.OUTPU_DIMENSION)
     for i,(data,label) in enumerate(dataloader):
         for idx in range(common.BATCH_SIZE):
-            real_list.append(np.array(label[idx]*common.std_list[0]+common.mean_list[0]))
-            test_bar.update(1)
+            _tmp = []
+            for index in range(common.OUTPU_DIMENSION):
+                # real_list.append(np.array(label[idx]*common.std_list[0]+common.mean_list[0]))
+                _tmp.append(label[idx][index]*common.std_list[index]+common.mean_list[index])
+                test_bar.update(1)
+            real_list.append(np.array(_tmp))
     test_bar.close()
-    test_bar = tqdm(total=len(predict_list) * common.BATCH_SIZE)
+    test_bar = tqdm(total=len(predict_list) * common.BATCH_SIZE * common.OUTPU_DIMENSION)
     for item in predict_list:
         item=item.to("cpu")
         for idx in range(common.BATCH_SIZE):
-            prediction_list.append(np.array((item[idx]*common.std_list[0]+common.mean_list[0])))
-            test_bar.update(1)
+            _tmp = []
+            for index in range(common.OUTPU_DIMENSION):
+                # prediction_list.append(np.array((item[idx]*common.std_list[0]+common.mean_list[0])))
+                _tmp.append(item[idx][index]*common.std_list[index]+common.mean_list[index])
+                test_bar.update(1)
+            prediction_list.append(np.array(_tmp))
     test_bar.close()
     pbar = tqdm(total=common.OUTPU_DIMENSION)
     for i in range(common.OUTPU_DIMENSION):
