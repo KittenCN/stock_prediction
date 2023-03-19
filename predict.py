@@ -291,7 +291,7 @@ def contrast_lines(test_code):
             plt.legend()
             now = datetime.now()
             date_string = now.strftime("%Y%m%d%H%M%S")
-            plt.savefig("./png/predict/"+cnname+"_"+str(i)+"_"+date_string+"_Pre.png",dpi=3000)
+            plt.savefig("./png/predict/"+cnname+"_"+common.name_list[i]+"_"+date_string+"_Pre.png",dpi=3000)
             pbar.update(1)
         except:
             pbar.update(1)

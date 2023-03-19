@@ -32,6 +32,8 @@ csv_queue=queue.Queue()
 NoneDataFrame = pd.DataFrame(columns=["ts_code"])
 NoneDataFrame["ts_code"] = ["None"]
 
+name_list = ["open", "high", "low", "close", "change", "pct_chg", "vol", "amount"]
+
 device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def check_exist(address):
