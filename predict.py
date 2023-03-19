@@ -197,7 +197,9 @@ def loss_curve(loss_list):
     plt.plot(x,np.array(loss_list),label="train_loss")
     plt.ylabel("MSELoss")
     plt.xlabel("iteration")
-    plt.savefig("./png/train_loss/"+cnname+"_train_loss.png",dpi=3000)
+    now = datetime.now()
+    date_string = now.strftime("%Y%m%d%H%M%S")
+    plt.savefig("./png/train_loss/"+cnname+"_"+date_string+"_train_loss.png",dpi=3000)
     # plt.show()
 
 def contrast_lines(test_code):
@@ -279,11 +281,12 @@ def contrast_lines(test_code):
     pbar = tqdm(total=common.OUTPU_DIMENSION)
     for i in range(common.OUTPU_DIMENSION):
         try:
-            real_list = np.transpose(real_list)[i]
-            prediction_list = np.transpose(prediction_list)[i]
-            x=np.linspace(1,len(real_list),len(real_list))
-            plt.plot(x,np.array(real_list),label="real")
-            plt.plot(x,np.array(prediction_list),label="prediction")
+            _real_list = np.transpose(real_list)[i]
+            _prediction_list = np.transpose(prediction_list)[i]
+            plt.figure()
+            x=np.linspace(1,len(_real_list),len(_real_list))
+            plt.plot(x,np.array(_real_list),label="real")
+            plt.plot(x,np.array(_prediction_list),label="prediction")
             plt.legend()
             now = datetime.now()
             date_string = now.strftime("%Y%m%d%H%M%S")
@@ -420,10 +423,10 @@ if __name__=="__main__":
         print("Training finished!")
         print("Start create image for loss")
         loss_curve(loss_list)
-        # print("Start create image for pred-real")
-        # while contrast_lines(test_code) == -1:
-        #     test_index = random.randint(0, len(ts_codes) - 1)
-        #     test_code = [ts_codes[test_index]]
+        print("Start create image for pred-real")
+        while contrast_lines(test_code) == -1:
+            test_index = random.randint(0, len(ts_codes) - 1)
+            test_code = [ts_codes[test_index]]
     elif mode == "test":
         while contrast_lines(test_code) == -1:
             test_index = random.randint(0, len(ts_codes) - 1)

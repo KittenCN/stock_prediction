@@ -19,7 +19,7 @@ SAVE_NUM_EPOCH=50
 GET_DATA=True
 TEST_NUM=25
 SAVE_INTERVAL=300
-OUTPU_DIMENSION=1
+OUTPU_DIMENSION=8
 INPUT_DIMENSION=8
 
 mean_list=[]
@@ -72,8 +72,12 @@ class Stock_Data(Dataset):
                 self.value=torch.rand(self.data.shape[0]-SEQ_LEN,SEQ_LEN,self.data.shape[1])
                 self.label=torch.rand(self.data.shape[0]-SEQ_LEN,label_num)
                 for i in range(self.data.shape[0]-SEQ_LEN):                  
-                    self.value[i,:,:]=torch.from_numpy(self.data[i:i+SEQ_LEN,:].reshape(SEQ_LEN,self.data.shape[1]))    
-                    self.label[i,:]=self.data[i+SEQ_LEN,0]
+                    self.value[i,:,:]=torch.from_numpy(self.data[i:i+SEQ_LEN,:].reshape(SEQ_LEN,self.data.shape[1]))  
+                    # self.label[i,:]=self.data[i+SEQ_LEN,0]
+                    _tmp = []
+                    for index in range(OUTPU_DIMENSION):  
+                        _tmp.append(self.data[i+SEQ_LEN,index])
+                    self.label[i,:]=torch.Tensor(_tmp)
                 self.data=self.value
             else:
                 if dataFrame is None:
@@ -91,7 +95,11 @@ class Stock_Data(Dataset):
                 self.label=torch.rand(self.data.shape[0]-SEQ_LEN,label_num)
                 for i in range(self.data.shape[0]-SEQ_LEN):                  
                     self.value[i,:,:]=torch.from_numpy(self.data[i:i+SEQ_LEN,:].reshape(SEQ_LEN,self.data.shape[1]))    
-                    self.label[i,:]=self.data[i+SEQ_LEN,0]
+                    # self.label[i,:]=self.data[i+SEQ_LEN,0]
+                    _tmp = []
+                    for index in range(OUTPU_DIMENSION):  
+                        _tmp.append(self.data[i+SEQ_LEN,index])
+                    self.label[i,:]=torch.Tensor(_tmp)
                 self.data=self.value
         except Exception as e:
             print(e)
