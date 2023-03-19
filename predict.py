@@ -22,6 +22,7 @@ from datetime import datetime
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode")
+parser.add_argument('--batch_size', default=512, type=int, help="Batch_size")
 args = parser.parse_args()
 last_save_time = 0
 
@@ -312,6 +313,7 @@ def load_data(ts_codes):
 if __name__=="__main__":
     global test_loss
     mode = args.mode
+    common.BATCH_SIZE = args.batch_size
     test_loss = 0.00
     symbol = 'Generic.Data'
     # symbol = '000001.SZ'
