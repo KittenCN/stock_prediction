@@ -392,13 +392,13 @@ if __name__=="__main__":
                 train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
                 # print("Split the data for trainning and testing...")
                 if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
-                    tqdm.write("train_size is too small or too large")
+                    tqdm.write(ts_code + ":train_size is too small or too large")
                     code_bar.update(1)
                     continue
                 Train_data=data[:train_size+common.SEQ_LEN]
                 Test_data=data[train_size-common.SEQ_LEN:]
                 if Train_data is None or Test_data is None:
-                    tqdm.write("Train_data or Test_data is None")
+                    tqdm.write(ts_code + ":Train_data or Test_data is None")
                     code_bar.update(1)
                     continue
                 # Train_data.to_csv(common.train_path,sep=',',index=False,header=False)
