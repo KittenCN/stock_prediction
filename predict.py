@@ -21,7 +21,7 @@ from cycler import cycler# 用于定制线条颜色
 from datetime import datetime
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', default="test", type=str, help="select running mode")
+parser.add_argument('--mode', default="train", type=str, help="select running mode")
 parser.add_argument('--batch_size', default=512, type=int, help="Batch_size")
 args = parser.parse_args()
 last_save_time = 0
@@ -155,7 +155,7 @@ def train(epoch, dataloader):
             torch.save(model.state_dict(),save_path+"_Model.pkl")
             torch.save(optimizer.state_dict(),save_path+"_Optimizer.pkl")
             last_save_time = time.time()
-    if (epoch%common.SAVE_NUM_EPOCH==0 and time.time() - last_save_time >= common.SAVE_INTERVAL) or epoch==common.EPOCH:
+    if (epoch%common.SAVE_NUM_EPOCH==0  or epoch==common.EPOCH) and time.time() - last_save_time >= common.SAVE_INTERVAL:
         torch.save(model.state_dict(),save_path+"_Model.pkl")
         torch.save(optimizer.state_dict(),save_path+"_Optimizer.pkl")
         last_save_time = time.time()
@@ -427,6 +427,9 @@ if __name__=="__main__":
                 # pbar.set_description("ep=%d,lo=%.4f,tl=%.4f"%(epoch+1,loss.item(),test_loss))
                 pbar.set_description("ep=%d,lo=%.4f"%(epoch+1,loss.item()))
                 pbar.update(1)
+            torch.save(model.state_dict(),save_path+"_Model.pkl")
+            torch.save(optimizer.state_dict(),save_path+"_Optimizer.pkl")
+            last_save_time = time.time()
             pbar.close()
             code_bar.update(1)
         code_bar.close()
