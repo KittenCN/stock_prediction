@@ -132,19 +132,24 @@ class LSTM(nn.Module):
         return x
 #传入tensor进行位置编码
 class PositionalEncoding(nn.Module):
-    def __init__(self,d_model,max_len=SEQ_LEN):
-        super(PositionalEncoding,self).__init__()
-        #序列长度，dimension d_model
-        pe=torch.zeros(max_len,d_model)
-        position=torch.arange(0,max_len,dtype=torch.float).unsqueeze(1)
-        div_term=torch.exp(torch.arange(0,d_model,2).float()*(-math.log(10000.0)/d_model))
-        pe[:,0::2]=torch.sin(position*div_term)
-        pe[:,1::2]=torch.cos(position*div_term)
-        pe=pe.unsqueeze(0).transpose(0,1)
-        self.register_buffer('pe',pe)
-        
-    def forward(self,x):
-        return x+self.pe[:x.size(0),:]
+    def __init__(self, d_model, max_len=SEQ_LEN):
+        super(PositionalEncoding, self).__init__()
+        self.max_len = max_len
+        self.d_model = d_model
+        self.div_term = nn.Parameter(torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model)), requires_grad=False)
+        self.pe = nn.Parameter(torch.zeros(max_len, d_model), requires_grad=False)
+        self._init_pe()
+
+    def _init_pe(self):
+        position = torch.arange(0, self.max_len, dtype=torch.float).unsqueeze(1)
+        self.pe[:, 0::2] = torch.sin(position * self.div_term)
+        self.pe[:, 1::2] = torch.cos(position * self.div_term)
+
+    def forward(self, x):
+        pe = self.pe[:x.size(1), :]
+        pe = pe.unsqueeze(0).expand(x.size(0), -1, -1)
+        pe = pe.to(x.device).float()
+        return x + pe
 
 class TransAm(nn.Module):
     def __init__(self,feature_size=INPUT_DIMENSION,num_layers=6,dropout=0.1,nhead=8,d_model=512):
@@ -153,7 +158,8 @@ class TransAm(nn.Module):
         self.src_mask=None
         self.embedding=nn.Linear(feature_size,d_model)
         self.pos_encoder=PositionalEncoding(d_model)
-        self.encoder_layer=nn.TransformerEncoderLayer(d_model=d_model,nhead=nhead,dropout=dropout)
+        self.encoder_layer = nn.MultiheadAttention(d_model, nhead, dropout=dropout) 
+        # self.encoder_layer=nn.TransformerEncoderLayer(d_model=d_model,nhead=nhead,dropout=dropout)
         self.transformer_encoder=nn.TransformerEncoder(self.encoder_layer,num_layers=num_layers)
         #全连接层代替decoder
         self.decoder=nn.Linear(d_model,1)
@@ -167,13 +173,11 @@ class TransAm(nn.Module):
         self.decoder.weight.data.uniform_(-initrange,initrange)
         
     def forward(self,src,seq_len=SEQ_LEN):       
-        src=self.pos_encoder(src)
-        #print(src)
-        #print(self.src_mask)
-        #print(self.src_key_padding_mask)
-        #output=self.transformer_encoder(src,self.src_mask,self.src_key_padding_mask)
-        output=self.transformer_encoder(src)
-        output=self.decoder(output)
-        output=np.squeeze(output)
-        output=self.linear1(output)
+        src = self.embedding(src)
+        src = self.pos_encoder(src)
+        output, _ = self.encoder_layer(src, src, src)
+        output = output.transpose(0, 1).transpose(1, 2)
+        output = self.decoder(output)
+        output = output.squeeze()
+        output = self.linear1(output)
         return output
