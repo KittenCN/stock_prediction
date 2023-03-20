@@ -121,6 +121,7 @@ class LSTM(nn.Module):
         self.ELU = nn.ELU()
     def forward(self,x):
         # out,_=self.lstm(x)
+        lengths = [s.size(0) for s in x] # 获取数据真实的长度
         x_packed = nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True, enforce_sorted=False)
         out_packed, _ = self.lstm(x_packed)
         out, lengths = nn.utils.rnn.pad_packed_sequence(out_packed, batch_first=True)
