@@ -19,10 +19,11 @@ import time
 from tqdm import tqdm
 from cycler import cycler# 用于定制线条颜色
 from datetime import datetime
+from torch.cuda.amp import autocast, GradScaler
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode")
-parser.add_argument('--model', default="LSTM", type=str, help="LSTM or TRANSFORMER")
+parser.add_argument('--model', default="TRANSFORMER", type=str, help="LSTM or TRANSFORMER")
 parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
 args = parser.parse_args()
 last_save_time = 0
@@ -134,18 +135,26 @@ def draw_Kline(df,period,symbol):
         %(symbol, period) + '.jpg')
     plt.show()
 
-def train(epoch, dataloader):
+def train(epoch, dataloader, scaler):
     global loss, last_save_time, loss_list, iteration
     model.train()
     subbar = tqdm(total=len(dataloader), leave=False)
     for i,(data,label) in enumerate(dataloader):
         iteration=iteration+1
         data,label = data.to(common.device),label.to(common.device)
+        # 开启autocast
+        with autocast():
+            # 前向传播
+            outputs = model.forward(data)
+            loss = criterion(outputs, label)
         optimizer.zero_grad()
-        output=model.forward(data)
-        loss=criterion(output,label)
-        loss.backward()        
-        optimizer.step()
+        # output=model.forward(data)
+        # loss=criterion(output,label)
+        # loss.backward()        
+        # optimizer.step()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
         subbar.set_description("iter=%d,lo=%.4f"%(iteration,loss.item()))
         subbar.update(1)
         if i%20==0:
@@ -378,6 +387,7 @@ if __name__=="__main__":
         data_thread = threading.Thread(target=load_data, args=(ts_codes,))
         data_thread.start()
         code_bar = tqdm(total=len(ts_codes))
+        scaler = GradScaler()
         for index, ts_code in enumerate(ts_codes):
             try:
                 # if common.GET_DATA:
@@ -427,7 +437,7 @@ if __name__=="__main__":
             for epoch in range(0,common.EPOCH):
                 predict_list=[]
                 accuracy_list=[]
-                train(epoch+1, train_dataloader)
+                train(epoch+1, train_dataloader, scaler)
                 pbar.set_description("ep=%d,lo=%.4f"%(epoch+1,loss.item()))
                 pbar.update(1)
             if time.time() - last_save_time >= common.SAVE_INTERVAL or index == len(ts_codes) - 1:
