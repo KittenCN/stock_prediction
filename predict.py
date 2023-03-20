@@ -350,7 +350,6 @@ if __name__=="__main__":
     transformer_path="./"+cnname+"/TRANSFORMER"
     save_path=lstm_path
 
-    model_mode="LSTM"
     if model_mode=="LSTM":
         model=common.LSTM(dimension=common.INPUT_DIMENSION)
         test_model=common.LSTM(dimension=common.INPUT_DIMENSION)
