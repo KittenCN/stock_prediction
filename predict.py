@@ -25,6 +25,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode")
 parser.add_argument('--model', default="TRANSFORMER", type=str, help="LSTM or TRANSFORMER")
 parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
+parser.add_argument('--begin_code', default="", type=str, help="begin code")
 args = parser.parse_args()
 last_save_time = 0
 
@@ -392,6 +393,12 @@ if __name__=="__main__":
                 # if common.GET_DATA:
                 #     dataFrame = get_stock_data(ts_code, False)
                 # data = import_csv(ts_code, dataFrame)
+                if args.begin_code != "":
+                    if ts_code != args.begin_code:
+                        code_bar.update(1)
+                        continue
+                    else:
+                        args.begin_code = ""
                 lastFlag = 0
                 data = common.data_queue.get()
                 data_len = common.data_queue.qsize()
