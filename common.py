@@ -153,32 +153,27 @@ class PositionalEncoding(nn.Module):
         return x + pe
 
 class TransAm(nn.Module):
-    def __init__(self,feature_size=INPUT_DIMENSION,num_layers=6,dropout=0.1,nhead=8,d_model=512):
-        super(TransAm,self).__init__()
-        self.model_type='Transformer'
-        self.src_mask=None
-        self.embedding=nn.Linear(feature_size,d_model)
-        self.pos_encoder=PositionalEncoding(d_model)
-        self.encoder_layer = nn.MultiheadAttention(d_model, nhead, dropout=dropout) 
-        # self.encoder_layer=nn.TransformerEncoderLayer(d_model=d_model,nhead=nhead,dropout=dropout)
-        self.transformer_encoder=nn.TransformerEncoder(self.encoder_layer,num_layers=num_layers)
-        #全连接层代替decoder
-        self.decoder=nn.Linear(d_model,1)
-        self.linear1=nn.Linear(SEQ_LEN,1)
+    def __init__(self, feature_size: int = 8, num_layers: int = 6, dropout: float = 0.1):
+        super(TransAm, self).__init__()
+        self.model_type = 'Transformer'
+        self.src_mask = None
+        self.pos_encoder = PositionalEncoding(feature_size)
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=feature_size, nhead=8, dropout=dropout)
+        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=num_layers)
+        self.decoder = nn.Linear(feature_size, 1)
+        self.linear1 = nn.Linear(SEQ_LEN, OUTPU_DIMENSION)
         self.init_weights()
-        self.src_key_padding_mask=None
-    
+        self.src_key_padding_mask = None
+
     def init_weights(self):
-        initrange=0.1
-        self.decoder.bias.data.zero_()
-        self.decoder.weight.data.uniform_(-initrange,initrange)
-        
-    def forward(self,src,seq_len=SEQ_LEN):       
-        src = self.embedding(src)
+        initrange = 0.1
+        nn.init.zeros_(self.decoder.bias)
+        nn.init.uniform_(self.decoder.weight, -initrange, initrange)
+
+    def forward(self, src: torch.Tensor, seq_len: int = SEQ_LEN) -> torch.Tensor:
         src = self.pos_encoder(src)
-        output, _ = self.encoder_layer(src, src, src)
-        output = output.transpose(0, 1).transpose(1, 2)
+        output = self.transformer_encoder(src)
         output = self.decoder(output)
-        output = output.squeeze()
+        output = torch.squeeze(output)
         output = self.linear1(output)
         return output

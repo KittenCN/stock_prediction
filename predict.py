@@ -22,7 +22,8 @@ from datetime import datetime
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode")
-parser.add_argument('--batch_size', default=512, type=int, help="Batch_size")
+parser.add_argument('--model', default="LSTM", type=str, help="LSTM or TRANSFORMER")
+parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
 args = parser.parse_args()
 last_save_time = 0
 
@@ -328,6 +329,7 @@ if __name__=="__main__":
     global test_loss
     mode = args.mode
     common.BATCH_SIZE = args.batch_size
+    model_mode = args.model
     test_loss = 0.00
     symbol = 'Generic.Data'
     # symbol = '000001.SZ'
