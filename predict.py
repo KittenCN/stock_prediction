@@ -47,7 +47,7 @@ def import_csv(stock_code, dataFrame=None):
         df = pd.read_csv('stock_daily/'+stock_code + '.csv')
     elif os.path.exists('stock_daily/'+stock_code + '.csv') == False and dataFrame is None:
         # print('stock_daily/'+stock_code + '.csv'+' not exist')
-        common.csv_queue.put(common.NoneDataFrame)
+        # common.csv_queue.put(common.NoneDataFrame)
         return None
     elif dataFrame is not None:
         df = dataFrame
@@ -62,9 +62,9 @@ def import_csv(stock_code, dataFrame=None):
     df['Date'] = pd.to_datetime(df['Date'],format='%Y%m%d')    
     df.set_index(df['Date'], inplace=True)
     if df.empty:
-        common.csv_queue.put(common.NoneDataFrame)
+        # common.csv_queue.put(common.NoneDataFrame)
         return None
-    common.csv_queue.put(df)
+    # common.csv_queue.put(df)
     return df
 
 def draw_Kline(df,period,symbol):
@@ -229,8 +229,8 @@ def contrast_lines(test_code):
     accuracy_list=[]
 
     print("test_code=",test_code)
-    load_data(test_code)
-    data = common.data_queue.get()
+    data = load_data(test_code)
+    # data = common.data_queue.get()
     print("data.shape=",data.shape)
     if data.empty or data["ts_code"][0] == "None":
         print("Error: data is empty or ts_code is None")
@@ -327,15 +327,17 @@ def contrast_lines(test_code):
     # plt.show()
 
 def load_data(ts_codes):
+    data = []
     for ts_code in ts_codes:
-        if common.data_queue.empty():
-            print("data_queue is empty, loading data...")
+        # if common.data_queue.empty():
+        #     print("data_queue is empty, loading data...")
         if common.GET_DATA:
             # get_stock_data(ts_code, False)
             # dataFrame = common.stock_data_queue.get()
-            import_csv(ts_code, None)
-            data = common.csv_queue.get()
-            common.data_queue.put(data)
+            data.append(import_csv(ts_code, None))
+            # data = common.csv_queue.get()
+            # common.data_queue.put(data)
+    return data
 
 if __name__=="__main__":
     global test_loss

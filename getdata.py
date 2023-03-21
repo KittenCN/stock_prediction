@@ -2,7 +2,7 @@ import os
 import threading
 import time
 import tushare as ts
-import common
+# import common
 from tqdm import tqdm
 
 pro = ts.pro_api('546dfa0ae0cee993337b8e1d755912059be77d436b49b95e7cf7732d')
@@ -24,13 +24,13 @@ def get_stock_list():
     stock_list = df["ts_code"].tolist()
     # print(stock_list)
     # 
-    common.stock_list_queue.put(stock_list)
+    # common.stock_list_queue.put(stock_list)
     return stock_list
 
 def get_stock_data(ts_code="", save=True, start_code=""):
     if ts_code == "":
         get_stock_list()
-        stock_list = common.stock_list_queue.get()
+        # stock_list = common.stock_list_queue.get()
     else:
         stock_list = [ts_code]
     if start_code != "":
@@ -84,10 +84,10 @@ def get_stock_data(ts_code="", save=True, start_code=""):
         if save == False:
             # return df
             if df.empty == False:
-                common.stock_data_queue.put(df)
+                # common.stock_data_queue.put(df)
                 return df
             else:
-                common.stock_data_queue.put(common.NoneDataFrame)
+                # common.stock_data_queue.put(common.NoneDataFrame)
                 return None
 
 if __name__ == "__main__":

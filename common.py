@@ -1,6 +1,6 @@
 import math
 import os
-import queue
+# import queue
 import numpy as np
 import pandas as pd
 import torch
@@ -24,10 +24,10 @@ INPUT_DIMENSION=8
 
 mean_list=[]
 std_list=[]
-data_queue=queue.Queue()
-stock_data_queue=queue.Queue()
-stock_list_queue = queue.Queue()
-csv_queue=queue.Queue()
+# data_queue=queue.Queue()
+# stock_data_queue=queue.Queue()
+# stock_list_queue = queue.Queue()
+# csv_queue=queue.Queue()
 
 NoneDataFrame = pd.DataFrame(columns=["ts_code"])
 NoneDataFrame["ts_code"] = ["None"]
