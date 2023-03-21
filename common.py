@@ -56,6 +56,29 @@ class DataLoaderX(DataLoader):
     def __iter__(self):
         return BackgroundGenerator(super().__iter__())
 
+class CSV_dataset(Dataset):
+    def __init__(self, train=True,ts_codes="") -> None:
+        self.ts_codes = ts_codes
+        self.train = train
+    
+    def __len__(self) -> int:
+        return len(self.ts_codes)
+
+    def __getitem__(self, index):
+        ts_code = self.ts_codes[index]
+        data = import_csv(ts_code, None)
+        data.drop(['ts_code','Date'],axis=1,inplace = True)    
+        train_size=int(TRAIN_WEIGHT*(data.shape[0]))
+        if train_size>=SEQ_LEN or train_size+SEQ_LEN<=data.shape[0]:
+            Train_data=data[:train_size+SEQ_LEN]
+            Test_data=data[train_size-SEQ_LEN:]
+            if self.train==True:
+                df=Train_data
+            else:
+                df=Test_data
+            _data = Stock_Data(train=self.train, dataFrame=df, label_num=OUTPU_DIMENSION)
+        return list(zip(_data.get_data(), _data.get_label()))
+
 #完成数据集类
 class Stock_Data(Dataset):
     def __init__(self,train=True,transform=None,dataFrame=None,label_num=1):       
@@ -67,7 +90,7 @@ class Stock_Data(Dataset):
                         #可以注释
                         #addi=np.zeros((self.data.shape[0],1))
                         #self.data=np.concatenate((self.data,addi),axis=1)
-                else:
+                elif dataFrame is not None:
                     self.data=dataFrame.values
                 self.data=self.data[:,0:INPUT_DIMENSION]
                 for i in range(len(self.data[0])):
@@ -187,3 +210,56 @@ class TransAm(nn.Module):
         output = torch.squeeze(output)
         output = self.linear1(output)
         return output
+
+def load_data(ts_codes):
+    data = []
+    for ts_code in ts_codes:
+        # if common.data_queue.empty():
+        #     print("data_queue is empty, loading data...")
+        if GET_DATA:
+            # get_stock_data(ts_code, False)
+            # dataFrame = common.stock_data_queue.get()
+            data.append(import_csv(ts_code, None))
+            # data = common.csv_queue.get()
+            # common.data_queue.put(data)
+    return data
+
+def import_csv(stock_code, dataFrame=None):
+    #time设为index的同时是否保留时间列
+    if os.path.exists('stock_daily/'+stock_code + '.csv') and dataFrame is None:
+        df = pd.read_csv('stock_daily/'+stock_code + '.csv')
+    elif os.path.exists('stock_daily/'+stock_code + '.csv') == False and dataFrame is None:
+        # print('stock_daily/'+stock_code + '.csv'+' not exist')
+        # common.csv_queue.put(common.NoneDataFrame)
+        return None
+    elif dataFrame is not None:
+        df = dataFrame
+    #清洗数据
+    df=data_wash(df,keepTime=False)
+    df.rename(
+            columns={
+            'trade_date': 'Date', 'open': 'Open', 
+            'high': 'High', 'low': 'Low', 
+            'close': 'Close', 'vol': 'Volume'}, 
+            inplace=True)
+    df['Date'] = pd.to_datetime(df['Date'],format='%Y%m%d')    
+    df.set_index(df['Date'], inplace=True)
+    if df.empty:
+        # common.csv_queue.put(common.NoneDataFrame)
+        return None
+    # common.csv_queue.put(df)
+    return df
+
+#数据清洗：丢弃行，或用上一行的值填充
+def data_wash(dataset,keepTime=False):
+    if keepTime:
+        dataset.fillna(axis=1,method='ffill')
+    else:
+        dataset.dropna()
+    return dataset
+
+def collate_fn(batch):
+    data = []
+    for item in batch:
+        data.extend(item)
+    return data
