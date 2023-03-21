@@ -395,6 +395,7 @@ if __name__=="__main__":
         data_thread.start()
         code_bar = tqdm(total=len(ts_codes))
         scaler = GradScaler()
+        data_in = data_out = []
         for index, ts_code in enumerate(ts_codes):
             try:
                 # if common.GET_DATA:
@@ -420,7 +421,7 @@ if __name__=="__main__":
                     m_loss = 0
                 else:
                     m_loss = np.mean(loss_list)
-                code_bar.set_description("%s %d|%d %.4f" % (ts_code,index,data_len,m_loss))
+                # code_bar.set_description("%s %d|%d %.4f" % (ts_code,index,data_len,m_loss))
                 df_draw=data[-period:]
                 # draw_Kline(df_draw,period,symbol)
                 data.drop(['ts_code','Date'],axis=1,inplace = True)    
@@ -440,35 +441,43 @@ if __name__=="__main__":
                 # Test_data.to_csv(common.test_path,sep=',',index=False,header=False)
                 stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPU_DIMENSION)
                 # stock_test=common.Stock_Data(train=False, dataFrame=Test_data)
+                if data_in == [] or data_out == []:
+                    data_in = stock_train.get_data()
+                    data_out = stock_train.get_label()
+                else:
+                    data_in = torch.cat((data_in, stock_train.get_data()), dim=0)
+                    data_out = torch.cat((data_out, stock_train.get_label()), dim=0)
                 iteration=0
-                loss_list=[]
+                # loss_list=[]
+                code_bar.update(1)
             except Exception as e:
                 print(e)
                 code_bar.update(1)
                 continue
-            #开始训练神经网络
-            # print("Start training the model...")
-            train_dataloader=common.DataLoaderX(dataset=stock_train,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
-            # test_dataloader=common.DataLoaderX(dataset=stock_test,batch_size=4,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
-            pbar = tqdm(total=common.EPOCH, leave=False)
-            lo_list=[]
-            for epoch in range(0,common.EPOCH):
-                predict_list=[]
-                accuracy_list=[]
-                train(epoch+1, train_dataloader, scaler)
-                if len(loss_list) == 0:
-                    m_loss = 0
-                else:
-                    m_loss = np.mean(loss_list)
-                pbar.set_description("ep=%d,lo=%.4f"%(epoch+1,m_loss))
-                pbar.update(1)
-            if time.time() - last_save_time >= common.SAVE_INTERVAL or index == len(ts_codes) - 1:
-                torch.save(model.state_dict(),save_path+"_Model.pkl")
-                torch.save(optimizer.state_dict(),save_path+"_Optimizer.pkl")
-                last_save_time = time.time()
-            pbar.close()
-            code_bar.update(1)
         code_bar.close()
+        stock_train = list(zip(data_in, data_out))
+        #开始训练神经网络
+        # print("Start training the model...")
+        train_dataloader=common.DataLoaderX(dataset=stock_train,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
+        # test_dataloader=common.DataLoaderX(dataset=stock_test,batch_size=4,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
+        pbar = tqdm(total=common.EPOCH, leave=False)
+        lo_list=[]
+        loss_list=[]
+        for epoch in range(0,common.EPOCH):
+            predict_list=[]
+            accuracy_list=[]
+            train(epoch+1, train_dataloader, scaler)
+            if len(loss_list) == 0:
+                m_loss = 0
+            else:
+                m_loss = np.mean(loss_list)
+            pbar.set_description("ep=%d,lo=%.4f"%(epoch+1,m_loss))
+            pbar.update(1)
+        if time.time() - last_save_time >= common.SAVE_INTERVAL or index == len(ts_codes) - 1:
+            torch.save(model.state_dict(),save_path+"_Model.pkl")
+            torch.save(optimizer.state_dict(),save_path+"_Optimizer.pkl")
+            last_save_time = time.time()
+        pbar.close()
         print("Training finished!")
         if len(loss_list) > 0:
             print("Start create image for loss")

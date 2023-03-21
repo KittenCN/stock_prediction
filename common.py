@@ -115,6 +115,10 @@ class Stock_Data(Dataset):
         return self.data[index],self.label[index]
     def __len__(self):
         return len(self.data[:,0])
+    def get_data(self):
+        return self.data
+    def get_label(self):
+        return self.label
 #LSTM模型
 class LSTM(nn.Module):
     def __init__(self,dimension):
