@@ -77,7 +77,9 @@ class CSV_dataset(Dataset):
             else:
                 df=Test_data
             _data = Stock_Data(train=self.train, dataFrame=df, label_num=OUTPU_DIMENSION)
-        return list(zip(_data.get_data(), _data.get_label()))
+            return list(zip(_data.get_data(), _data.get_label()))
+        else:
+            return None
 
 #完成数据集类
 class Stock_Data(Dataset):

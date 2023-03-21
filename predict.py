@@ -418,7 +418,7 @@ if __name__=="__main__":
         #开始训练神经网络
         # print("Start training the model...")
         stock_train = common.CSV_dataset(True, ts_codes)
-        train_dataloader=common.DataLoaderX(dataset=stock_train,batch_size=32,shuffle=True, num_workers=4, pin_memory=True, collate_fn=common.collate_fn)
+        train_dataloader=common.DataLoaderX(dataset=stock_train,batch_size=1,shuffle=True, num_workers=0, pin_memory=True, collate_fn=common.collate_fn)
         # test_dataloader=common.DataLoaderX(dataset=stock_test,batch_size=4,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
         pbar = tqdm(total=common.EPOCH, leave=False)
         lo_list=[]
@@ -429,6 +429,8 @@ if __name__=="__main__":
             accuracy_list=[]
             iteration=0
             for batch_data in train_dataloader:
+                if batch_data is None:
+                    continue
                 _train_dataloader=common.DataLoaderX(dataset=batch_data,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
                 train(epoch+1, _train_dataloader, scaler)
             if len(loss_list) == 0:
