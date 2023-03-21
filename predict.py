@@ -414,9 +414,9 @@ if __name__=="__main__":
                     tqdm.write("data is empty or data has invalid col")
                     code_bar.update(1)
                     continue
-                if data['ts_code'][0] != ts_code:
-                    tqdm.write("Error: ts_code is not match")
-                    exit(0)
+                # if data['ts_code'][0] != ts_code:
+                #     tqdm.write("Error: ts_code is not match")
+                #     exit(0)
                 if len(loss_list) == 0:
                     m_loss = 0
                 else:
