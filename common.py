@@ -263,5 +263,6 @@ def data_wash(dataset,keepTime=False):
 def collate_fn(batch):
     data = []
     for item in batch:
-        data.extend(item)
+        if item is not None:
+            data.extend(item)
     return data
