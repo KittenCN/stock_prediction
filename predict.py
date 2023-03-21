@@ -27,6 +27,9 @@ parser.add_argument('--model', default="LSTM", type=str, help="LSTM or TRANSFORM
 parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--epochs', default=10, type=int, help="epochs")
+parser.add_argument('--SEQ_LEN', default=179, type=int, help="SEQ_LEN")
+parser.add_argument('--lr', default=0.001, type=float, help="LEARNING_RATE")
+parser.add_argument('--wd', default=0.0001, type=float, help="WEIGHT_DECAY")
 args = parser.parse_args()
 last_save_time = 0
 
@@ -341,6 +344,9 @@ if __name__=="__main__":
     model_mode = args.model
     common.BATCH_SIZE = args.batch_size
     common.EPOCH = args.epochs
+    common.SEQ_LEN = args.SEQ_LEN
+    common.LEARNING_RATE = args.lr
+    common.WEIGHT_DECAY = args.wd
     test_loss = 0.00
     symbol = 'Generic.Data'
     # symbol = '000001.SZ'
