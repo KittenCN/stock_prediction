@@ -33,6 +33,9 @@ NoneDataFrame = pd.DataFrame(columns=["ts_code"])
 NoneDataFrame["ts_code"] = ["None"]
 
 name_list = ["open", "high", "low", "close", "change", "pct_chg", "vol", "amount"]
+use_list = [1,1,1,1,0,0,0,0]
+OUTPU_DIMENSION = sum(use_list)
+assert OUTPU_DIMENSION > 0
 
 device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -78,7 +81,8 @@ class Stock_Data(Dataset):
                     # self.label[i,:]=self.data[i+SEQ_LEN,0]
                     _tmp = []
                     for index in range(OUTPU_DIMENSION):  
-                        _tmp.append(self.data[i+SEQ_LEN,index])
+                        if use_list[index] == 1:
+                            _tmp.append(self.data[i+SEQ_LEN,index])
                     self.label[i,:]=torch.Tensor(_tmp)
                 self.data=self.value
             else:
@@ -100,7 +104,8 @@ class Stock_Data(Dataset):
                     # self.label[i,:]=self.data[i+SEQ_LEN,0]
                     _tmp = []
                     for index in range(OUTPU_DIMENSION):  
-                        _tmp.append(self.data[i+SEQ_LEN,index])
+                        if use_list[index] == 1:
+                            _tmp.append(self.data[i+SEQ_LEN,index])
                     self.label[i,:]=torch.Tensor(_tmp)
                 self.data=self.value
         except Exception as e:
@@ -118,7 +123,8 @@ class LSTM(nn.Module):
         self.linear1=nn.Linear(in_features=128,out_features=16)
         self.linear2=nn.Linear(16,OUTPU_DIMENSION)
         self.LeakyReLU=nn.LeakyReLU()
-        self.ELU = nn.ELU()
+        # self.ELU = nn.ELU()
+        # self.ReLU = nn.ReLU()
     def forward(self,x):
         # out,_=self.lstm(x)
         lengths = [s.size(0) for s in x] # 获取数据真实的长度
@@ -127,8 +133,8 @@ class LSTM(nn.Module):
         out, lengths = nn.utils.rnn.pad_packed_sequence(out_packed, batch_first=True)
         x=out[:,-1,:]        
         x=self.linear1(x)
-        # x=self.LeakyReLU(x)
-        x=self.ELU(x)
+        x=self.LeakyReLU(x)
+        # x=self.ELU(x)
         x=self.linear2(x)
         return x
 #传入tensor进行位置编码

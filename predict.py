@@ -26,6 +26,7 @@ parser.add_argument('--mode', default="train", type=str, help="select running mo
 parser.add_argument('--model', default="LSTM", type=str, help="LSTM or TRANSFORMER")
 parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
+parser.add_argument('--epochs', default=10, type=int, help="epochs")
 args = parser.parse_args()
 last_save_time = 0
 
@@ -285,8 +286,9 @@ def contrast_lines(test_code):
         for idx in range(common.BATCH_SIZE):
             _tmp = []
             for index in range(common.OUTPU_DIMENSION):
-                # real_list.append(np.array(label[idx]*common.std_list[0]+common.mean_list[0]))
-                _tmp.append(label[idx][index]*common.std_list[index]+common.mean_list[index])
+                if common.use_list[index] == 1:
+                    # real_list.append(np.array(label[idx]*common.std_list[0]+common.mean_list[0]))
+                    _tmp.append(label[idx][index]*common.std_list[index]+common.mean_list[index])
                 test_bar.update(1)
             real_list.append(np.array(_tmp))
     test_bar.close()
@@ -296,8 +298,9 @@ def contrast_lines(test_code):
         for idx in range(common.BATCH_SIZE):
             _tmp = []
             for index in range(common.OUTPU_DIMENSION):
-                # prediction_list.append(np.array((item[idx]*common.std_list[0]+common.mean_list[0])))
-                _tmp.append(item[idx][index]*common.std_list[index]+common.mean_list[index])
+                if common.use_list[index] == 1:
+                    # prediction_list.append(np.array((item[idx]*common.std_list[0]+common.mean_list[0])))
+                    _tmp.append(item[idx][index]*common.std_list[index]+common.mean_list[index])
                 test_bar.update(1)
             prediction_list.append(np.array(_tmp))
     test_bar.close()
@@ -335,10 +338,11 @@ def load_data(ts_codes):
 
 if __name__=="__main__":
     global test_loss
-    loss_list=[]
+    loss_list=[0]
     mode = args.mode
-    common.BATCH_SIZE = args.batch_size
     model_mode = args.model
+    common.BATCH_SIZE = args.batch_size
+    common.EPOCH = args.epochs
     test_loss = 0.00
     symbol = 'Generic.Data'
     # symbol = '000001.SZ'
