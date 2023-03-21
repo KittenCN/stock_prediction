@@ -428,11 +428,15 @@ if __name__=="__main__":
             predict_list=[]
             accuracy_list=[]
             iteration=0
-            for batch_data in train_dataloader:
+            bbar = tqdm(total=len(train_dataloader), leave=False)
+            for index, batch_data in enumerate(train_dataloader):
                 if batch_data is None:
                     continue
                 _train_dataloader=common.DataLoaderX(dataset=batch_data,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
                 train(epoch+1, _train_dataloader, scaler)
+                bbar.update(1)
+                bbar.set_description("it=%d,lo=%.4f"%(index+1,loss.item()))
+            bbar.close()
             if len(loss_list) == 0:
                 m_loss = 0
             else:
