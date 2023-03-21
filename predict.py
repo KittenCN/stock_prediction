@@ -23,7 +23,7 @@ from torch.cuda.amp import autocast, GradScaler
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode")
-parser.add_argument('--model', default="TRANSFORMER", type=str, help="LSTM or TRANSFORMER")
+parser.add_argument('--model', default="LSTM", type=str, help="LSTM or TRANSFORMER")
 parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
 args = parser.parse_args()
@@ -137,7 +137,7 @@ def draw_Kline(df,period,symbol):
     plt.show()
 
 def train(epoch, dataloader, scaler):
-    global loss, last_save_time, loss_list, iteration
+    global loss, last_save_time, loss_list, iteration, lo_list
     model.train()
     subbar = tqdm(total=len(dataloader), leave=False)
     for i,(data,label) in enumerate(dataloader):
@@ -158,10 +158,8 @@ def train(epoch, dataloader, scaler):
         scaler.update()
         subbar.set_description("iter=%d,lo=%.4f"%(iteration,loss.item()))
         subbar.update(1)
-        if i%20==0:
-            loss_list.append(loss.item())
-            # print("epoch=",epoch,"iteration=",iteration,"loss=",loss.item())
-        
+        loss_list.append(loss.item())      
+        lo_list.append(loss.item())  
         if iteration%common.SAVE_NUM_ITER==0 and time.time() - last_save_time >= common.SAVE_INTERVAL:
             torch.save(model.state_dict(),save_path+"_Model.pkl")
             torch.save(optimizer.state_dict(),save_path+"_Optimizer.pkl")
@@ -337,6 +335,7 @@ def load_data(ts_codes):
 
 if __name__=="__main__":
     global test_loss
+    loss_list=[]
     mode = args.mode
     common.BATCH_SIZE = args.batch_size
     model_mode = args.model
@@ -409,7 +408,7 @@ if __name__=="__main__":
                 if data['ts_code'][0] != ts_code:
                     tqdm.write("Error: ts_code is not match")
                     exit(0)
-                code_bar.set_description("%s %d:%d" % (ts_code,index,data_len))
+                code_bar.set_description("%s %d|%d %.4f" % (ts_code,index,data_len,np.mean(loss_list)))
                 df_draw=data[-period:]
                 # draw_Kline(df_draw,period,symbol)
                 data.drop(['ts_code','Date'],axis=1,inplace = True)    
@@ -440,11 +439,12 @@ if __name__=="__main__":
             train_dataloader=common.DataLoaderX(dataset=stock_train,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
             # test_dataloader=common.DataLoaderX(dataset=stock_test,batch_size=4,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
             pbar = tqdm(total=common.EPOCH, leave=False)
+            lo_list=[]
             for epoch in range(0,common.EPOCH):
                 predict_list=[]
                 accuracy_list=[]
                 train(epoch+1, train_dataloader, scaler)
-                pbar.set_description("ep=%d,lo=%.4f"%(epoch+1,loss.item()))
+                pbar.set_description("ep=%d,lo=%.4f"%(epoch+1,np.mean(lo_list)))
                 pbar.update(1)
             if time.time() - last_save_time >= common.SAVE_INTERVAL or index == len(ts_codes) - 1:
                 torch.save(model.state_dict(),save_path+"_Model.pkl")
@@ -454,8 +454,9 @@ if __name__=="__main__":
             code_bar.update(1)
         code_bar.close()
         print("Training finished!")
-        print("Start create image for loss")
-        loss_curve(loss_list)
+        if len(loss_list) > 0:
+            print("Start create image for loss")
+            loss_curve(loss_list)
         print("Start create image for pred-real")
         while contrast_lines(test_code) == -1:
             test_index = random.randint(0, len(ts_codes) - 1)
