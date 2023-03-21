@@ -198,9 +198,8 @@ def test(dataloader):
                 accuracy_list.append(accuracy.item())
         # print("test_data MSELoss:(pred-real)/real=",np.mean(accuracy_list))
         if len(accuracy_list) == 0:
-           test_loss = 0.00
-        else:
-            test_loss = np.mean(accuracy_list)
+            accuracy_list = [0]
+        test_loss = np.mean(accuracy_list)
 
 def loss_curve(loss_list):
     try:
@@ -275,11 +274,10 @@ def contrast_lines(test_code):
             accuracy_list.append(accuracy.item())
         test_bar.update(1)
     test_bar.close()
-    print("test_data MSELoss:(pred-real)/real=",np.mean(accuracy_list))
     if len(accuracy_list) == 0:
-        test_loss = 0.00
-    else:
-        test_loss = np.mean(accuracy_list)
+        accuracy_list = [0]
+    test_loss = np.mean(accuracy_list)
+    print("test_data MSELoss:(pred-real)/real=",test_loss)
 
     test_bar = tqdm(total=len(dataloader) * common.BATCH_SIZE * common.OUTPU_DIMENSION)
     for i,(data,label) in enumerate(dataloader):
@@ -338,7 +336,7 @@ def load_data(ts_codes):
 
 if __name__=="__main__":
     global test_loss
-    loss_list=[0]
+    loss_list=[]
     mode = args.mode
     model_mode = args.model
     common.BATCH_SIZE = args.batch_size
@@ -412,7 +410,11 @@ if __name__=="__main__":
                 if data['ts_code'][0] != ts_code:
                     tqdm.write("Error: ts_code is not match")
                     exit(0)
-                code_bar.set_description("%s %d|%d %.4f" % (ts_code,index,data_len,np.mean(loss_list)))
+                if len(loss_list) == 0:
+                    m_loss = 0
+                else:
+                    m_loss = np.mean(loss_list)
+                code_bar.set_description("%s %d|%d %.4f" % (ts_code,index,data_len,m_loss))
                 df_draw=data[-period:]
                 # draw_Kline(df_draw,period,symbol)
                 data.drop(['ts_code','Date'],axis=1,inplace = True)    
@@ -448,7 +450,11 @@ if __name__=="__main__":
                 predict_list=[]
                 accuracy_list=[]
                 train(epoch+1, train_dataloader, scaler)
-                pbar.set_description("ep=%d,lo=%.4f"%(epoch+1,np.mean(lo_list)))
+                if len(loss_list) == 0:
+                    m_loss = 0
+                else:
+                    m_loss = np.mean(loss_list)
+                pbar.set_description("ep=%d,lo=%.4f"%(epoch+1,m_loss))
                 pbar.update(1)
             if time.time() - last_save_time >= common.SAVE_INTERVAL or index == len(ts_codes) - 1:
                 torch.save(model.state_dict(),save_path+"_Model.pkl")
