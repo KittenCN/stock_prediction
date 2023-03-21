@@ -110,6 +110,7 @@ def train(epoch, dataloader, scaler):
     global loss, last_save_time, loss_list, iteration, lo_list
     model.train()
     subbar = tqdm(total=len(dataloader), leave=False)
+    loss = -1
     for i,(data,label) in enumerate(dataloader):
         iteration=iteration+1
         data,label = data.to(common.device),label.to(common.device)
@@ -435,7 +436,11 @@ if __name__=="__main__":
                 _train_dataloader=common.DataLoaderX(dataset=batch_data,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
                 train(epoch+1, _train_dataloader, scaler)
                 bbar.update(1)
-                bbar.set_description("it=%d,lo=%.4f"%(index+1,loss.item()))
+                if loss == -1:
+                    _loss = 0
+                else:
+                    _loss = loss.item()
+                bbar.set_description("it=%d,lo=%.4f"%(index+1,_loss))
             bbar.close()
             if len(loss_list) == 0:
                 m_loss = 0
