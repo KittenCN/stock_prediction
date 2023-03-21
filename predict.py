@@ -218,7 +218,7 @@ def loss_curve(loss_list):
         # plt.show()
         plt.close()
     except Exception as e:
-        print("Error: loss_curve",e)
+        tqdm.write("Error: loss_curve",e)
 
 def contrast_lines(test_code):
     global stock_test, test_loss
@@ -228,25 +228,25 @@ def contrast_lines(test_code):
     predict_list=[]
     accuracy_list=[]
 
-    print("test_code=",test_code)
+    tqdm.write("test_code=",test_code)
     load_data(test_code)
     data = common.data_queue.get()
-    print("data.shape=",data.shape)
+    tqdm.write("data.shape=",data.shape)
     if data.empty or data["ts_code"][0] == "None":
-        print("Error: data is empty or ts_code is None")
+        tqdm.write("Error: data is empty or ts_code is None")
         return
     if data['ts_code'][0] != test_code[0]:
-        print("Error: ts_code is not match")
+        tqdm.write("Error: ts_code is not match")
         return
     data.drop(['ts_code','Date'],axis=1,inplace = True)    
     train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
     if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
-        print("Error: train_size is too small or too large")
+        tqdm.write("Error: train_size is too small or too large")
         return -1
     Train_data=data[:train_size+common.SEQ_LEN]
     Test_data=data[train_size-common.SEQ_LEN:]
     if Train_data is None or Test_data is None:
-        print("Error: Train_data or Test_data is None")
+        tqdm.write("Error: Train_data or Test_data is None")
         return
     stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPU_DIMENSION)
     stock_test=common.Stock_Data(train=False, dataFrame=Test_data, label_num=common.OUTPU_DIMENSION)
@@ -256,13 +256,13 @@ def contrast_lines(test_code):
     test_criterion=nn.MSELoss()
     test_optimizer=optim.Adam(test_model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)
     if os.path.exists(save_path+"_Model.pkl") and os.path.exists(save_path+"_Optimizer.pkl"):
-        print("Load model and optimizer from file")
+        tqdm.write("Load model and optimizer from file")
         test_model.load_state_dict(torch.load(save_path+"_Model.pkl"))
         test_optimizer.load_state_dict(torch.load(save_path+"_Optimizer.pkl"))
     test_model.eval()
     test_optimizer.zero_grad()
     if len(stock_test) < common.BATCH_SIZE:
-        print("Error: len(stock_test) < common.BATCH_SIZE")
+        tqdm.write("Error: len(stock_test) < common.BATCH_SIZE")
         return -1
     test_bar = tqdm(total=len(dataloader))
     for i,(data,label) in enumerate(dataloader):
@@ -280,7 +280,7 @@ def contrast_lines(test_code):
     if len(accuracy_list) == 0:
         accuracy_list = [0]
     test_loss = np.mean(accuracy_list)
-    print("test_data MSELoss:(pred-real)/real=",test_loss)
+    tqdm.write("test_data MSELoss:(pred-real)/real=",test_loss)
 
     test_bar = tqdm(total=len(dataloader) * common.BATCH_SIZE * common.OUTPU_DIMENSION)
     for i,(data,label) in enumerate(dataloader):
@@ -329,7 +329,7 @@ def contrast_lines(test_code):
 def load_data(ts_codes):
     for ts_code in ts_codes:
         if common.data_queue.empty():
-            print("data_queue is empty, loading data...")
+            tqdm.write("data_queue is empty, loading data...")
         if common.GET_DATA:
             # get_stock_data(ts_code, False)
             # dataFrame = common.stock_data_queue.get()
@@ -393,87 +393,92 @@ if __name__=="__main__":
     if mode == 'train':
         data_thread = threading.Thread(target=load_data, args=(ts_codes,))
         data_thread.start()
-        code_bar = tqdm(total=len(ts_codes))
+        # data_thread.join()
         scaler = GradScaler()
-        for index, ts_code in enumerate(ts_codes):
-            try:
-                # if common.GET_DATA:
-                #     dataFrame = get_stock_data(ts_code, False)
-                # data = import_csv(ts_code, dataFrame)
-                if args.begin_code != "":
-                    if ts_code != args.begin_code:
+        pbar = tqdm(total=common.EPOCH, leave=False)
+        lo_list=[]
+        for epoch in range(0,common.EPOCH):
+            if common.data_queue.empty() and data_thread.is_alive() == False:
+                data_thread = threading.Thread(target=load_data, args=(ts_codes,))  
+                data_thread.start()
+            code_bar = tqdm(total=len(ts_codes))
+            for index, ts_code in enumerate(ts_codes):
+                try:
+                    # if common.GET_DATA:
+                    #     dataFrame = get_stock_data(ts_code, False)
+                    # data = import_csv(ts_code, dataFrame)
+                    if args.begin_code != "":
+                        if ts_code != args.begin_code:
+                            code_bar.update(1)
+                            continue
+                        else:
+                            args.begin_code = ""
+                    lastFlag = 0
+                    data = common.data_queue.get()
+                    data_len = common.data_queue.qsize()
+                    if data.empty or data["ts_code"][0] == "None":
+                        tqdm.write("data is empty or data has invalid col")
                         code_bar.update(1)
                         continue
+                    if data['ts_code'][0] != ts_code:
+                        tqdm.write("Error: ts_code is not match")
+                        exit(0)
+                    if len(loss_list) == 0:
+                        m_loss = 0
                     else:
-                        args.begin_code = ""
-                lastFlag = 0
-                data = common.data_queue.get()
-                data_len = common.data_queue.qsize()
-                if data.empty or data["ts_code"][0] == "None":
-                    tqdm.write("data is empty or data has invalid col")
+                        m_loss = np.mean(loss_list)
+                    code_bar.set_description("%s %d|%d %.4f" % (ts_code,index,data_len,m_loss))
+                    df_draw=data[-period:]
+                    # draw_Kline(df_draw,period,symbol)
+                    data.drop(['ts_code','Date'],axis=1,inplace = True)    
+                    train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
+                    # print("Split the data for trainning and testing...")
+                    if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
+                        tqdm.write(ts_code + ":train_size is too small or too large")
+                        code_bar.update(1)
+                        continue
+                    Train_data=data[:train_size+common.SEQ_LEN]
+                    Test_data=data[train_size-common.SEQ_LEN:]
+                    if Train_data is None or Test_data is None:
+                        tqdm.write(ts_code + ":Train_data or Test_data is None")
+                        code_bar.update(1)
+                        continue
+                    # Train_data.to_csv(common.train_path,sep=',',index=False,header=False)
+                    # Test_data.to_csv(common.test_path,sep=',',index=False,header=False)
+                    stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPU_DIMENSION)
+                    # stock_test=common.Stock_Data(train=False, dataFrame=Test_data)
+                    iteration=0
+                    loss_list=[]
+                except Exception as e:
+                    tqdm.write(e)
                     code_bar.update(1)
                     continue
-                if data['ts_code'][0] != ts_code:
-                    tqdm.write("Error: ts_code is not match")
-                    exit(0)
-                if len(loss_list) == 0:
-                    m_loss = 0
-                else:
-                    m_loss = np.mean(loss_list)
-                code_bar.set_description("%s %d|%d %.4f" % (ts_code,index,data_len,m_loss))
-                df_draw=data[-period:]
-                # draw_Kline(df_draw,period,symbol)
-                data.drop(['ts_code','Date'],axis=1,inplace = True)    
-                train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
-                # print("Split the data for trainning and testing...")
-                if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
-                    tqdm.write(ts_code + ":train_size is too small or too large")
-                    code_bar.update(1)
-                    continue
-                Train_data=data[:train_size+common.SEQ_LEN]
-                Test_data=data[train_size-common.SEQ_LEN:]
-                if Train_data is None or Test_data is None:
-                    tqdm.write(ts_code + ":Train_data or Test_data is None")
-                    code_bar.update(1)
-                    continue
-                # Train_data.to_csv(common.train_path,sep=',',index=False,header=False)
-                # Test_data.to_csv(common.test_path,sep=',',index=False,header=False)
-                stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPU_DIMENSION)
-                # stock_test=common.Stock_Data(train=False, dataFrame=Test_data)
-                iteration=0
-                loss_list=[]
-            except Exception as e:
-                print(e)
-                code_bar.update(1)
-                continue
-            #开始训练神经网络
-            # print("Start training the model...")
-            train_dataloader=common.DataLoaderX(dataset=stock_train,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
-            # test_dataloader=common.DataLoaderX(dataset=stock_test,batch_size=4,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
-            pbar = tqdm(total=common.EPOCH, leave=False)
-            lo_list=[]
-            for epoch in range(0,common.EPOCH):
+                #开始训练神经网络
+                # print("Start training the model...")
+                train_dataloader=common.DataLoaderX(dataset=stock_train,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
+                # test_dataloader=common.DataLoaderX(dataset=stock_test,batch_size=4,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
+                
                 predict_list=[]
                 accuracy_list=[]
                 train(epoch+1, train_dataloader, scaler)
-                if len(loss_list) == 0:
-                    m_loss = 0
-                else:
-                    m_loss = np.mean(loss_list)
-                pbar.set_description("ep=%d,lo=%.4f"%(epoch+1,m_loss))
-                pbar.update(1)
+                code_bar.update(1)
             if time.time() - last_save_time >= common.SAVE_INTERVAL or index == len(ts_codes) - 1:
                 torch.save(model.state_dict(),save_path+"_Model.pkl")
                 torch.save(optimizer.state_dict(),save_path+"_Optimizer.pkl")
                 last_save_time = time.time()
-            pbar.close()
-            code_bar.update(1)
-        code_bar.close()
-        print("Training finished!")
+            code_bar.close()
+            if len(loss_list) == 0:
+                    m_loss = 0
+            else:
+                m_loss = np.mean(loss_list)
+            pbar.set_description("ep=%d,lo=%.4f"%(epoch+1,m_loss))
+            pbar.update(1)
+        pbar.close()
+        tqdm.write("Training finished!")
         if len(loss_list) > 0:
-            print("Start create image for loss")
+            tqdm.write("Start create image for loss")
             loss_curve(loss_list)
-        print("Start create image for pred-real")
+        tqdm.write("Start create image for pred-real")
         while contrast_lines(test_code) == -1:
             test_index = random.randint(0, len(ts_codes) - 1)
             test_code = [ts_codes[test_index]]
