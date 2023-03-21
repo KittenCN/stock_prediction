@@ -391,16 +391,13 @@ if __name__=="__main__":
     test_index = random.randint(0, len(ts_codes) - 1)
     test_code = [ts_codes[test_index]]
     if mode == 'train':
-        data_thread = threading.Thread(target=load_data, args=(ts_codes,))
-        data_thread.start()
+        # data_thread = threading.Thread(target=load_data, args=(ts_codes,))
+        # data_thread.start()
         code_bar = tqdm(total=len(ts_codes))
         scaler = GradScaler()
         data_in = data_out = []
         for index, ts_code in enumerate(ts_codes):
             try:
-                # if common.GET_DATA:
-                #     dataFrame = get_stock_data(ts_code, False)
-                # data = import_csv(ts_code, dataFrame)
                 if args.begin_code != "":
                     if ts_code != args.begin_code:
                         code_bar.update(1)
@@ -408,8 +405,11 @@ if __name__=="__main__":
                     else:
                         args.begin_code = ""
                 lastFlag = 0
-                data = common.data_queue.get()
-                data_len = common.data_queue.qsize()
+                # if common.GET_DATA:
+                #     dataFrame = get_stock_data(ts_code, False)
+                data = import_csv(ts_code, None)
+                # data = common.data_queue.get()
+                # data_len = common.data_queue.qsize()
                 if data.empty or data["ts_code"][0] == "None":
                     tqdm.write("data is empty or data has invalid col")
                     code_bar.update(1)
