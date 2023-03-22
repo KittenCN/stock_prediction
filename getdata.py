@@ -5,7 +5,11 @@ import tushare as ts
 import common
 from tqdm import tqdm
 
-pro = ts.pro_api('your token')
+api_token = ""
+with open('api.txt', 'r') as file:
+    api_token = file.read()
+    print(api_token)
+pro = ts.pro_api(api_token)
 
 def get_stock_list():
     # Get stock list
