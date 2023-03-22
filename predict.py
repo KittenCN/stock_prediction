@@ -22,7 +22,7 @@ from datetime import datetime
 from torch.cuda.amp import autocast, GradScaler
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', default="test", type=str, help="select running mode")
+parser.add_argument('--mode', default="train", type=str, help="select running mode")
 parser.add_argument('--model', default="LSTM", type=str, help="LSTM or TRANSFORMER")
 parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
@@ -160,7 +160,7 @@ def train(epoch, dataloader, scaler):
         scaler.scale(loss).backward()
         scaler.step(optimizer)
         scaler.update()
-        subbar.set_description("iter=%d,lo=%.4f"%(iteration,loss.item()))
+        subbar.set_description("iter=%d,lo=%.8f"%(iteration,loss.item()))
         subbar.update(1)
         loss_list.append(loss.item())      
         lo_list.append(loss.item())  
@@ -399,6 +399,7 @@ if __name__=="__main__":
         scaler = GradScaler()
         pbar = tqdm(total=common.EPOCH, leave=False, ncols=common.TQDM_NCOLS)
         lo_list=[]
+        data_len=0
         for epoch in range(0,common.EPOCH):
             # if common.data_queue.empty() and data_thread.is_alive() == False:
             #     data_thread = threading.Thread(target=load_data, args=(ts_codes,))  
@@ -407,7 +408,7 @@ if __name__=="__main__":
                     m_loss = 0
             else:
                 m_loss = np.mean(lo_list)
-            pbar.set_description("epoch=%d,loss=%.4f"%(epoch+1,m_loss))
+            pbar.set_description("epoch=%d,loss=%.8f"%(epoch+1,m_loss))
             code_bar = tqdm(total=len(ts_codes), ncols=common.TQDM_NCOLS)
             for index, ts_code in enumerate(ts_codes):
                 try:
@@ -422,9 +423,9 @@ if __name__=="__main__":
                             args.begin_code = ""
                     lastFlag = 0
                     # data = common.data_queue.get()
-                    # data_len = common.data_queue.qsize()
                     if common.data_queue.empty() == False:
                         data_list += [common.data_queue.get()]
+                        data_len = max(data_len, common.data_queue.qsize())
                     Err_nums = 5
                     while index >= len(data_list):
                         if common.data_queue.empty() == False:
@@ -435,7 +436,7 @@ if __name__=="__main__":
                             tqdm.write("Error: data_list is empty")
                             exit(0)
                     data = data_list[index].copy(deep=True)
-                    data_len = len(data_list)
+                    # data_len = len(data_list)
                     if data is None or data["ts_code"][0] == "None":
                         tqdm.write("data is empty or data has invalid col")
                         code_bar.update(1)
@@ -447,7 +448,7 @@ if __name__=="__main__":
                         m_loss = 0
                     else:
                         m_loss = np.mean(loss_list)
-                    code_bar.set_description("%s %d|%d %.4f" % (ts_code,index+1,data_len,m_loss))
+                    code_bar.set_description("%s %d|%d %.8f" % (ts_code,index+1,data_len,m_loss))
                     # df_draw=data[-period:]
                     # draw_Kline(df_draw,period,symbol)
                     data.drop(['ts_code','Date'],axis=1,inplace = True)    
