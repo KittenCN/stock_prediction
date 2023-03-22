@@ -30,6 +30,8 @@ parser.add_argument('--epochs', default=10, type=int, help="epochs")
 parser.add_argument('--SEQ_LEN', default=179, type=int, help="SEQ_LEN")
 parser.add_argument('--lr', default=0.001, type=float, help="LEARNING_RATE")
 parser.add_argument('--wd', default=0.0001, type=float, help="WEIGHT_DECAY")
+parser.add_argument('--workers', default=4, type=int, help="num_workers")
+
 args = parser.parse_args()
 last_save_time = 0
 
@@ -160,7 +162,7 @@ def train(epoch, dataloader, scaler):
         scaler.scale(loss).backward()
         scaler.step(optimizer)
         scaler.update()
-        subbar.set_description("iter=%d,lo=%.8f"%(iteration,loss.item()))
+        subbar.set_description("iter=%d,lo=%4e"%(iteration,loss.item()))
         subbar.update(1)
         loss_list.append(loss.item())      
         lo_list.append(loss.item())  
@@ -251,7 +253,7 @@ def contrast_lines(test_code):
     stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPU_DIMENSION)
     stock_test=common.Stock_Data(train=False, dataFrame=Test_data, label_num=common.OUTPU_DIMENSION)
 
-    dataloader=common.DataLoaderX(dataset=stock_test,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=8, pin_memory=True)
+    dataloader=common.DataLoaderX(dataset=stock_test,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=common.NUM_WORKERS, pin_memory=True)
 
     test_criterion=nn.MSELoss()
     test_optimizer=optim.Adam(test_model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)
@@ -349,6 +351,7 @@ if __name__=="__main__":
     common.SEQ_LEN = args.SEQ_LEN
     common.LEARNING_RATE = args.lr
     common.WEIGHT_DECAY = args.wd
+    common.NUM_WORKERS = args.workers
     test_loss = 0.00
     symbol = 'Generic.Data'
     # symbol = '000001.SZ'
@@ -408,7 +411,7 @@ if __name__=="__main__":
                     m_loss = 0
             else:
                 m_loss = np.mean(lo_list)
-            pbar.set_description("epoch=%d,loss=%.8f"%(epoch+1,m_loss))
+            pbar.set_description("epoch=%d,loss=%4e"%(epoch+1,m_loss))
             code_bar = tqdm(total=len(ts_codes), ncols=common.TQDM_NCOLS)
             for index, ts_code in enumerate(ts_codes):
                 try:
@@ -448,7 +451,7 @@ if __name__=="__main__":
                         m_loss = 0
                     else:
                         m_loss = np.mean(loss_list)
-                    code_bar.set_description("%s %d|%d %.8f" % (ts_code,index+1,data_len,m_loss))
+                    code_bar.set_description("%s %d|%d %4e" % (ts_code,index+1,data_len,m_loss))
                     # df_draw=data[-period:]
                     # draw_Kline(df_draw,period,symbol)
                     data.drop(['ts_code','Date'],axis=1,inplace = True)    
@@ -475,7 +478,7 @@ if __name__=="__main__":
                     continue
                 #开始训练神经网络
                 # print("Start training the model...")
-                train_dataloader=common.DataLoaderX(dataset=stock_train,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=8, pin_memory=True)
+                train_dataloader=common.DataLoaderX(dataset=stock_train,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=common.NUM_WORKERS, pin_memory=True)
                 predict_list=[]
                 accuracy_list=[]
                 train(epoch+1, train_dataloader, scaler)
