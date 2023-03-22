@@ -14,7 +14,7 @@
 * 5. 增加下载数据功能，请使用自己的api token
 
 ## 获取下载数据的api token:
-* 1. 在https://tushare.pro/网站注册，并按要求获取足够的积分（到2023年3月为止，只需要修改下用户信息，就足够积分了，以后不能确定）
+* 1. 在https://tushare.pro/ 网站注册，并按要求获取足够的积分（到2023年3月为止，只需要修改下用户信息，就足够积分了，以后不能确定）
 * 2. 在https://tushare.pro/user/token 页面可以查看自己的api token
 * 3. 在本项目根目录建立一个api.txt，并将获得的api token写入这个文件
 * 4. 使用本项目getdata.py，即可自动下载日数据
