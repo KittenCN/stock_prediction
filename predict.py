@@ -401,6 +401,11 @@ if __name__=="__main__":
             if common.data_queue.empty() and data_thread.is_alive() == False:
                 data_thread = threading.Thread(target=load_data, args=(ts_codes,))  
                 data_thread.start()
+            if len(lo_list) == 0:
+                    m_loss = 0
+            else:
+                m_loss = np.mean(lo_list)
+            pbar.set_description("epoch=%d,loss=%.4f"%(epoch+1,m_loss))
             code_bar = tqdm(total=len(ts_codes))
             for index, ts_code in enumerate(ts_codes):
                 try:
@@ -467,17 +472,12 @@ if __name__=="__main__":
                 torch.save(optimizer.state_dict(),save_path+"_Optimizer.pkl")
                 last_save_time = time.time()
             code_bar.close()
-            if len(loss_list) == 0:
-                    m_loss = 0
-            else:
-                m_loss = np.mean(loss_list)
-            pbar.set_description("ep=%d,lo=%.4f"%(epoch+1,m_loss))
             pbar.update(1)
         pbar.close()
         tqdm.write("Training finished!")
-        if len(loss_list) > 0:
+        if len(lo_list) > 0:
             tqdm.write("Start create image for loss")
-            loss_curve(loss_list)
+            loss_curve(lo_list)
         tqdm.write("Start create image for pred-real")
         while contrast_lines(test_code) == -1:
             test_index = random.randint(0, len(ts_codes) - 1)
