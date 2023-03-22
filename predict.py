@@ -143,7 +143,7 @@ def draw_Kline(df,period,symbol):
 def train(epoch, dataloader, scaler):
     global loss, last_save_time, loss_list, iteration, lo_list
     model.train()
-    subbar = tqdm(total=len(dataloader), leave=False)
+    subbar = tqdm(total=len(dataloader), leave=False, ncols=common.TQDM_NCOLS)
     for i,(data,label) in enumerate(dataloader):
         iteration=iteration+1
         data,label = data.to(common.device),label.to(common.device)
@@ -264,7 +264,7 @@ def contrast_lines(test_code):
     if len(stock_test) < common.BATCH_SIZE:
         tqdm.write("Error: len(stock_test) < common.BATCH_SIZE")
         return -1
-    test_bar = tqdm(total=len(dataloader))
+    test_bar = tqdm(total=len(dataloader), ncols=common.TQDM_NCOLS)
     for i,(data,label) in enumerate(dataloader):
         with torch.no_grad():            
             # data,label=data.to(common.device),label.to(common.device)
@@ -282,7 +282,7 @@ def contrast_lines(test_code):
     test_loss = np.mean(accuracy_list)
     tqdm.write("test_data MSELoss:(pred-real)/real=",test_loss)
 
-    test_bar = tqdm(total=len(dataloader) * common.BATCH_SIZE * common.OUTPU_DIMENSION)
+    test_bar = tqdm(total=len(dataloader) * common.BATCH_SIZE * common.OUTPU_DIMENSION, ncols=common.TQDM_NCOLS)
     for i,(data,label) in enumerate(dataloader):
         for idx in range(common.BATCH_SIZE):
             _tmp = []
@@ -293,7 +293,7 @@ def contrast_lines(test_code):
                 test_bar.update(1)
             real_list.append(np.array(_tmp))
     test_bar.close()
-    test_bar = tqdm(total=len(predict_list) * common.BATCH_SIZE * common.OUTPU_DIMENSION)
+    test_bar = tqdm(total=len(predict_list) * common.BATCH_SIZE * common.OUTPU_DIMENSION, ncols=common.TQDM_NCOLS)
     for item in predict_list:
         item=item.to("cpu")
         for idx in range(common.BATCH_SIZE):
@@ -305,7 +305,7 @@ def contrast_lines(test_code):
                 test_bar.update(1)
             prediction_list.append(np.array(_tmp))
     test_bar.close()
-    pbar = tqdm(total=common.OUTPU_DIMENSION)
+    pbar = tqdm(total=common.OUTPU_DIMENSION, ncols=common.TQDM_NCOLS)
     for i in range(common.OUTPU_DIMENSION):
         try:
             _real_list = np.transpose(real_list)[i]
@@ -395,7 +395,7 @@ if __name__=="__main__":
         data_thread.start()
         # data_thread.join()
         scaler = GradScaler()
-        pbar = tqdm(total=common.EPOCH, leave=False)
+        pbar = tqdm(total=common.EPOCH, leave=False, ncols=common.TQDM_NCOLS)
         lo_list=[]
         for epoch in range(0,common.EPOCH):
             if common.data_queue.empty() and data_thread.is_alive() == False:
@@ -406,7 +406,7 @@ if __name__=="__main__":
             else:
                 m_loss = np.mean(lo_list)
             pbar.set_description("epoch=%d,loss=%.4f"%(epoch+1,m_loss))
-            code_bar = tqdm(total=len(ts_codes))
+            code_bar = tqdm(total=len(ts_codes), ncols=common.TQDM_NCOLS)
             for index, ts_code in enumerate(ts_codes):
                 try:
                     # if common.GET_DATA:
