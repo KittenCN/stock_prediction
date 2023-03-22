@@ -251,7 +251,7 @@ def contrast_lines(test_code):
     stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPU_DIMENSION)
     stock_test=common.Stock_Data(train=False, dataFrame=Test_data, label_num=common.OUTPU_DIMENSION)
 
-    dataloader=common.DataLoaderX(dataset=stock_test,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
+    dataloader=common.DataLoaderX(dataset=stock_test,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=8, pin_memory=True)
 
     test_criterion=nn.MSELoss()
     test_optimizer=optim.Adam(test_model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)
@@ -339,7 +339,7 @@ def load_data(ts_codes):
             # data_list.append(data)
 
 if __name__=="__main__":
-    global test_loss, data_list
+    global test_loss
     loss_list=[]
     data_list=[]
     mode = args.mode
