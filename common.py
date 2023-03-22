@@ -19,7 +19,7 @@ SAVE_NUM_EPOCH=10
 GET_DATA=True
 TEST_NUM=25
 SAVE_INTERVAL=300
-OUTPU_DIMENSION=8
+OUTPUT_DIMENSION=8
 INPUT_DIMENSION=8
 TQDM_NCOLS = 100
 NUM_WORKERS = 4
@@ -36,8 +36,8 @@ NoneDataFrame["ts_code"] = ["None"]
 
 name_list = ["open", "high", "low", "close", "change", "pct_chg", "vol", "amount"]
 use_list = [1,1,1,1,0,0,0,0]
-OUTPU_DIMENSION = sum(use_list)
-assert OUTPU_DIMENSION > 0
+OUTPUT_DIMENSION = sum(use_list)
+assert OUTPUT_DIMENSION > 0
 
 device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -60,70 +60,66 @@ class DataLoaderX(DataLoader):
 
 #完成数据集类
 class Stock_Data(Dataset):
-    def __init__(self,train=True,transform=None,dataFrame=None,label_num=1):       
+    def __init__(self, train=True, transform=None, dataFrame=None, label_num=1):
         try:
-            if train==True:
-                if dataFrame is None:
-                    with open(train_path) as f:
-                        self.data = np.loadtxt(f,delimiter = ",")
-                        #可以注释
-                        #addi=np.zeros((self.data.shape[0],1))
-                        #self.data=np.concatenate((self.data,addi),axis=1)
-                else:
-                    self.data=dataFrame.values
-                self.data=self.data[:,0:INPUT_DIMENSION]
-                for i in range(len(self.data[0])):
-                    mean_list.append(np.mean(self.data[:,i]))
-                    std_list.append(np.std(self.data[:,i]))
-                    self.data[:,i]=(self.data[:,i]-np.mean(self.data[:,i]))/(np.std(self.data[:,i])+1e-8)
-                self.value=torch.rand(self.data.shape[0]-SEQ_LEN,SEQ_LEN,self.data.shape[1])
-                self.label=torch.rand(self.data.shape[0]-SEQ_LEN,label_num)
-                for i in range(self.data.shape[0]-SEQ_LEN):                  
-                    self.value[i,:,:]=torch.from_numpy(self.data[i:i+SEQ_LEN,:].reshape(SEQ_LEN,self.data.shape[1]))  
-                    # self.label[i,:]=self.data[i+SEQ_LEN,0]
-                    _tmp = []
-                    for index in range(OUTPU_DIMENSION):  
-                        if use_list[index] == 1:
-                            _tmp.append(self.data[i+SEQ_LEN,index])
-                    self.label[i,:]=torch.Tensor(_tmp)
-                self.data=self.value
-            else:
-                if dataFrame is None:
-                    with open(test_path) as f:
-                        self.data = np.loadtxt(f,delimiter = ",")
-                        #可以注释
-                        #addi=np.zeros((self.data.shape[0],1))
-                        #self.data=np.concatenate((self.data,addi),axis=1)
-                else:
-                    self.data=dataFrame.values
-                self.data=self.data[:,0:INPUT_DIMENSION]
-                for i in range(len(self.data[0])):
-                    self.data[:,i]=(self.data[:,i]-mean_list[i])/(std_list[i]+1e-8)
-                self.value=torch.rand(self.data.shape[0]-SEQ_LEN,SEQ_LEN,self.data.shape[1])
-                self.label=torch.rand(self.data.shape[0]-SEQ_LEN,label_num)
-                for i in range(self.data.shape[0]-SEQ_LEN):                  
-                    self.value[i,:,:]=torch.from_numpy(self.data[i:i+SEQ_LEN,:].reshape(SEQ_LEN,self.data.shape[1]))    
-                    # self.label[i,:]=self.data[i+SEQ_LEN,0]
-                    _tmp = []
-                    for index in range(OUTPU_DIMENSION):  
-                        if use_list[index] == 1:
-                            _tmp.append(self.data[i+SEQ_LEN,index])
-                    self.label[i,:]=torch.Tensor(_tmp)
-                self.data=self.value
+            self.train = train
+            self.data = self.load_data(dataFrame)
+            self.normalize_data()
+            self.value, self.label = self.generate_value_label_tensors(label_num)
         except Exception as e:
             print(e)
             return None
-    def __getitem__(self,index):
-        return self.data[index],self.label[index]
+
+    def load_data(self, dataFrame):
+        if self.train:
+            path = train_path
+        else:
+            path = test_path
+
+        if dataFrame is None:
+            with open(path) as f:
+                data = np.loadtxt(f, delimiter=",")
+        else:
+            data = dataFrame.values
+
+        return data[:, 0:INPUT_DIMENSION]
+
+    def normalize_data(self):
+        for i in range(len(self.data[0])):
+            if self.train:
+                mean_list.append(np.mean(self.data[:, i]))
+                std_list.append(np.std(self.data[:, i]))
+
+            self.data[:, i] = (self.data[:, i] - mean_list[i]) / (std_list[i] + 1e-8)
+
+    def generate_value_label_tensors(self, label_num):
+        value = torch.rand(self.data.shape[0] - SEQ_LEN, SEQ_LEN, self.data.shape[1])
+        label = torch.rand(self.data.shape[0] - SEQ_LEN, label_num)
+
+        for i in range(self.data.shape[0] - SEQ_LEN):
+            value[i, :, :] = torch.from_numpy(self.data[i:i + SEQ_LEN, :].reshape(SEQ_LEN, self.data.shape[1]))
+
+            _tmp = []
+            for index in range(OUTPUT_DIMENSION):
+                if use_list[index] == 1:
+                    _tmp.append(self.data[i + SEQ_LEN, index])
+
+            label[i, :] = torch.Tensor(_tmp)
+
+        return value, label
+
+    def __getitem__(self, index):
+        return self.value[index], self.label[index]
+
     def __len__(self):
-        return len(self.data[:,0])
+        return len(self.value)
 #LSTM模型
 class LSTM(nn.Module):
     def __init__(self,dimension):
         super(LSTM,self).__init__()
         self.lstm=nn.LSTM(input_size=dimension,hidden_size=128,num_layers=3,batch_first=True, dropout=0.5)
         self.linear1=nn.Linear(in_features=128,out_features=16)
-        self.linear2=nn.Linear(16,OUTPU_DIMENSION)
+        self.linear2=nn.Linear(16,OUTPUT_DIMENSION)
         self.LeakyReLU=nn.LeakyReLU()
         # self.ELU = nn.ELU()
         # self.ReLU = nn.ReLU()
@@ -169,7 +165,7 @@ class TransAm(nn.Module):
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=feature_size, nhead=8, dropout=dropout)
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=num_layers)
         self.decoder = nn.Linear(feature_size, 1)
-        self.linear1 = nn.Linear(SEQ_LEN, OUTPU_DIMENSION)
+        self.linear1 = nn.Linear(SEQ_LEN, OUTPUT_DIMENSION)
         self.init_weights()
         self.src_key_padding_mask = None
 

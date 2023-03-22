@@ -250,8 +250,8 @@ def contrast_lines(test_code):
     if Train_data is None or Test_data is None:
         print("Error: Train_data or Test_data is None")
         return
-    stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPU_DIMENSION)
-    stock_test=common.Stock_Data(train=False, dataFrame=Test_data, label_num=common.OUTPU_DIMENSION)
+    stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPUT_DIMENSION)
+    stock_test=common.Stock_Data(train=False, dataFrame=Test_data, label_num=common.OUTPUT_DIMENSION)
 
     dataloader=common.DataLoaderX(dataset=stock_test,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=common.NUM_WORKERS, pin_memory=True)
 
@@ -284,31 +284,31 @@ def contrast_lines(test_code):
     test_loss = np.mean(accuracy_list)
     print("test_data MSELoss:(pred-real)/real=",test_loss)
 
-    test_bar = tqdm(total=len(dataloader) * common.BATCH_SIZE * common.OUTPU_DIMENSION, ncols=common.TQDM_NCOLS)
+    test_bar = tqdm(total=len(dataloader) * common.BATCH_SIZE * common.OUTPUT_DIMENSION, ncols=common.TQDM_NCOLS)
     for i,(data,label) in enumerate(dataloader):
         for idx in range(common.BATCH_SIZE):
             _tmp = []
-            for index in range(common.OUTPU_DIMENSION):
+            for index in range(common.OUTPUT_DIMENSION):
                 if common.use_list[index] == 1:
                     # real_list.append(np.array(label[idx]*common.std_list[0]+common.mean_list[0]))
                     _tmp.append(label[idx][index]*common.std_list[index]+common.mean_list[index])
                 test_bar.update(1)
             real_list.append(np.array(_tmp))
     test_bar.close()
-    test_bar = tqdm(total=len(predict_list) * common.BATCH_SIZE * common.OUTPU_DIMENSION, ncols=common.TQDM_NCOLS)
+    test_bar = tqdm(total=len(predict_list) * common.BATCH_SIZE * common.OUTPUT_DIMENSION, ncols=common.TQDM_NCOLS)
     for item in predict_list:
         item=item.to("cpu")
         for idx in range(common.BATCH_SIZE):
             _tmp = []
-            for index in range(common.OUTPU_DIMENSION):
+            for index in range(common.OUTPUT_DIMENSION):
                 if common.use_list[index] == 1:
                     # prediction_list.append(np.array((item[idx]*common.std_list[0]+common.mean_list[0])))
                     _tmp.append(item[idx][index]*common.std_list[index]+common.mean_list[index])
                 test_bar.update(1)
             prediction_list.append(np.array(_tmp))
     test_bar.close()
-    pbar = tqdm(total=common.OUTPU_DIMENSION, ncols=common.TQDM_NCOLS)
-    for i in range(common.OUTPU_DIMENSION):
+    pbar = tqdm(total=common.OUTPUT_DIMENSION, ncols=common.TQDM_NCOLS)
+    for i in range(common.OUTPUT_DIMENSION):
         try:
             _real_list = np.transpose(real_list)[i]
             _prediction_list = np.transpose(prediction_list)[i]
@@ -472,7 +472,7 @@ if __name__=="__main__":
                         continue
                     # Train_data.to_csv(common.train_path,sep=',',index=False,header=False)
                     # Test_data.to_csv(common.test_path,sep=',',index=False,header=False)
-                    stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPU_DIMENSION)
+                    stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPUT_DIMENSION)
                     iteration=0
                     loss_list=[]
                 except Exception as e:
