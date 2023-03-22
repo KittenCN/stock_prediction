@@ -22,7 +22,7 @@ from datetime import datetime
 from torch.cuda.amp import autocast, GradScaler
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', default="train", type=str, help="select running mode")
+parser.add_argument('--mode', default="test", type=str, help="select running mode")
 parser.add_argument('--model', default="LSTM", type=str, help="LSTM or TRANSFORMER")
 parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
@@ -218,7 +218,7 @@ def loss_curve(loss_list):
         # plt.show()
         plt.close()
     except Exception as e:
-        tqdm.write("Error: loss_curve",e)
+        print("Error: loss_curve",e)
 
 def contrast_lines(test_code):
     global stock_test, test_loss
@@ -228,25 +228,25 @@ def contrast_lines(test_code):
     predict_list=[]
     accuracy_list=[]
 
-    tqdm.write("test_code=",test_code)
+    print("test_code=",test_code)
     load_data(test_code)
     data = common.data_queue.get()
-    tqdm.write("data.shape=",data.shape)
+    print("data.shape=",data.shape)
     if data.empty or data["ts_code"][0] == "None":
-        tqdm.write("Error: data is empty or ts_code is None")
+        print("Error: data is empty or ts_code is None")
         return
     if data['ts_code'][0] != test_code[0]:
-        tqdm.write("Error: ts_code is not match")
+        print("Error: ts_code is not match")
         return
     data.drop(['ts_code','Date'],axis=1,inplace = True)    
     train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
     if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
-        tqdm.write("Error: train_size is too small or too large")
+        print("Error: train_size is too small or too large")
         return -1
     Train_data=data[:train_size+common.SEQ_LEN]
     Test_data=data[train_size-common.SEQ_LEN:]
     if Train_data is None or Test_data is None:
-        tqdm.write("Error: Train_data or Test_data is None")
+        print("Error: Train_data or Test_data is None")
         return
     stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPU_DIMENSION)
     stock_test=common.Stock_Data(train=False, dataFrame=Test_data, label_num=common.OUTPU_DIMENSION)
@@ -256,13 +256,13 @@ def contrast_lines(test_code):
     test_criterion=nn.MSELoss()
     test_optimizer=optim.Adam(test_model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)
     if os.path.exists(save_path+"_Model.pkl") and os.path.exists(save_path+"_Optimizer.pkl"):
-        tqdm.write("Load model and optimizer from file")
+        print("Load model and optimizer from file")
         test_model.load_state_dict(torch.load(save_path+"_Model.pkl"))
         test_optimizer.load_state_dict(torch.load(save_path+"_Optimizer.pkl"))
     test_model.eval()
     test_optimizer.zero_grad()
     if len(stock_test) < common.BATCH_SIZE:
-        tqdm.write("Error: len(stock_test) < common.BATCH_SIZE")
+        print("Error: len(stock_test) < common.BATCH_SIZE")
         return -1
     test_bar = tqdm(total=len(dataloader), ncols=common.TQDM_NCOLS)
     for i,(data,label) in enumerate(dataloader):
@@ -280,7 +280,7 @@ def contrast_lines(test_code):
     if len(accuracy_list) == 0:
         accuracy_list = [0]
     test_loss = np.mean(accuracy_list)
-    tqdm.write("test_data MSELoss:(pred-real)/real=",test_loss)
+    print("test_data MSELoss:(pred-real)/real=",test_loss)
 
     test_bar = tqdm(total=len(dataloader) * common.BATCH_SIZE * common.OUTPU_DIMENSION, ncols=common.TQDM_NCOLS)
     for i,(data,label) in enumerate(dataloader):
@@ -329,17 +329,19 @@ def contrast_lines(test_code):
 def load_data(ts_codes):
     for ts_code in ts_codes:
         if common.data_queue.empty():
-            tqdm.write("data_queue is empty, loading data...")
+            print("data_queue is empty, loading data...")
         if common.GET_DATA:
             # get_stock_data(ts_code, False)
             # dataFrame = common.stock_data_queue.get()
             import_csv(ts_code, None)
             data = common.csv_queue.get()
             common.data_queue.put(data)
+            # data_list.append(data)
 
 if __name__=="__main__":
-    global test_loss
+    global test_loss, data_list
     loss_list=[]
+    data_list=[]
     mode = args.mode
     model_mode = args.model
     common.BATCH_SIZE = args.batch_size
@@ -398,9 +400,9 @@ if __name__=="__main__":
         pbar = tqdm(total=common.EPOCH, leave=False, ncols=common.TQDM_NCOLS)
         lo_list=[]
         for epoch in range(0,common.EPOCH):
-            if common.data_queue.empty() and data_thread.is_alive() == False:
-                data_thread = threading.Thread(target=load_data, args=(ts_codes,))  
-                data_thread.start()
+            # if common.data_queue.empty() and data_thread.is_alive() == False:
+            #     data_thread = threading.Thread(target=load_data, args=(ts_codes,))  
+            #     data_thread.start()
             if len(lo_list) == 0:
                     m_loss = 0
             else:
@@ -419,9 +421,22 @@ if __name__=="__main__":
                         else:
                             args.begin_code = ""
                     lastFlag = 0
-                    data = common.data_queue.get()
-                    data_len = common.data_queue.qsize()
-                    if data.empty or data["ts_code"][0] == "None":
+                    # data = common.data_queue.get()
+                    # data_len = common.data_queue.qsize()
+                    if common.data_queue.empty() == False:
+                        data_list += [common.data_queue.get()]
+                    Err_nums = 5
+                    while index >= len(data_list):
+                        if common.data_queue.empty() == False:
+                            data_list += [common.data_queue.get()]
+                        time.sleep(0.01)
+                        Err_nums -= 1
+                        if Err_nums == 0:
+                            tqdm.write("Error: data_list is empty")
+                            exit(0)
+                    data = data_list[index].copy(deep=True)
+                    data_len = len(data_list)
+                    if data is None or data["ts_code"][0] == "None":
                         tqdm.write("data is empty or data has invalid col")
                         code_bar.update(1)
                         continue
@@ -432,8 +447,8 @@ if __name__=="__main__":
                         m_loss = 0
                     else:
                         m_loss = np.mean(loss_list)
-                    code_bar.set_description("%s %d|%d %.4f" % (ts_code,index,data_len,m_loss))
-                    df_draw=data[-period:]
+                    code_bar.set_description("%s %d|%d %.4f" % (ts_code,index+1,data_len,m_loss))
+                    # df_draw=data[-period:]
                     # draw_Kline(df_draw,period,symbol)
                     data.drop(['ts_code','Date'],axis=1,inplace = True)    
                     train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
@@ -451,34 +466,33 @@ if __name__=="__main__":
                     # Train_data.to_csv(common.train_path,sep=',',index=False,header=False)
                     # Test_data.to_csv(common.test_path,sep=',',index=False,header=False)
                     stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPU_DIMENSION)
-                    # stock_test=common.Stock_Data(train=False, dataFrame=Test_data)
                     iteration=0
                     loss_list=[]
                 except Exception as e:
-                    tqdm.write(e)
+                    print(e)
                     code_bar.update(1)
                     continue
                 #开始训练神经网络
                 # print("Start training the model...")
                 train_dataloader=common.DataLoaderX(dataset=stock_train,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
-                # test_dataloader=common.DataLoaderX(dataset=stock_test,batch_size=4,shuffle=False,drop_last=True, num_workers=4, pin_memory=True)
-                
                 predict_list=[]
                 accuracy_list=[]
                 train(epoch+1, train_dataloader, scaler)
                 code_bar.update(1)
-            if time.time() - last_save_time >= common.SAVE_INTERVAL or index == len(ts_codes) - 1:
-                torch.save(model.state_dict(),save_path+"_Model.pkl")
-                torch.save(optimizer.state_dict(),save_path+"_Optimizer.pkl")
-                last_save_time = time.time()
+                if time.time() - last_save_time >= common.SAVE_INTERVAL or index == len(ts_codes) - 1:
+                    torch.save(model.state_dict(),save_path+"_Model.pkl")
+                    torch.save(optimizer.state_dict(),save_path+"_Optimizer.pkl")
+                    last_save_time = time.time()
             code_bar.close()
             pbar.update(1)
         pbar.close()
-        tqdm.write("Training finished!")
+        print("Training finished!")
         if len(lo_list) > 0:
-            tqdm.write("Start create image for loss")
+            print("Start create image for loss")
             loss_curve(lo_list)
-        tqdm.write("Start create image for pred-real")
+        print("Start create image for pred-real")
+        test_index = random.randint(0, len(ts_codes) - 1)
+        test_code = [ts_codes[test_index]]
         while contrast_lines(test_code) == -1:
             test_index = random.randint(0, len(ts_codes) - 1)
             test_code = [ts_codes[test_index]]
