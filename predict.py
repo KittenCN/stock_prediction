@@ -162,7 +162,7 @@ def train(epoch, dataloader, scaler):
         scaler.scale(loss).backward()
         scaler.step(optimizer)
         scaler.update()
-        subbar.set_description("iter=%d,lo=%4e"%(iteration,loss.item()))
+        subbar.set_description("iter=%d,lo=%e"%(iteration,loss.item()))
         subbar.update(1)
         loss_list.append(loss.item())      
         lo_list.append(loss.item())  
@@ -411,7 +411,7 @@ if __name__=="__main__":
                     m_loss = 0
             else:
                 m_loss = np.mean(lo_list)
-            pbar.set_description("epoch=%d,loss=%4e"%(epoch+1,m_loss))
+            pbar.set_description("epoch=%d,loss=%e"%(epoch+1,m_loss))
             code_bar = tqdm(total=len(ts_codes), ncols=common.TQDM_NCOLS)
             for index, ts_code in enumerate(ts_codes):
                 try:
@@ -451,7 +451,7 @@ if __name__=="__main__":
                         m_loss = 0
                     else:
                         m_loss = np.mean(loss_list)
-                    code_bar.set_description("%s %d|%d %4e" % (ts_code,index+1,data_len,m_loss))
+                    code_bar.set_description("%s %d|%d %e" % (ts_code,index+1,data_len,m_loss))
                     # df_draw=data[-period:]
                     # draw_Kline(df_draw,period,symbol)
                     data.drop(['ts_code','Date'],axis=1,inplace = True)    
