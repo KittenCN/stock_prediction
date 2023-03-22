@@ -23,11 +23,11 @@ from torch.cuda.amp import autocast, GradScaler
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode")
-parser.add_argument('--model', default="LSTM", type=str, help="LSTM or TRANSFORMER")
+parser.add_argument('--model', default="lstm", type=str, help="lstm or transformer")
 parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--epochs', default=10, type=int, help="epochs")
-parser.add_argument('--SEQ_LEN', default=179, type=int, help="SEQ_LEN")
+parser.add_argument('--seq_len', default=179, type=int, help="SEQ_LEN")
 parser.add_argument('--lr', default=0.001, type=float, help="LEARNING_RATE")
 parser.add_argument('--wd', default=0.0001, type=float, help="WEIGHT_DECAY")
 parser.add_argument('--workers', default=4, type=int, help="num_workers")
@@ -345,10 +345,10 @@ if __name__=="__main__":
     loss_list=[]
     data_list=[]
     mode = args.mode
-    model_mode = args.model
+    model_mode = args.model.upper()
     common.BATCH_SIZE = args.batch_size
     common.EPOCH = args.epochs
-    common.SEQ_LEN = args.SEQ_LEN
+    common.SEQ_LEN = args.seq_len
     common.LEARNING_RATE = args.lr
     common.WEIGHT_DECAY = args.wd
     common.NUM_WORKERS = args.workers
@@ -371,6 +371,9 @@ if __name__=="__main__":
         model=common.TransAm(feature_size=common.INPUT_DIMENSION)
         test_model=common.TransAm(feature_size=common.INPUT_DIMENSION)
         save_path=transformer_path
+    else:
+        print("No such model")
+        exit(0)
 
     model=model.to(common.device)
     print(model)
