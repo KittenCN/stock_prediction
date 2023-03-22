@@ -5,7 +5,7 @@ import tushare as ts
 import common
 from tqdm import tqdm
 
-pro = ts.pro_api('546dfa0ae0cee993337b8e1d755912059be77d436b49b95e7cf7732d')
+pro = ts.pro_api('your token')
 
 def get_stock_list():
     # Get stock list
