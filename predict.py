@@ -26,7 +26,7 @@ parser.add_argument('--mode', default="train", type=str, help="select running mo
 parser.add_argument('--model', default="lstm", type=str, help="lstm or transformer")
 parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
-parser.add_argument('--epochs', default=10, type=int, help="epochs")
+parser.add_argument('--epochs', default=2, type=int, help="epochs")
 parser.add_argument('--seq_len', default=179, type=int, help="SEQ_LEN")
 parser.add_argument('--lr', default=0.001, type=float, help="LEARNING_RATE")
 parser.add_argument('--wd', default=0.0001, type=float, help="WEIGHT_DECAY")
@@ -44,167 +44,142 @@ def data_wash(dataset,keepTime=False):
     return dataset
 
 def import_csv(stock_code, dataFrame=None):
-    #time设为index的同时是否保留时间列
-    if os.path.exists('stock_daily/'+stock_code + '.csv') and dataFrame is None:
-        df = pd.read_csv('stock_daily/'+stock_code + '.csv')
-    elif os.path.exists('stock_daily/'+stock_code + '.csv') == False and dataFrame is None:
-        # print('stock_daily/'+stock_code + '.csv'+' not exist')
-        common.csv_queue.put(common.NoneDataFrame)
-        return None
-    elif dataFrame is not None:
+    if dataFrame is None:
+        file_path = f'stock_daily/{stock_code}.csv'
+        if os.path.exists(file_path):
+            df = pd.read_csv(file_path)
+        else:
+            common.csv_queue.put(common.NoneDataFrame)
+            return None
+    else:
         df = dataFrame
-    #清洗数据
-    df=data_wash(df,keepTime=False)
+
+    df = data_wash(df, keepTime=False)
     df.rename(
-            columns={
-            'trade_date': 'Date', 'open': 'Open', 
-            'high': 'High', 'low': 'Low', 
-            'close': 'Close', 'vol': 'Volume'}, 
-            inplace=True)
-    df['Date'] = pd.to_datetime(df['Date'],format='%Y%m%d')    
+        columns={
+            'trade_date': 'Date', 'open': 'Open',
+            'high': 'High', 'low': 'Low',
+            'close': 'Close', 'vol': 'Volume'},
+        inplace=True)
+
+    df['Date'] = pd.to_datetime(df['Date'], format='%Y%m%d')
     df.set_index(df['Date'], inplace=True)
+
     if df.empty:
         common.csv_queue.put(common.NoneDataFrame)
         return None
+
     common.csv_queue.put(df)
     return df
 
-def draw_Kline(df,period,symbol):
-
-    # 设置基本参数
-    # type:#绘制图形的类型，有candle, renko, ohlc, line等
-    # 此处选择candle,即K线图
-    # mav(moving average):均线类型,此处设置7,30,60日线
-    # volume:布尔类型，设置是否显示成交量，默认False
-    # title:设置标题
-    # y_label:设置纵轴主标题
-    # y_label_lower:设置成交量图一栏的标题
-    # figratio:设置图形纵横比
-    # figscale:设置图形尺寸(数值越大图像质量越高)
+def draw_Kline(df, period, symbol):
     kwargs = dict(
-        type='candle', 
-        mav=(7, 30, 60), 
-        volume=True, 
-        title='\nA_stock %s candle_line' % (symbol),    
-        ylabel='OHLC Candles', 
-        ylabel_lower='Shares\nTraded Volume', 
-        figratio=(15, 10), 
+        type='candle',
+        mav=(7, 30, 60),
+        volume=True,
+        title=f'\nA_stock {symbol} candle_line',
+        ylabel='OHLC Candles',
+        ylabel_lower='Shares\nTraded Volume',
+        figratio=(15, 10),
         figscale=2)
 
-    # 设置marketcolors
-    # up:设置K线线柱颜色，up意为收盘价大于等于开盘价
-    # down:与up相反，这样设置与国内K线颜色标准相符
-    # edge:K线线柱边缘颜色(i代表继承自up和down的颜色)，下同。详见官方文档)
-    # wick:灯芯(上下影线)颜色
-    # volume:成交量直方图的颜色
-    # inherit:是否继承，选填
     mc = mpf.make_marketcolors(
-        up='red', 
-        down='green', 
-        edge='i', 
-        wick='i', 
-        volume='in', 
+        up='red',
+        down='green',
+        edge='i',
+        wick='i',
+        volume='in',
         inherit=True)
 
-    # 设置图形风格
-    # gridaxis:设置网格线位置
-    # gridstyle:设置网格线线型
-    # y_on_right:设置y轴位置是否在右
     s = mpf.make_mpf_style(
-        gridaxis='both', 
-        gridstyle='-.', 
-        y_on_right=False, 
+        gridaxis='both',
+        gridstyle='-.',
+        y_on_right=False,
         marketcolors=mc)
 
-    # 设置均线颜色，配色表可见下图
-    # 建议设置较深的颜色且与红色、绿色形成对比
-    # 此处设置七条均线的颜色，也可应用默认设置
     mpl.rcParams['axes.prop_cycle'] = cycler(
-        color=['dodgerblue', 'deeppink', 
-        'navy', 'teal', 'maroon', 'darkorange', 
-        'indigo'])
-    
-    # 设置线宽
+        color=['dodgerblue', 'deeppink',
+               'navy', 'teal', 'maroon', 'darkorange',
+               'indigo'])
+
     mpl.rcParams['lines.linewidth'] = .5
 
-    # 图形绘制
-    # show_nontrading:是否显示非交易日，默认False
-    # savefig:导出图片，填写文件名及后缀
-    mpf.plot(df, 
-        **kwargs, 
-        style=s, 
-        show_nontrading=False,)
-    mpf.plot(df, 
-        **kwargs, 
-        style=s, 
-        show_nontrading=False,
-        savefig='A_stock-%s %s_candle_line'
-        %(symbol, period) + '.jpg')
+    mpf.plot(df,
+             **kwargs,
+             style=s,
+             show_nontrading=False)
+
+    mpf.plot(df,
+             **kwargs,
+             style=s,
+             show_nontrading=False,
+             savefig=f'A_stock-{symbol} {period}_candle_line.jpg')
     plt.show()
 
 def train(epoch, dataloader, scaler):
     global loss, last_save_time, loss_list, iteration, lo_list
     model.train()
     subbar = tqdm(total=len(dataloader), leave=False, ncols=common.TQDM_NCOLS)
-    for i,(data,label) in enumerate(dataloader):
-        iteration=iteration+1
-        data,label = data.to(common.device),label.to(common.device)
-        # 开启autocast
+
+    for i, (data, label) in enumerate(dataloader):
+        iteration += 1
+        data, label = data.to(common.device), label.to(common.device)
+
         with autocast():
-            # 前向传播
             outputs = model.forward(data)
             loss = criterion(outputs, label)
+
         optimizer.zero_grad()
-        # output=model.forward(data)
-        # loss=criterion(output,label)
-        # loss.backward()        
-        # optimizer.step()
         scaler.scale(loss).backward()
         scaler.step(optimizer)
         scaler.update()
-        subbar.set_description("iter=%d,lo=%e"%(iteration,loss.item()))
+
+        subbar.set_description(f"iter={iteration}, lo={loss.item():.2e}")
         subbar.update(1)
-        loss_list.append(loss.item())      
-        lo_list.append(loss.item())  
-        if iteration%common.SAVE_NUM_ITER==0 and time.time() - last_save_time >= common.SAVE_INTERVAL:
-            torch.save(model.state_dict(),save_path+"_Model.pkl")
-            torch.save(optimizer.state_dict(),save_path+"_Optimizer.pkl")
+
+        loss_list.append(loss.item())
+        lo_list.append(loss.item())
+
+        if iteration % common.SAVE_NUM_ITER == 0 and time.time() - last_save_time >= common.SAVE_INTERVAL:
+            torch.save(model.state_dict(), save_path + "_Model.pkl")
+            torch.save(optimizer.state_dict(), save_path + "_Optimizer.pkl")
             last_save_time = time.time()
-    if (epoch%common.SAVE_NUM_EPOCH==0  or epoch==common.EPOCH) and time.time() - last_save_time >= common.SAVE_INTERVAL:
-        torch.save(model.state_dict(),save_path+"_Model.pkl")
-        torch.save(optimizer.state_dict(),save_path+"_Optimizer.pkl")
+
+    if (epoch % common.SAVE_NUM_EPOCH == 0 or epoch == common.EPOCH) and time.time() - last_save_time >= common.SAVE_INTERVAL:
+        torch.save(model.state_dict(), save_path + "_Model.pkl")
+        torch.save(optimizer.state_dict(), save_path + "_Optimizer.pkl")
         last_save_time = time.time()
+
     subbar.close()
 
-def test(dataloader):
-    global accuracy_list, predict_list, test_loss, loss
 
-    lock = threading.Lock()
-    with lock:
-        test_criterion=nn.MSELoss()
-        test_optimizer=optim.Adam(test_model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)
-        if os.path.exists(save_path+"_Model.pkl") and os.path.exists(save_path+"_Optimizer.pkl"):
-            # print("Load model and optimizer from file")
-            test_model.load_state_dict(torch.load(save_path+"_Model.pkl"))
-            test_optimizer.load_state_dict(torch.load(save_path+"_Optimizer.pkl"))
-        test_model.eval()
-        test_optimizer.zero_grad()
-        if len(stock_test) < 4:
-            return 0.00
-        for i,(data,label) in enumerate(dataloader):
-            with torch.no_grad():            
-                # data,label=data.to(common.device),label.to(common.device)
-                test_optimizer.zero_grad()
-                predict=test_model.forward(data)
-                predict_list.append(predict)
-                loss=test_criterion(predict,label)
-                accuracy_fn=nn.MSELoss()
-                accuracy=accuracy_fn(predict,label)
-                accuracy_list.append(accuracy.item())
-        # print("test_data MSELoss:(pred-real)/real=",np.mean(accuracy_list))
-        if len(accuracy_list) == 0:
-            accuracy_list = [0]
-        test_loss = np.mean(accuracy_list)
+def test(dataloader):
+    global accuracy_list, predict_list, test_loss
+
+    if len(stock_test) < 4:
+        return 0.00
+    
+    test_optimizer=optim.Adam(test_model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)
+    if os.path.exists(save_path+"_Model.pkl") and os.path.exists(save_path+"_Optimizer.pkl"):
+        test_model.load_state_dict(torch.load(save_path+"_Model.pkl"))
+        test_optimizer.load_state_dict(torch.load(save_path+"_Optimizer.pkl"))
+
+    test_model.eval()
+    accuracy_fn = nn.MSELoss()
+
+    with torch.no_grad():
+        for data, label in dataloader:
+            test_optimizer.zero_grad()
+            predict = test_model.forward(data)
+            predict_list.append(predict)
+            accuracy = accuracy_fn(predict, label)
+            accuracy_list.append(accuracy.item())
+
+    if not accuracy_list:
+        accuracy_list = [0]
+
+    test_loss = np.mean(accuracy_list)
+
 
 def loss_curve(loss_list):
     try:
@@ -223,68 +198,42 @@ def loss_curve(loss_list):
         print("Error: loss_curve",e)
 
 def contrast_lines(test_code):
-    global stock_test, test_loss
+    global stock_test, test_loss, accuracy_list, predict_list, loss_list, lo_list
 
-    real_list=[]
-    prediction_list=[]
-    predict_list=[]
-    accuracy_list=[]
-
-    print("test_code=",test_code)
+    print("test_code=", test_code)
     load_data(test_code)
     data = common.data_queue.get()
-    print("data.shape=",data.shape)
+
     if data.empty or data["ts_code"][0] == "None":
         print("Error: data is empty or ts_code is None")
         return
+
     if data['ts_code'][0] != test_code[0]:
         print("Error: ts_code is not match")
         return
-    data.drop(['ts_code','Date'],axis=1,inplace = True)    
-    train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
-    if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
+
+    data.drop(['ts_code', 'Date'], axis=1, inplace=True)
+    train_size = int(common.TRAIN_WEIGHT * (data.shape[0]))
+    if train_size < common.SEQ_LEN or train_size + common.SEQ_LEN > data.shape[0]:
         print("Error: train_size is too small or too large")
         return -1
-    Train_data=data[:train_size+common.SEQ_LEN]
-    Test_data=data[train_size-common.SEQ_LEN:]
+
+    Train_data = data[:train_size + common.SEQ_LEN]
+    Test_data = data[train_size - common.SEQ_LEN:]
     if Train_data is None or Test_data is None:
         print("Error: Train_data or Test_data is None")
         return
-    stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPUT_DIMENSION)
-    stock_test=common.Stock_Data(train=False, dataFrame=Test_data, label_num=common.OUTPUT_DIMENSION)
 
-    dataloader=common.DataLoaderX(dataset=stock_test,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=common.NUM_WORKERS, pin_memory=True)
+    stock_train = common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPUT_DIMENSION)
+    stock_test = common.Stock_Data(train=False, dataFrame=Test_data, label_num=common.OUTPUT_DIMENSION)
 
-    test_criterion=nn.MSELoss()
-    test_optimizer=optim.Adam(test_model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)
-    if os.path.exists(save_path+"_Model.pkl") and os.path.exists(save_path+"_Optimizer.pkl"):
-        print("Load model and optimizer from file")
-        test_model.load_state_dict(torch.load(save_path+"_Model.pkl"))
-        test_optimizer.load_state_dict(torch.load(save_path+"_Optimizer.pkl"))
-    test_model.eval()
-    test_optimizer.zero_grad()
-    if len(stock_test) < common.BATCH_SIZE:
-        print("Error: len(stock_test) < common.BATCH_SIZE")
-        return -1
-    test_bar = tqdm(total=len(dataloader), ncols=common.TQDM_NCOLS)
-    for i,(data,label) in enumerate(dataloader):
-        with torch.no_grad():            
-            # data,label=data.to(common.device),label.to(common.device)
-            test_optimizer.zero_grad()
-            predict=test_model.forward(data)
-            predict_list.append(predict)
-            loss=test_criterion(predict,label)
-            accuracy_fn=nn.MSELoss()
-            accuracy=accuracy_fn(predict,label)
-            accuracy_list.append(accuracy.item())
-        test_bar.update(1)
-    test_bar.close()
-    if len(accuracy_list) == 0:
-        accuracy_list = [0]
-    test_loss = np.mean(accuracy_list)
-    print("test_data MSELoss:(pred-real)/real=",test_loss)
+    dataloader = common.DataLoaderX(dataset=stock_test, batch_size=common.BATCH_SIZE, shuffle=False, drop_last=True, num_workers=common.NUM_WORKERS, pin_memory=True)
+    accuracy_list, predict_list = [], []
+    test(dataloader)
+    print("test_data MSELoss:(pred-real)/real=", test_loss)
 
-    test_bar = tqdm(total=len(dataloader) * common.BATCH_SIZE * common.OUTPUT_DIMENSION, ncols=common.TQDM_NCOLS)
+    real_list = []
+    prediction_list = []
     for i,(data,label) in enumerate(dataloader):
         for idx in range(common.BATCH_SIZE):
             _tmp = []
@@ -292,10 +241,7 @@ def contrast_lines(test_code):
                 if common.use_list[index] == 1:
                     # real_list.append(np.array(label[idx]*common.std_list[0]+common.mean_list[0]))
                     _tmp.append(label[idx][index]*common.std_list[index]+common.mean_list[index])
-                test_bar.update(1)
             real_list.append(np.array(_tmp))
-    test_bar.close()
-    test_bar = tqdm(total=len(predict_list) * common.BATCH_SIZE * common.OUTPUT_DIMENSION, ncols=common.TQDM_NCOLS)
     for item in predict_list:
         item=item.to("cpu")
         for idx in range(common.BATCH_SIZE):
@@ -304,29 +250,29 @@ def contrast_lines(test_code):
                 if common.use_list[index] == 1:
                     # prediction_list.append(np.array((item[idx]*common.std_list[0]+common.mean_list[0])))
                     _tmp.append(item[idx][index]*common.std_list[index]+common.mean_list[index])
-                test_bar.update(1)
             prediction_list.append(np.array(_tmp))
-    test_bar.close()
     pbar = tqdm(total=common.OUTPUT_DIMENSION, ncols=common.TQDM_NCOLS)
     for i in range(common.OUTPUT_DIMENSION):
         try:
+            pbar.set_description(f"img={common.name_list[i]}")
             _real_list = np.transpose(real_list)[i]
             _prediction_list = np.transpose(prediction_list)[i]
             plt.figure()
-            x=np.linspace(1,len(_real_list),len(_real_list))
-            plt.plot(x,np.array(_real_list),label="real")
-            plt.plot(x,np.array(_prediction_list),label="prediction")
+            x = np.linspace(1, len(_real_list), len(_real_list))
+            plt.plot(x, np.array(_real_list), label="real_"+common.name_list[i])
+            plt.plot(x, np.array(_prediction_list), label="prediction_"+common.name_list[i])
             plt.legend()
             now = datetime.now()
             date_string = now.strftime("%Y%m%d%H%M%S")
-            plt.savefig("./png/predict/"+cnname+"_"+common.name_list[i]+"_"+date_string+"_Pre.png",dpi=3000)
+            plt.savefig("./png/predict/" + cnname + "_" + common.name_list[i] + "_" + date_string + "_Pre.png", dpi=3000)
             pbar.update(1)
-        except:
+        except Exception as e:
+            tqdm.write("Error: contrast_lines", e)
             pbar.update(1)
             continue
-    plt.close()
     pbar.close()
-    # plt.show()
+    plt.close()
+
 
 def load_data(ts_codes):
     for ts_code in ts_codes:
