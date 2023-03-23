@@ -406,7 +406,7 @@ if __name__=="__main__":
                         m_loss = 0
                     else:
                         m_loss = np.mean(loss_list)
-                    code_bar.set_description("%s, %d, %e" % (ts_code,index+1,data_len,m_loss))
+                    code_bar.set_description("%s, %d, %e" % (ts_code,data_len,m_loss))
                     # df_draw=data[-period:]
                     # draw_Kline(df_draw,period,symbol)
                     data.drop(['ts_code','Date'],axis=1,inplace = True)    
