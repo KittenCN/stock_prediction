@@ -227,7 +227,7 @@ def contrast_lines(test_code):
     stock_train = common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPUT_DIMENSION)
     stock_test = common.Stock_Data(train=False, dataFrame=Test_data, label_num=common.OUTPUT_DIMENSION)
 
-    dataloader = common.DataLoaderX(dataset=stock_test, batch_size=common.BATCH_SIZE, shuffle=False, drop_last=True, num_workers=common.NUM_WORKERS, pin_memory=True)
+    dataloader = common.DataLoaderX(dataset=stock_test, batch_size=common.BATCH_SIZE, shuffle=False, drop_last=False, num_workers=common.NUM_WORKERS, pin_memory=True)
     accuracy_list, predict_list = [], []
     test(dataloader)
     print("test_data MSELoss:(pred-real)/real=", test_loss)
@@ -342,6 +342,7 @@ if __name__=="__main__":
             ts_codes.append(os.path.basename(csv_file).rsplit(".", 1)[0])
     else:
         ts_codes = [symbol]
+    random.shuffle(ts_codes)
     test_index = random.randint(0, len(ts_codes) - 1)
     test_code = [ts_codes[test_index]]
     if mode == 'train':
@@ -427,7 +428,7 @@ if __name__=="__main__":
                     continue
                 #开始训练神经网络
                 # print("Start training the model...")
-                train_dataloader=common.DataLoaderX(dataset=stock_train,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=True, num_workers=common.NUM_WORKERS, pin_memory=True)
+                train_dataloader=common.DataLoaderX(dataset=stock_train,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=False, num_workers=common.NUM_WORKERS, pin_memory=True)
                 predict_list=[]
                 accuracy_list=[]
                 train(epoch+1, train_dataloader, scaler)
