@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
+import re
 from torch.utils.data import Dataset, DataLoader
 from prefetch_generator import BackgroundGenerator
 
@@ -181,3 +182,11 @@ class TransAm(nn.Module):
         output = torch.squeeze(output)
         output = self.linear1(output)
         return output
+    
+def is_number(num):
+    pattern = re.compile(r'^[-+]?[-0-9]\d*\.\d*|[-+]?\.?[0-9]\d*$')
+    result = pattern.match(num)
+    if result:
+        return True
+    else:
+        return False

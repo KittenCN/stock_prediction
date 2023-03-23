@@ -22,11 +22,11 @@ from datetime import datetime
 from torch.cuda.amp import autocast, GradScaler
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', default="test", type=str, help="select running mode")
+parser.add_argument('--mode', default="train", type=str, help="select running mode")
 parser.add_argument('--model', default="lstm", type=str, help="lstm or transformer")
 parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
-parser.add_argument('--epochs', default=2, type=int, help="epochs")
+parser.add_argument('--epochs', default=5, type=int, help="epochs")
 parser.add_argument('--seq_len', default=179, type=int, help="SEQ_LEN")
 parser.add_argument('--lr', default=0.001, type=float, help="LEARNING_RATE")
 parser.add_argument('--wd', default=0.0001, type=float, help="WEIGHT_DECAY")
@@ -138,8 +138,9 @@ def train(epoch, dataloader, scaler, ts_code=""):
             subbar.set_description(f"{ts_code}, {iteration}, {loss.item():.2e}")
             subbar.update(1)
 
-            loss_list.append(loss.item())
-            lo_list.append(loss.item())
+            if common.is_number(loss.item()):
+                loss_list.append(loss.item())
+                lo_list.append(loss.item())
         except Exception as e:
             tqdm.write(f"code: {ts_code}, train error: {e}")
             subbar.update(1)
