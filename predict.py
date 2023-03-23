@@ -22,7 +22,7 @@ from datetime import datetime
 from torch.cuda.amp import autocast, GradScaler
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', default="train", type=str, help="select running mode")
+parser.add_argument('--mode', default="test", type=str, help="select running mode")
 parser.add_argument('--model', default="lstm", type=str, help="lstm or transformer")
 parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
@@ -232,7 +232,7 @@ def contrast_lines(test_code):
     stock_train = common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPUT_DIMENSION)
     stock_test = common.Stock_Data(train=False, dataFrame=Test_data, label_num=common.OUTPUT_DIMENSION)
 
-    dataloader = common.DataLoaderX(dataset=stock_test, batch_size=common.BATCH_SIZE, shuffle=False, drop_last=False, num_workers=common.NUM_WORKERS, pin_memory=True)
+    dataloader = common.DataLoaderX(dataset=stock_test, batch_size=common.BATCH_SIZE, shuffle=False, drop_last=True, num_workers=common.NUM_WORKERS, pin_memory=True)
     accuracy_list, predict_list = [], []
     test(dataloader)
     print("test_data MSELoss:(pred-real)/real=", test_loss)
