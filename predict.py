@@ -138,7 +138,7 @@ def train(epoch, dataloader, scaler, ts_code=""):
             subbar.set_description(f"{ts_code}, {iteration}, {loss.item():.2e}")
             subbar.update(1)
 
-            if common.is_number(loss.item()):
+            if common.is_number(str(loss.item())):
                 loss_list.append(loss.item())
                 lo_list.append(loss.item())
         except Exception as e:
@@ -414,7 +414,7 @@ if __name__=="__main__":
                     train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
                     # print("Split the data for trainning and testing...")
                     if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
-                        tqdm.write(ts_code + ":train_size is too small or too large")
+                        # tqdm.write(ts_code + ":train_size is too small or too large")
                         code_bar.update(1)
                         continue
                     Train_data=data[:train_size+common.SEQ_LEN]
