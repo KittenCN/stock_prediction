@@ -116,29 +116,34 @@ def draw_Kline(df, period, symbol):
              savefig=f'A_stock-{symbol} {period}_candle_line.jpg')
     plt.show()
 
-def train(epoch, dataloader, scaler):
+def train(epoch, dataloader, scaler, ts_code=""):
     global loss, last_save_time, loss_list, iteration, lo_list
     model.train()
     subbar = tqdm(total=len(dataloader), leave=False, ncols=common.TQDM_NCOLS)
-
+    
     for i, (data, label) in enumerate(dataloader):
-        iteration += 1
-        data, label = data.to(common.device), label.to(common.device)
+        try:
+            iteration += 1
+            data, label = data.to(common.device), label.to(common.device)
 
-        with autocast():
-            outputs = model.forward(data)
-            loss = criterion(outputs, label)
+            with autocast():
+                outputs = model.forward(data)
+                loss = criterion(outputs, label)
 
-        optimizer.zero_grad()
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
+            optimizer.zero_grad()
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
 
-        subbar.set_description(f"iter={iteration}, lo={loss.item():.2e}")
-        subbar.update(1)
+            subbar.set_description(f"code={ts_code},iter={iteration}, lo={loss.item():.2e}")
+            subbar.update(1)
 
-        loss_list.append(loss.item())
-        lo_list.append(loss.item())
+            loss_list.append(loss.item())
+            lo_list.append(loss.item())
+        except Exception as e:
+            tqdm.write(f"code: {ts_code}, train error: {e}")
+            subbar.update(1)
+            continue
 
         if iteration % common.SAVE_NUM_ITER == 0 and time.time() - last_save_time >= common.SAVE_INTERVAL:
             torch.save(model.state_dict(), save_path + "_Model.pkl")
@@ -423,7 +428,7 @@ if __name__=="__main__":
                     iteration=0
                     loss_list=[]
                 except Exception as e:
-                    tqdm.write(ts_code + ":Error in data processing")
+                    print(e)
                     code_bar.update(1)
                     continue
                 #开始训练神经网络
@@ -431,12 +436,7 @@ if __name__=="__main__":
                 train_dataloader=common.DataLoaderX(dataset=stock_train,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=False, num_workers=common.NUM_WORKERS, pin_memory=True)
                 predict_list=[]
                 accuracy_list=[]
-                try:
-                    train(epoch+1, train_dataloader, scaler)
-                except Exception as e:
-                    tqdm.write(ts_code + ":Error in training")
-                    code_bar.update(1)
-                    continue
+                train(epoch+1, train_dataloader, scaler, ts_code)
                 code_bar.update(1)
                 if time.time() - last_save_time >= common.SAVE_INTERVAL or index == len(ts_codes) - 1:
                     torch.save(model.state_dict(),save_path+"_Model.pkl")
