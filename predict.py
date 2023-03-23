@@ -183,8 +183,12 @@ def test(dataloader):
             test_optimizer.zero_grad()
             predict = test_model.forward(data)
             predict_list.append(predict)
-            accuracy = accuracy_fn(predict, label)
-            accuracy_list.append(accuracy.item())
+            if(predict.shape == label.shape):
+                accuracy = accuracy_fn(predict, label)
+                accuracy_list.append(accuracy.item())
+            else:
+                tqdm.write(f"test error: predict.shape != label.shape")
+                continue
 
     if not accuracy_list:
         accuracy_list = [0]
@@ -238,7 +242,7 @@ def contrast_lines(test_code):
     stock_train = common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPUT_DIMENSION)
     stock_test = common.Stock_Data(train=False, dataFrame=Test_data, label_num=common.OUTPUT_DIMENSION)
 
-    dataloader = common.DataLoaderX(dataset=stock_test, batch_size=common.BATCH_SIZE, shuffle=False, drop_last=True, num_workers=common.NUM_WORKERS, pin_memory=True)
+    dataloader = common.DataLoaderX(dataset=stock_test, batch_size=common.BATCH_SIZE, shuffle=False, drop_last=False, num_workers=common.NUM_WORKERS, pin_memory=True)
     accuracy_list, predict_list = [], []
     test(dataloader)
     print("test_data MSELoss:(pred-real)/real=", test_loss)
