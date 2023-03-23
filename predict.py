@@ -423,7 +423,7 @@ if __name__=="__main__":
                     iteration=0
                     loss_list=[]
                 except Exception as e:
-                    print(e)
+                    tqdm.write(ts_code + ":Error in data processing")
                     code_bar.update(1)
                     continue
                 #开始训练神经网络
@@ -431,7 +431,12 @@ if __name__=="__main__":
                 train_dataloader=common.DataLoaderX(dataset=stock_train,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=False, num_workers=common.NUM_WORKERS, pin_memory=True)
                 predict_list=[]
                 accuracy_list=[]
-                train(epoch+1, train_dataloader, scaler)
+                try:
+                    train(epoch+1, train_dataloader, scaler)
+                except Exception as e:
+                    tqdm.write(ts_code + ":Error in training")
+                    code_bar.update(1)
+                    continue
                 code_bar.update(1)
                 if time.time() - last_save_time >= common.SAVE_INTERVAL or index == len(ts_codes) - 1:
                     torch.save(model.state_dict(),save_path+"_Model.pkl")
