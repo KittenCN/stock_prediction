@@ -130,14 +130,18 @@ def train(epoch, dataloader, scaler, ts_code=""):
                 outputs = model.forward(data)
                 if outputs.shape == label.shape:
                     loss = criterion(outputs, label)
-            if outputs.shape == label.shape:
-                optimizer.zero_grad()
-                scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
-                if common.is_number(str(loss.item())):
-                    loss_list.append(loss.item())
-                    lo_list.append(loss.item())
+                else:
+                    tqdm.write(f"code: {ts_code}, train error: outputs.shape != label.shape")
+                    subbar.update(1)
+                    continue
+                
+            optimizer.zero_grad()
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+            if common.is_number(str(loss.item())):
+                loss_list.append(loss.item())
+                lo_list.append(loss.item())
 
             subbar.set_description(f"{ts_code}, {iteration}, {loss.item():.2e}")
             subbar.update(1)
