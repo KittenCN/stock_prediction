@@ -128,19 +128,20 @@ def train(epoch, dataloader, scaler, ts_code=""):
 
             with autocast():
                 outputs = model.forward(data)
-                loss = criterion(outputs, label)
-
-            optimizer.zero_grad()
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
+                if outputs.shape == label.shape:
+                    loss = criterion(outputs, label)
+            if outputs.shape == label.shape:
+                optimizer.zero_grad()
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+                if common.is_number(str(loss.item())):
+                    loss_list.append(loss.item())
+                    lo_list.append(loss.item())
 
             subbar.set_description(f"{ts_code}, {iteration}, {loss.item():.2e}")
             subbar.update(1)
 
-            if common.is_number(str(loss.item())):
-                loss_list.append(loss.item())
-                lo_list.append(loss.item())
         except Exception as e:
             tqdm.write(f"code: {ts_code}, train error: {e}")
             subbar.update(1)
