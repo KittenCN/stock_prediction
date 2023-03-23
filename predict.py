@@ -135,7 +135,7 @@ def train(epoch, dataloader, scaler, ts_code=""):
             scaler.step(optimizer)
             scaler.update()
 
-            subbar.set_description(f"code={ts_code},iter={iteration}, lo={loss.item():.2e}")
+            subbar.set_description(f"{ts_code}, {iteration}, {loss.item():.2e}")
             subbar.update(1)
 
             loss_list.append(loss.item())
@@ -259,7 +259,7 @@ def contrast_lines(test_code):
     pbar = tqdm(total=common.OUTPUT_DIMENSION, ncols=common.TQDM_NCOLS)
     for i in range(common.OUTPUT_DIMENSION):
         try:
-            pbar.set_description(f"img={common.name_list[i]}")
+            pbar.set_description(f"{common.name_list[i]}")
             _real_list = np.transpose(real_list)[i]
             _prediction_list = np.transpose(prediction_list)[i]
             plt.figure()
@@ -366,7 +366,7 @@ if __name__=="__main__":
                     m_loss = 0
             else:
                 m_loss = np.mean(lo_list)
-            pbar.set_description("epoch=%d,loss=%e"%(epoch+1,m_loss))
+            pbar.set_description("%d, %e"%(epoch+1,m_loss))
             code_bar = tqdm(total=len(ts_codes), ncols=common.TQDM_NCOLS)
             for index, ts_code in enumerate(ts_codes):
                 try:
@@ -406,7 +406,7 @@ if __name__=="__main__":
                         m_loss = 0
                     else:
                         m_loss = np.mean(loss_list)
-                    code_bar.set_description("%s %d|%d %e" % (ts_code,index+1,data_len,m_loss))
+                    code_bar.set_description("%s, %d, %e" % (ts_code,index+1,data_len,m_loss))
                     # df_draw=data[-period:]
                     # draw_Kline(df_draw,period,symbol)
                     data.drop(['ts_code','Date'],axis=1,inplace = True)    
