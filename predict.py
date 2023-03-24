@@ -5,7 +5,6 @@ import argparse
 import glob
 import random
 import threading
-import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import common
@@ -20,7 +19,7 @@ from torch.cuda.amp import autocast, GradScaler
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode")
-parser.add_argument('--model', default="transformer", type=str, help="lstm or transformer")
+parser.add_argument('--model', default="lstm", type=str, help="lstm or transformer")
 parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--epochs', default=2, type=int, help="epochs")
@@ -279,7 +278,7 @@ if __name__=="__main__":
     if mode == 'train':
         data_thread = threading.Thread(target=load_data, args=(ts_codes,))
         data_thread.start()
-        # data_thread.join()
+        #data_thread.join()
         scaler = GradScaler()
         pbar = tqdm(total=common.EPOCH, leave=False, ncols=common.TQDM_NCOLS)
         lo_list=[]
@@ -314,7 +313,7 @@ if __name__=="__main__":
                     while index >= len(data_list):
                         if common.data_queue.empty() == False:
                             data_list += [common.data_queue.get()]
-                        time.sleep(0.01)
+                        time.sleep(5)
                         Err_nums -= 1
                         if Err_nums == 0:
                             tqdm.write("Error: data_list is empty")

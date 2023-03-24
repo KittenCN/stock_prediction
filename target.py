@@ -1,10 +1,7 @@
 # -*- coding: utf-8 -*-
 import math
-import datetime
 import numpy as np
 import pandas as pd
-from common import import_csv
-
 
 #------------------ 0级：核心工具函数 --------------------------------------------      
 def RD(N,D=3):   return np.round(N,D)        #四舍五入取3位小数 
@@ -423,32 +420,20 @@ def TDX_SAR(High, Low, iAFStep=2, iAFLimit=20):    # type: (np.ndarray, np.ndarr
     return SarX
 
 
-if __name__ == "__main__":
-    df = import_csv("000001.SZ")
-    if 'trade_date' in df.columns:
-        # times = [datetime.datetime.fromtimestamp(int(str(ts.value)[:10])).strftime('%Y%m%d') for ts in df['trade_date'].tolist()]
-        times = df['trade_date'].tolist()
-        close = df['close'].tolist()
-        hpri = df['high'].tolist()
-        lpri = df['low'].tolist()
-    elif 'Date' in df.columns:
-        times = df['Date'].tolist()
-        close = df['Close'].tolist()
-        hpri = df['High'].tolist()
-        lpri = df['Low'].tolist()
+# if __name__ == "__main__":
+#     df = import_csv("000001.SZ")
+#     if 'trade_date' in df.columns:
+#         # times = [datetime.datetime.fromtimestamp(int(str(ts.value)[:10])).strftime('%Y%m%d') for ts in df['trade_date'].tolist()]
+#         times = df['trade_date'].tolist()
+#         close = df['close'].tolist()
+#         hpri = df['high'].tolist()
+#         lpri = df['low'].tolist()
+#     elif 'Date' in df.columns:
+#         times = df['Date'].tolist()
+#         close = df['Close'].tolist()
+#         hpri = df['High'].tolist()
+#         lpri = df['Low'].tolist()
         
-    dif, dea, macd = MACD(close) #传入股票代码，加前缀
-    for i in range(len(times)):
-        print(times[i], close[i], dif[i], dea[i], macd[i])
-
-
-
-
-
-
-
-
-
-
-
-
+#     dif, dea, macd = MACD(close) #传入股票代码，加前缀
+#     for i in range(len(times)):
+#         print(times[i], close[i], dif[i], dea[i], macd[i])

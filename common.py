@@ -6,6 +6,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import re
+import target
 import mplfinance as mpf
 import matplotlib as mpl# 用于设置曲线参数
 from cycler import cycler# 用于定制线条颜色
@@ -24,8 +25,8 @@ SAVE_NUM_EPOCH=10
 GET_DATA=True
 TEST_NUM=25
 SAVE_INTERVAL=300
-OUTPUT_DIMENSION=20
-INPUT_DIMENSION=8
+OUTPUT_DIMENSION=4
+INPUT_DIMENSION=20
 TQDM_NCOLS = 100
 NUM_WORKERS = 4
 
@@ -35,6 +36,7 @@ data_queue=queue.Queue()
 stock_data_queue=queue.Queue()
 stock_list_queue = queue.Queue()
 csv_queue=queue.Queue()
+df_queue=queue.Queue()
 
 NoneDataFrame = pd.DataFrame(columns=["ts_code"])
 NoneDataFrame["ts_code"] = ["None"]
@@ -167,7 +169,7 @@ class TransAm(nn.Module):
         self.model_type = 'Transformer'
         self.src_mask = None
         self.pos_encoder = PositionalEncoding(feature_size)
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=feature_size, nhead=8, dropout=dropout)
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=feature_size, nhead=10, dropout=dropout)
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=num_layers)
         self.decoder = nn.Linear(feature_size, 1)
         self.linear1 = nn.Linear(SEQ_LEN, OUTPUT_DIMENSION)
@@ -201,6 +203,7 @@ def data_wash(dataset,keepTime=False):
         dataset.fillna(axis=1,method='ffill')
     else:
         dataset.dropna()
+    df_queue.put(dataset)
     return dataset
 
 def import_csv(stock_code, dataFrame=None):
@@ -214,7 +217,11 @@ def import_csv(stock_code, dataFrame=None):
     else:
         df = dataFrame
 
-    df = data_wash(df, keepTime=False)
+    add_target(df)
+    df = df_queue.get()
+
+    data_wash(df, keepTime=False)
+    df = df_queue.get()
     df.rename(
         columns={
             'trade_date': 'Date', 'open': 'Open',
@@ -286,3 +293,88 @@ def cmp_append(data, cmp_data):  #比较数据，如果数据不同则添加到�
         data.append(0)
     data = np.nan_to_num(data)
     return data
+
+def add_target(df):
+    if 'trade_date' in df.columns:
+        # times = [datetime.datetime.fromtimestamp(int(str(ts.value)[:10])).strftime('%Y%m%d') for ts in df['trade_date'].tolist()]
+        times = np.array(df['trade_date'].values)
+        close = np.array(df['close'].values)
+        hpri = np.array(df['high'].values)
+        lpri = np.array(df['low'].values)
+        vol = np.array(df['vol'].values)
+    elif 'Date' in df.columns:
+        times = np.array(df['Date'].values)
+        close = np.array(df['Close'].values)
+        hpri = np.array(df['High'].values)
+        lpri = np.array(df['Low'].values)
+        vol = np.array(df['Volume'].values)
+    
+    times = times[::-1]
+    close = close[::-1]
+    hpri = hpri[::-1]
+    lpri = lpri[::-1]
+    vol = vol[::-1]
+
+    macd_dif, macd_dea, macd_bar = target.MACD(close)
+    df["macd_dif"] = cmp_append(macd_dif[::-1], df)
+    df["macd_dea"] = cmp_append(macd_dea[::-1], df)
+    df["macd_bar"] = cmp_append(macd_bar[::-1], df)
+    k, d, j = target.KDJ(close, hpri, lpri)
+    df['k'] = cmp_append(k[::-1], df)
+    df['d'] = cmp_append(d[::-1], df)
+    df['j'] = cmp_append(j[::-1], df)
+    boll_upper, boll_mid, boll_lower = target.BOLL(close)
+    df['boll_upper'] = cmp_append(boll_upper[::-1], df)
+    df['boll_mid'] = cmp_append(boll_mid[::-1], df)
+    df['boll_lower'] = cmp_append(boll_lower[::-1], df)
+    cci = target.CCI(close, hpri, lpri)
+    df['cci'] = cmp_append(cci[::-1], df)
+    pdi, mdi, adx, adxr = target.DMI(close, hpri, lpri)
+    df['pdi'] = cmp_append(pdi[::-1], df)
+    df['mdi'] = cmp_append(mdi[::-1], df)
+    df['adx'] = cmp_append(adx[::-1], df)
+    df['adxr'] = cmp_append(adxr[::-1], df)
+    taq_up, taq_mid, taq_down = target.TAQ(hpri, lpri, 5)
+    df['taq_up'] = cmp_append(taq_up[::-1], df)
+    df['taq_mid'] = cmp_append(taq_mid[::-1], df)
+    df['taq_down'] = cmp_append(taq_down[::-1], df)
+    trix, trma = target.TRIX(close)
+    df['trix'] = cmp_append(trix[::-1], df)
+    df['trma'] = cmp_append(trma[::-1], df)
+    rsi = target.RSI(close)
+    df['rsi'] = cmp_append(rsi[::-1], df)
+    df = df.reindex(columns=[
+        "ts_code",
+        "trade_date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "change",
+        "pct_chg",
+        "vol",
+        "amount",
+        "macd_dif",
+        "macd_dea",
+        "macd_bar",
+        "k",
+        "d",
+        "j",
+        "boll_upper",
+        "boll_mid",
+        "boll_lower",
+        "cci",
+        "pdi",
+        "mdi",
+        "adx",
+        "adxr",
+        "taq_up",
+        "taq_mid",
+        "taq_down",
+        "trix",
+        "trma",
+        "rsi",
+        "pre_close"
+    ])
+    df_queue.put(df)
+    return df
