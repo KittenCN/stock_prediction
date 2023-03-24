@@ -31,6 +31,9 @@ parser.add_argument('--workers', default=4, type=int, help="num_workers")
 args = parser.parse_args()
 last_save_time = 0
 
+if common.device.type == "cuda":
+    torch.backends.cudnn.benchmark = True
+
 def train(epoch, dataloader, scaler, ts_code=""):
     global loss, last_save_time, loss_list, iteration, lo_list
     model.train()
