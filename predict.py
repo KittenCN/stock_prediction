@@ -46,9 +46,13 @@ def train(epoch, dataloader, scaler, ts_code=""):
                 if outputs.shape == label.shape:
                     loss = criterion(outputs, label)
                 else:
-                    tqdm.write(f"code: {ts_code}, train error: outputs.shape != label.shape")
-                    subbar.update(1)
-                    continue
+                    _label = label.reshape(outputs.shape)
+                    if outputs.shape == _label.shape:
+                        loss = criterion(outputs, _label)
+                    else:
+                        tqdm.write(f"code: {ts_code}, train error: outputs.shape != label.shape")
+                        subbar.update(1)
+                        continue
                 
             optimizer.zero_grad()
             scaler.scale(loss).backward()
