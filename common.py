@@ -216,21 +216,25 @@ def import_csv(stock_code, dataFrame=None):
             return None
     else:
         df = dataFrame
+    try:
+        add_target(df)
+        df = df_queue.get()
 
-    add_target(df)
-    df = df_queue.get()
+        data_wash(df, keepTime=False)
+        df = df_queue.get()
+        df.rename(
+            columns={
+                'trade_date': 'Date', 'open': 'Open',
+                'high': 'High', 'low': 'Low',
+                'close': 'Close', 'vol': 'Volume'},
+            inplace=True)
 
-    data_wash(df, keepTime=False)
-    df = df_queue.get()
-    df.rename(
-        columns={
-            'trade_date': 'Date', 'open': 'Open',
-            'high': 'High', 'low': 'Low',
-            'close': 'Close', 'vol': 'Volume'},
-        inplace=True)
-
-    df['Date'] = pd.to_datetime(df['Date'], format='%Y%m%d')
-    df.set_index(df['Date'], inplace=True)
+        df['Date'] = pd.to_datetime(df['Date'], format='%Y%m%d')
+        df.set_index(df['Date'], inplace=True)
+    except Exception as e:
+        print(e)
+        csv_queue.put(NoneDataFrame)
+        return None
 
     if df.empty:
         csv_queue.put(NoneDataFrame)
@@ -291,7 +295,7 @@ def data_replace(data):  #截取小数点后两位
 def cmp_append(data, cmp_data):  #比较数据，如果数据不同则添加到列表
     while len(data) < len(cmp_data):
         data.append(0)
-    data = np.nan_to_num(data)
+    # data = np.nan_to_num(data)
     return data
 
 def add_target(df):

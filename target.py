@@ -49,16 +49,10 @@ def EMA(S,N):             #指数移动平均,为了精度 S>4*N  EMA至少需�
     return pd.Series(S).ewm(span=N, adjust=False).mean().values     
 
 def SMA(S, N, M=1):       #中国式的SMA,至少需要120周期才精确 (雪球180周期)    alpha=1/(1+com)    
-    try:
-        return pd.Series(S).ewm(alpha=M/N,adjust=False).mean().values           #com=N-M/M
-    except:
-        return np.zeros(len(S))
+    return pd.Series(S).ewm(alpha=M/N,adjust=False).mean().values           #com=N-M/M
 
 def WMA(S, N):            #通达信S序列的N日加权移动平均 Yn = (1*X1+2*X2+3*X3+...+n*Xn)/(1+2+3+...+Xn)
-    try:
-        return pd.Series(S).rolling(N).apply(lambda x:x[::-1].cumsum().sum()*2/N/(N+1),raw=True).values 
-    except:
-        return np.zeros(len(S))
+    return pd.Series(S).rolling(N).apply(lambda x:x[::-1].cumsum().sum()*2/N/(N+1),raw=True).values 
 
 def DMA(S, A):            #求S的动态移动平均，A作平滑因子,必须 0<A<1  (此为核心函数，非指标）
     if isinstance(A,(int,float)):  return pd.Series(S).ewm(alpha=A,adjust=False).mean().values    
@@ -135,36 +129,24 @@ def MACD(CLOSE,SHORT=12,LONG=26,M=9):             # EMA的关系，S取120日，
     return RD(DIF),RD(DEA),RD(MACD)
 
 def KDJ(CLOSE,HIGH,LOW, N=9,M1=3,M2=3):           # KDJ指标
-    try:
-        RSV = (CLOSE - LLV(LOW, N)) / (HHV(HIGH, N) - LLV(LOW, N)) * 100
-        K = EMA(RSV, (M1*2-1));    D = EMA(K,(M2*2-1));        J=K*3-D*2
-        return K, D, J
-    except:
-        return np.zeros(len(CLOSE)),np.zeros(len(CLOSE)),np.zeros(len(CLOSE))
+    RSV = (CLOSE - LLV(LOW, N)) / (HHV(HIGH, N) - LLV(LOW, N)) * 100
+    K = EMA(RSV, (M1*2-1));    D = EMA(K,(M2*2-1));        J=K*3-D*2
+    return K, D, J
 
 def RSI(CLOSE, N=24):                           # RSI指标,和通达信小数点2位相同
-    try:
-        DIF = CLOSE-REF(CLOSE,1) 
-        return RD(SMA(MAX(DIF,0), N) / SMA(ABS(DIF), N) * 100)  
-    except:
-        return np.zeros(len(CLOSE))
+    DIF = CLOSE-REF(CLOSE,1) 
+    return RD(SMA(MAX(DIF,0), N) / SMA(ABS(DIF), N) * 100)  
 
 def WR(CLOSE, HIGH, LOW, N=10, N1=6):            #W&R 威廉指标
-    try:
-        WR = (HHV(HIGH, N) - CLOSE) / (HHV(HIGH, N) - LLV(LOW, N)) * 100
-        WR1 = (HHV(HIGH, N1) - CLOSE) / (HHV(HIGH, N1) - LLV(LOW, N1)) * 100
-        return RD(WR), RD(WR1)
-    except:
-        return np.zeros(len(CLOSE)),np.zeros(len(CLOSE))
+    WR = (HHV(HIGH, N) - CLOSE) / (HHV(HIGH, N) - LLV(LOW, N)) * 100
+    WR1 = (HHV(HIGH, N1) - CLOSE) / (HHV(HIGH, N1) - LLV(LOW, N1)) * 100
+    return RD(WR), RD(WR1)
 
 def BIAS(CLOSE,L1=6, L2=12, L3=24):              # BIAS乖离率
-    try:
-        BIAS1 = (CLOSE - MA(CLOSE, L1)) / MA(CLOSE, L1) * 100
-        BIAS2 = (CLOSE - MA(CLOSE, L2)) / MA(CLOSE, L2) * 100
-        BIAS3 = (CLOSE - MA(CLOSE, L3)) / MA(CLOSE, L3) * 100
-        return RD(BIAS1), RD(BIAS2), RD(BIAS3)
-    except:
-        return np.zeros(len(CLOSE)),np.zeros(len(CLOSE)),np.zeros(len(CLOSE))
+    BIAS1 = (CLOSE - MA(CLOSE, L1)) / MA(CLOSE, L1) * 100
+    BIAS2 = (CLOSE - MA(CLOSE, L2)) / MA(CLOSE, L2) * 100
+    BIAS3 = (CLOSE - MA(CLOSE, L3)) / MA(CLOSE, L3) * 100
+    return RD(BIAS1), RD(BIAS2), RD(BIAS3)
 
 def BOLL(CLOSE,N=20, P=2):                       #BOLL指标，布林带    
     MID = MA(CLOSE, N); 
@@ -173,42 +155,30 @@ def BOLL(CLOSE,N=20, P=2):                       #BOLL指标，布林带
     return RD(UPPER), RD(MID), RD(LOWER)    
 
 def PSY(CLOSE,N=12, M=6):  
-    try:
-        PSY=COUNT(CLOSE>REF(CLOSE,1),N)/N*100
-        PSYMA=MA(PSY,M)
-        return RD(PSY),RD(PSYMA)
-    except:
-        return np.zeros(len(CLOSE)),np.zeros(len(CLOSE))
+    PSY=COUNT(CLOSE>REF(CLOSE,1),N)/N*100
+    PSYMA=MA(PSY,M)
+    return RD(PSY),RD(PSYMA)
 
 def CCI(CLOSE,HIGH,LOW,N=14):  
-    try:
-        TP=(HIGH+LOW+CLOSE)/3
-        return (TP-MA(TP,N))/(0.015*AVEDEV(TP,N))
-    except:
-        return np.zeros(len(CLOSE))
+    TP=(HIGH+LOW+CLOSE)/3
+    return (TP-MA(TP,N))/(0.015*AVEDEV(TP,N))
         
 def ATR(CLOSE,HIGH,LOW, N=20):                    #真实波动N日平均值
     TR = MAX(MAX((HIGH - LOW), ABS(REF(CLOSE, 1) - HIGH)), ABS(REF(CLOSE, 1) - LOW))
     return MA(TR, N)
 
 def BBI(CLOSE,M1=3,M2=6,M3=12,M4=20):             #BBI多空指标   
-    try:
-        return (MA(CLOSE,M1)+MA(CLOSE,M2)+MA(CLOSE,M3)+MA(CLOSE,M4))/4    
-    except:
-        return np.zeros(len(CLOSE))
+    return (MA(CLOSE,M1)+MA(CLOSE,M2)+MA(CLOSE,M3)+MA(CLOSE,M4))/4    
 
 def DMI(CLOSE,HIGH,LOW,M1=14,M2=6):               #动向指标：结果和同花顺，通达信完全一致
-    try:
-        TR = SUM(MAX(MAX(HIGH - LOW, ABS(HIGH - REF(CLOSE, 1))), ABS(LOW - REF(CLOSE, 1))), M1)
-        HD = HIGH - REF(HIGH, 1);     LD = REF(LOW, 1) - LOW
-        DMP = SUM(IF((HD > 0) & (HD > LD), HD, 0), M1)
-        DMM = SUM(IF((LD > 0) & (LD > HD), LD, 0), M1)
-        PDI = DMP * 100 / TR;         MDI = DMM * 100 / TR
-        ADX = MA(ABS(MDI - PDI) / (PDI + MDI) * 100, M2)
-        ADXR = (ADX + REF(ADX, M2)) / 2
-        return PDI, MDI, ADX, ADXR  
-    except:
-        return np.zeros(len(CLOSE)),np.zeros(len(CLOSE)),np.zeros(len(CLOSE)),np.zeros(len(CLOSE))
+    TR = SUM(MAX(MAX(HIGH - LOW, ABS(HIGH - REF(CLOSE, 1))), ABS(LOW - REF(CLOSE, 1))), M1)
+    HD = HIGH - REF(HIGH, 1);     LD = REF(LOW, 1) - LOW
+    DMP = SUM(IF((HD > 0) & (HD > LD), HD, 0), M1)
+    DMM = SUM(IF((LD > 0) & (LD > HD), LD, 0), M1)
+    PDI = DMP * 100 / TR;         MDI = DMM * 100 / TR
+    ADX = MA(ABS(MDI - PDI) / (PDI + MDI) * 100, M2)
+    ADXR = (ADX + REF(ADX, M2)) / 2
+    return PDI, MDI, ADX, ADXR  
 
 def TAQ(HIGH,LOW,N):                               #唐安奇通道(海龟)交易指标，大道至简，能穿越牛熊
     UP=HHV(HIGH,N);    DOWN=LLV(LOW,N);    MID=(UP+DOWN)/2
@@ -221,41 +191,28 @@ def KTN(CLOSE,HIGH,LOW,N=20,M=10):                 #肯特纳交易通道, N选2
     return UPPER,MID,LOWER       
   
 def TRIX(CLOSE,M1=12, M2=20):                      #三重指数平滑平均线
-    try:
-        TR = EMA(EMA(EMA(CLOSE, M1), M1), M1)
-        TRIX = (TR - REF(TR, 1)) / REF(TR, 1) * 100
-        TRMA = MA(TRIX, M2)
-        return TRIX, TRMA
-    except:
-        return np.zeros(len(CLOSE)),np.zeros(len(CLOSE))
+    TR = EMA(EMA(EMA(CLOSE, M1), M1), M1)
+    TRIX = (TR - REF(TR, 1)) / REF(TR, 1) * 100
+    TRMA = MA(TRIX, M2)
+    return TRIX, TRMA
 
 def VR(CLOSE,VOL,M1=26):                            #VR容量比率
-    try:
-        LC = REF(CLOSE, 1)
-        return SUM(IF(CLOSE > LC, VOL, 0), M1) / SUM(IF(CLOSE <= LC, VOL, 0), M1) * 100
-    except:
-        return np.zeros(len(CLOSE))
+    LC = REF(CLOSE, 1)
+    return SUM(IF(CLOSE > LC, VOL, 0), M1) / SUM(IF(CLOSE <= LC, VOL, 0), M1) * 100
 
 def EMV(HIGH,LOW,VOL,N=14,M=9):                     #简易波动指标 
-    try:
-        VOLUME=MA(VOL,N)/VOL;       MID=100*(HIGH+LOW-REF(HIGH+LOW,1))/(HIGH+LOW)
-        EMV=MA(MID*VOLUME*(HIGH-LOW)/MA(HIGH-LOW,N),N);    MAEMV=MA(EMV,M)
-        return EMV,MAEMV
-    except:
-        return np.zeros(len(HIGH)),np.zeros(len(HIGH))
-
+    VOLUME=MA(VOL,N)/VOL;       MID=100*(HIGH+LOW-REF(HIGH+LOW,1))/(HIGH+LOW)
+    EMV=MA(MID*VOLUME*(HIGH-LOW)/MA(HIGH-LOW,N),N);    MAEMV=MA(EMV,M)
+    return EMV,MAEMV
 
 def DPO(CLOSE,M1=20, M2=10, M3=6):                  #区间震荡线
     DPO = CLOSE - REF(MA(CLOSE, M1), M2);    MADPO = MA(DPO, M3)
     return DPO, MADPO
 
 def BRAR(OPEN,CLOSE,HIGH,LOW,M1=26):                 #BRAR-ARBR 情绪指标  
-    try:
-        AR = SUM(HIGH - OPEN, M1) / SUM(OPEN - LOW, M1) * 100
-        BR = SUM(MAX(0, HIGH - REF(CLOSE, 1)), M1) / SUM(MAX(0, REF(CLOSE, 1) - LOW), M1) * 100
-        return AR, BR
-    except:
-        return np.zeros(len(CLOSE)),np.zeros(len(CLOSE))
+    AR = SUM(HIGH - OPEN, M1) / SUM(OPEN - LOW, M1) * 100
+    BR = SUM(MAX(0, HIGH - REF(CLOSE, 1)), M1) / SUM(MAX(0, REF(CLOSE, 1) - LOW), M1) * 100
+    return AR, BR
 
 def DFMA(CLOSE,N1=10,N2=50,M=10):                    #平行线差指标 
     DIF=MA(CLOSE,N1)-MA(CLOSE,N2); DIFMA=MA(DIF,M)   #通达信指标叫DMA 同花顺叫新DMA
@@ -266,57 +223,39 @@ def MTM(CLOSE,N=12,M=6):                             #动量指标
     return MTM,MTMMA
 
 def MASS(HIGH,LOW,N1=9,N2=25,M=6):                   #梅斯线
-    try:
-        MASS=SUM(MA(HIGH-LOW,N1)/MA(MA(HIGH-LOW,N1),N1),N2)
-        MA_MASS=MA(MASS,M)
-        return MASS,MA_MASS
-    except:
-        return np.zeros(len(HIGH)),np.zeros(len(HIGH))
+    MASS=SUM(MA(HIGH-LOW,N1)/MA(MA(HIGH-LOW,N1),N1),N2)
+    MA_MASS=MA(MASS,M)
+    return MASS,MA_MASS
   
 def ROC(CLOSE,N=12,M=6):                             #变动率指标
-    try:
-        ROC=100*(CLOSE-REF(CLOSE,N))/REF(CLOSE,N);    MAROC=MA(ROC,M)
-        return ROC,MAROC  
-    except:
-        return np.zeros(len(CLOSE)),np.zeros(len(CLOSE))
+    ROC=100*(CLOSE-REF(CLOSE,N))/REF(CLOSE,N);    MAROC=MA(ROC,M)
+    return ROC,MAROC  
 
 def EXPMA(CLOSE,N1=12,N2=50):                        #EMA指数平均数指标
     return EMA(CLOSE,N1),EMA(CLOSE,N2);
 
 def OBV(CLOSE,VOL):                                  #能量潮指标
-    try:
-        return SUM(IF(CLOSE>REF(CLOSE,1),VOL,IF(CLOSE<REF(CLOSE,1),-VOL,0)),0)/10000
-    except:
-        return np.zeros(len(CLOSE))
+    return SUM(IF(CLOSE>REF(CLOSE,1),VOL,IF(CLOSE<REF(CLOSE,1),-VOL,0)),0)/10000
 
 def MFI(CLOSE,HIGH,LOW,VOL,N=14):                    #MFI指标是成交量的RSI指标
-    try:
-        TYP = (HIGH + LOW + CLOSE)/3
-        V1=SUM(IF(TYP>REF(TYP,1),TYP*VOL,0),N)/SUM(IF(TYP<REF(TYP,1),TYP*VOL,0),N)  
-        return 100-(100/(1+V1))     
-    except:
-        return np.zeros(len(CLOSE))
+    TYP = (HIGH + LOW + CLOSE)/3
+    V1=SUM(IF(TYP>REF(TYP,1),TYP*VOL,0),N)/SUM(IF(TYP<REF(TYP,1),TYP*VOL,0),N)  
+    return 100-(100/(1+V1))     
   
 def ASI(OPEN,CLOSE,HIGH,LOW,M1=26,M2=10):            #振动升降指标
-    try:
-        LC=REF(CLOSE,1);      AA=ABS(HIGH-LC);     BB=ABS(LOW-LC);
-        CC=ABS(HIGH-REF(LOW,1));   DD=ABS(LC-REF(OPEN,1));
-        R=IF( (AA>BB) & (AA>CC),AA+BB/2+DD/4,IF( (BB>CC) & (BB>AA),BB+AA/2+DD/4,CC+DD/4));
-        X=(CLOSE-LC+(CLOSE-OPEN)/2+LC-REF(OPEN,1));
-        SI=16*X/R*MAX(AA,BB);   ASI=SUM(SI,M1);   ASIT=MA(ASI,M2);
-        return ASI,ASIT   
-    except:
-        return np.zeros(len(CLOSE)),np.zeros(len(CLOSE))
+    LC=REF(CLOSE,1);      AA=ABS(HIGH-LC);     BB=ABS(LOW-LC);
+    CC=ABS(HIGH-REF(LOW,1));   DD=ABS(LC-REF(OPEN,1));
+    R=IF( (AA>BB) & (AA>CC),AA+BB/2+DD/4,IF( (BB>CC) & (BB>AA),BB+AA/2+DD/4,CC+DD/4));
+    X=(CLOSE-LC+(CLOSE-OPEN)/2+LC-REF(OPEN,1));
+    SI=16*X/R*MAX(AA,BB);   ASI=SUM(SI,M1);   ASIT=MA(ASI,M2);
+    return ASI,ASIT   
     
 def XSII(CLOSE, HIGH, LOW, N=102, M=7):              #薛斯通道II  
-    try:
-        AA  = MA((2*CLOSE + HIGH + LOW)/4, 5)            #最新版DMA才支持 2021-12-4
-        TD1 = AA*N/100;   TD2 = AA*(200-N) / 100
-        CC =  ABS((2*CLOSE + HIGH + LOW)/4 - MA(CLOSE,20))/MA(CLOSE,20)
-        DD =  DMA(CLOSE,CC);    TD3=(1+M/100)*DD;      TD4=(1-M/100)*DD
-        return TD1, TD2, TD3, TD4  
-    except:
-        return np.zeros(len(CLOSE)),np.zeros(len(CLOSE)),np.zeros(len(CLOSE)),np.zeros(len(CLOSE))
+    AA  = MA((2*CLOSE + HIGH + LOW)/4, 5)            #最新版DMA才支持 2021-12-4
+    TD1 = AA*N/100;   TD2 = AA*(200-N) / 100
+    CC =  ABS((2*CLOSE + HIGH + LOW)/4 - MA(CLOSE,20))/MA(CLOSE,20)
+    DD =  DMA(CLOSE,CC);    TD3=(1+M/100)*DD;      TD4=(1-M/100)*DD
+    return TD1, TD2, TD3, TD4  
     
 def LLV(S, N):   #LLV,支持N为序列版本
     ## type: (np.ndarray, Optional[int,float, np.ndarray]) -> np.ndarray
@@ -338,25 +277,20 @@ def DSMA(X, N):    # 偏差自适应移动平均线   type: (np.ndarray, int) ->
     Deviation Scaled Moving Average (DSMA)    Python by: jqz1226, 2021-12-27
     Referred function from myTT: SUM, DMA
     """
-    try:
-        a1 = math.exp(- 1.414 * math.pi * 2 / N)
-        b1 = 2 * a1 * math.cos(1.414 * math.pi * 2 / N)
-        c2 = b1
-        c3 = -a1 * a1
-        c1 = 1 - c2 - c3        
-        Zeros = np.pad(X[2:] - X[:-2],(2,0),'constant')          
-        Filt = np.zeros(len(X))
-        for i in range(len(X)):
-            Filt[i] = c1 * (Zeros[i] + Zeros[i-1]) / 2 + c2 * Filt[i-1] + c3 * Filt[i-2]    
-        
-        RMS = np.sqrt(SUM(np.square(Filt), N) / N)
-        ScaledFilt = Filt / RMS
-        alpha1 = np.abs(ScaledFilt) * 5 / N    
-        return DMA(X, alpha1)    
-    except:
-        return np.zeros(len(X))
-
-
+    a1 = math.exp(- 1.414 * math.pi * 2 / N)
+    b1 = 2 * a1 * math.cos(1.414 * math.pi * 2 / N)
+    c2 = b1
+    c3 = -a1 * a1
+    c1 = 1 - c2 - c3        
+    Zeros = np.pad(X[2:] - X[:-2],(2,0),'constant')          
+    Filt = np.zeros(len(X))
+    for i in range(len(X)):
+        Filt[i] = c1 * (Zeros[i] + Zeros[i-1]) / 2 + c2 * Filt[i-1] + c3 * Filt[i-2]    
+    
+    RMS = np.sqrt(SUM(np.square(Filt), N) / N)
+    ScaledFilt = Filt / RMS
+    alpha1 = np.abs(ScaledFilt) * 5 / N    
+    return DMA(X, alpha1)    
 
 def SUMBARSFAST(X, A): 
     ## type: (np.ndarray, Optional[np.ndarray, float, int]) -> np.ndarray
