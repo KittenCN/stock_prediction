@@ -47,6 +47,8 @@ OUTPUT_DIMENSION = sum(use_list)
 assert OUTPUT_DIMENSION > 0
 
 device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if device.type == "cuda":
+    torch.backends.cudnn.benchmark = True
 
 def check_exist(address):
     if os.path.exists(address) == False:
