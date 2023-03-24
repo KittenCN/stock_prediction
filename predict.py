@@ -8,8 +8,6 @@ import threading
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import mplfinance as mpf
-import matplotlib as mpl# 用于设置曲线参数
 import common
 import torch
 import torch.nn as nn
@@ -17,16 +15,15 @@ import torch.optim as optim
 import os
 import time
 from tqdm import tqdm
-from cycler import cycler# 用于定制线条颜色
 from datetime import datetime
 from torch.cuda.amp import autocast, GradScaler
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode")
-parser.add_argument('--model', default="lstm", type=str, help="lstm or transformer")
+parser.add_argument('--model', default="transformer", type=str, help="lstm or transformer")
 parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
-parser.add_argument('--epochs', default=5, type=int, help="epochs")
+parser.add_argument('--epochs', default=2, type=int, help="epochs")
 parser.add_argument('--seq_len', default=179, type=int, help="SEQ_LEN")
 parser.add_argument('--lr', default=0.001, type=float, help="LEARNING_RATE")
 parser.add_argument('--wd', default=0.0001, type=float, help="WEIGHT_DECAY")
@@ -34,87 +31,6 @@ parser.add_argument('--workers', default=4, type=int, help="num_workers")
 
 args = parser.parse_args()
 last_save_time = 0
-
-#数据清洗：丢弃行，或用上一行的值填充
-def data_wash(dataset,keepTime=False):
-    if keepTime:
-        dataset.fillna(axis=1,method='ffill')
-    else:
-        dataset.dropna()
-    return dataset
-
-def import_csv(stock_code, dataFrame=None):
-    if dataFrame is None:
-        file_path = f'stock_daily/{stock_code}.csv'
-        if os.path.exists(file_path):
-            df = pd.read_csv(file_path)
-        else:
-            common.csv_queue.put(common.NoneDataFrame)
-            return None
-    else:
-        df = dataFrame
-
-    df = data_wash(df, keepTime=False)
-    df.rename(
-        columns={
-            'trade_date': 'Date', 'open': 'Open',
-            'high': 'High', 'low': 'Low',
-            'close': 'Close', 'vol': 'Volume'},
-        inplace=True)
-
-    df['Date'] = pd.to_datetime(df['Date'], format='%Y%m%d')
-    df.set_index(df['Date'], inplace=True)
-
-    if df.empty:
-        common.csv_queue.put(common.NoneDataFrame)
-        return None
-
-    common.csv_queue.put(df)
-    return df
-
-def draw_Kline(df, period, symbol):
-    kwargs = dict(
-        type='candle',
-        mav=(7, 30, 60),
-        volume=True,
-        title=f'\nA_stock {symbol} candle_line',
-        ylabel='OHLC Candles',
-        ylabel_lower='Shares\nTraded Volume',
-        figratio=(15, 10),
-        figscale=2)
-
-    mc = mpf.make_marketcolors(
-        up='red',
-        down='green',
-        edge='i',
-        wick='i',
-        volume='in',
-        inherit=True)
-
-    s = mpf.make_mpf_style(
-        gridaxis='both',
-        gridstyle='-.',
-        y_on_right=False,
-        marketcolors=mc)
-
-    mpl.rcParams['axes.prop_cycle'] = cycler(
-        color=['dodgerblue', 'deeppink',
-               'navy', 'teal', 'maroon', 'darkorange',
-               'indigo'])
-
-    mpl.rcParams['lines.linewidth'] = .5
-
-    mpf.plot(df,
-             **kwargs,
-             style=s,
-             show_nontrading=False)
-
-    mpf.plot(df,
-             **kwargs,
-             style=s,
-             show_nontrading=False,
-             savefig=f'A_stock-{symbol} {period}_candle_line.jpg')
-    plt.show()
 
 def train(epoch, dataloader, scaler, ts_code=""):
     global loss, last_save_time, loss_list, iteration, lo_list
@@ -242,7 +158,7 @@ def contrast_lines(test_code):
     stock_train = common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPUT_DIMENSION)
     stock_test = common.Stock_Data(train=False, dataFrame=Test_data, label_num=common.OUTPUT_DIMENSION)
 
-    dataloader = common.DataLoaderX(dataset=stock_test, batch_size=common.BATCH_SIZE, shuffle=False, drop_last=False, num_workers=common.NUM_WORKERS, pin_memory=True)
+    dataloader = common.DataLoaderX(dataset=stock_test, batch_size=common.BATCH_SIZE, shuffle=False, drop_last=True, num_workers=common.NUM_WORKERS, pin_memory=True)
     accuracy_list, predict_list = [], []
     test(dataloader)
     print("test_data MSELoss:(pred-real)/real=", test_loss)
@@ -296,7 +212,7 @@ def load_data(ts_codes):
         if common.GET_DATA:
             # get_stock_data(ts_code, False)
             # dataFrame = common.stock_data_queue.get()
-            import_csv(ts_code, None)
+            common.import_csv(ts_code, None)
             data = common.csv_queue.get()
             common.data_queue.put(data)
             # data_list.append(data)
