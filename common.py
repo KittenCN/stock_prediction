@@ -341,8 +341,8 @@ def add_target(df):
     trix, trma = target.TRIX(close)
     df['trix'] = cmp_append(trix[::-1], df)
     df['trma'] = cmp_append(trma[::-1], df)
-    rsi = target.RSI(close)
-    df['rsi'] = cmp_append(rsi[::-1], df)
+    atr = target.ATR(close, hpri, lpri)
+    df['atr'] = cmp_append(atr[::-1], df)
     df = df.reindex(columns=[
         "ts_code",
         "trade_date",
@@ -373,7 +373,7 @@ def add_target(df):
         "taq_down",
         "trix",
         "trma",
-        "rsi",
+        "atr",
         "pre_close"
     ])
     df_queue.put(df)

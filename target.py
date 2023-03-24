@@ -242,7 +242,7 @@ def EMV(HIGH,LOW,VOL,N=14,M=9):                     #简易波动指标
         EMV=MA(MID*VOLUME*(HIGH-LOW)/MA(HIGH-LOW,N),N);    MAEMV=MA(EMV,M)
         return EMV,MAEMV
     except:
-        return np.zeros(len(CLOSE)),np.zeros(len(CLOSE))
+        return np.zeros(len(HIGH)),np.zeros(len(HIGH))
 
 
 def DPO(CLOSE,M1=20, M2=10, M3=6):                  #区间震荡线
@@ -271,7 +271,7 @@ def MASS(HIGH,LOW,N1=9,N2=25,M=6):                   #梅斯线
         MA_MASS=MA(MASS,M)
         return MASS,MA_MASS
     except:
-        return np.zeros(len(CLOSE)),np.zeros(len(CLOSE))
+        return np.zeros(len(HIGH)),np.zeros(len(HIGH))
   
 def ROC(CLOSE,N=12,M=6):                             #变动率指标
     try:
