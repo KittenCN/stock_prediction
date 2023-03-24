@@ -293,8 +293,10 @@ def data_replace(data):  #截取小数点后两位
     return float(data[:index+3])
 
 def cmp_append(data, cmp_data):  #比较数据，如果数据不同则添加到列表
-    while len(data) < len(cmp_data):
-        data.append(0)
+    # while len(data) < len(cmp_data):
+    #     data.append(0)
+    if len(cmp_data) - len(data) > 0:
+        data += [0] * (len(cmp_data) - len(data))
     # data = np.nan_to_num(data)
     return data
 
