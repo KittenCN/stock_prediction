@@ -99,8 +99,8 @@ def get_stock_data(ts_code="", save=True, start_code=""):
             trix, trma = target.TRIX(close)
             df['trix'] = common.cmp_append(trix[::-1], df)
             df['trma'] = common.cmp_append(trma[::-1], df)
-            mfi = target.MFI(close, hpri, lpri, vol)
-            df['mfi'] = common.cmp_append(mfi[::-1], df)
+            rsi = target.RSI(close)
+            df['rsi'] = common.cmp_append(rsi[::-1], df)
             df = df.reindex(columns=[
                 "ts_code",
                 "trade_date",
@@ -131,7 +131,7 @@ def get_stock_data(ts_code="", save=True, start_code=""):
                 "taq_down",
                 "trix",
                 "trma",
-                "mfi",
+                "rsi",
                 "pre_close"
             ])
 
