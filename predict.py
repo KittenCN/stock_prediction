@@ -39,7 +39,7 @@ def train(epoch, dataloader, scaler, ts_code=""):
     for i, (data, label) in enumerate(dataloader):
         try:
             iteration += 1
-            data, label = data.to(common.device), label.to(common.device)
+            data, label = data.to(common.device, non_blocking=True), label.to(common.device, non_blocking=True)
 
             with autocast():
                 outputs = model.forward(data)
@@ -177,7 +177,7 @@ def contrast_lines(test_code):
                     _tmp.append(label[idx][index]*common.std_list[index]+common.mean_list[index])
             real_list.append(np.array(_tmp))
     for item in predict_list:
-        item=item.to("cpu")
+        item=item.to("cpu", non_blocking=True)
         for idx in range(common.BATCH_SIZE):
             _tmp = []
             for index in range(common.OUTPUT_DIMENSION):
@@ -255,7 +255,8 @@ if __name__=="__main__":
         print("No such model")
         exit(0)
 
-    model=model.to(common.device)
+    model=model.to(common.device, non_blocking=True)
+    test_model.to('cpu', non_blocking=True)
     print(model)
     criterion=nn.MSELoss()
     optimizer=optim.Adam(model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)

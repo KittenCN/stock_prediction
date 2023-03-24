@@ -160,7 +160,7 @@ class PositionalEncoding(nn.Module):
     def forward(self, x):
         pe = self.pe[:x.size(1), :]
         pe = pe.unsqueeze(0).expand(x.size(0), -1, -1)
-        pe = pe.to(x.device).float()
+        pe = pe.to(x.device, non_blocking=True).float()
         return x + pe
 
 class TransAm(nn.Module):
