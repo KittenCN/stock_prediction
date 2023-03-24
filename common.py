@@ -74,7 +74,7 @@ class Stock_Data(Dataset):
             self.normalize_data()
             self.value, self.label = self.generate_value_label_tensors(label_num)
         except Exception as e:
-            print(str(e))
+            print(e)
             return None
 
     def load_data(self, dataFrame):
@@ -232,7 +232,7 @@ def import_csv(stock_code, dataFrame=None):
         df['Date'] = pd.to_datetime(df['Date'], format='%Y%m%d')
         df.set_index(df['Date'], inplace=True)
     except Exception as e:
-        print(stock_code, str(e))
+        print(stock_code, e)
         csv_queue.put(NoneDataFrame)
         return None
 

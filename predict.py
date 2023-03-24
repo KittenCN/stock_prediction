@@ -66,7 +66,7 @@ def train(epoch, dataloader, scaler, ts_code=""):
             subbar.update(1)
 
         except Exception as e:
-            tqdm.write(f"code: {ts_code}, train error: {e}")
+            print(f"code: {ts_code}, train error: {e}")
             subbar.update(1)
             continue
 
@@ -129,7 +129,7 @@ def loss_curve(loss_list):
         # plt.show()
         plt.close()
     except Exception as e:
-        print("Error: loss_curve", str(e))
+        print("Error: loss_curve", e)
 
 def contrast_lines(test_code):
     global stock_test, test_loss, accuracy_list, predict_list, loss_list, lo_list
@@ -201,7 +201,7 @@ def contrast_lines(test_code):
             plt.savefig("./png/predict/" + cnname + "_" + common.name_list[i] + "_" + date_string + "_Pre.png", dpi=3000)
             pbar.update(1)
         except Exception as e:
-            tqdm.write("Error: contrast_lines", str(e))
+            print("Error: contrast_lines", e)
             pbar.update(1)
             continue
     pbar.close()
@@ -359,7 +359,7 @@ if __name__=="__main__":
                     iteration=0
                     loss_list=[]
                 except Exception as e:
-                    tqdm.write(ts_code, str(e))
+                    print(ts_code, e)
                     code_bar.update(1)
                     continue
                 #开始训练神经网络
