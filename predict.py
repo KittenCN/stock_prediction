@@ -273,17 +273,21 @@ if __name__=="__main__":
     test_index = random.randint(0, len(ts_codes) - 1)
     test_code = [ts_codes[test_index]]
     if mode == 'train':
+        lo_list=[]
+        data_len=0
         if common.PKL is False:
             data_thread = threading.Thread(target=common.load_data, args=(ts_codes,))
             data_thread.start()
         else:
             with open(common.train_pkl_path, 'rb') as f:
                 common.data_queue = dill.load(f)
+            while common.data_queue.empty() == False:
+                data_list += [common.data_queue.get()]
+                data_len = max(data_len, common.data_queue.qsize())
+            random.shuffle(data_list)
         #data_thread.join()
         scaler = GradScaler()
         pbar = tqdm(total=common.EPOCH, leave=False, ncols=common.TQDM_NCOLS)
-        lo_list=[]
-        data_len=0
         for epoch in range(0,common.EPOCH):
             # if common.data_queue.empty() and data_thread.is_alive() == False:
             #     data_thread = threading.Thread(target=common.load_data, args=(ts_codes,))  
@@ -305,20 +309,21 @@ if __name__=="__main__":
                     #         continue
                     #     else:
                     #         args.begin_code = ""
-                    lastFlag = 0
+                    # lastFlag = 0
                     # data = common.data_queue.get()
-                    while common.data_queue.empty() == False:
-                        data_list += [common.data_queue.get()]
-                        data_len = max(data_len, common.data_queue.qsize())
-                    Err_nums = 5
-                    while index >= len(data_list):
-                        if common.data_queue.empty() == False:
+                    if common.PKL is False:
+                        while common.data_queue.empty() == False:
                             data_list += [common.data_queue.get()]
-                        time.sleep(5)
-                        Err_nums -= 1
-                        if Err_nums == 0:
-                            tqdm.write("Error: data_list is empty")
-                            exit(0)
+                            data_len = max(data_len, common.data_queue.qsize())
+                        Err_nums = 5
+                        while index >= len(data_list):
+                            if common.data_queue.empty() == False:
+                                data_list += [common.data_queue.get()]
+                            time.sleep(5)
+                            Err_nums -= 1
+                            if Err_nums == 0:
+                                tqdm.write("Error: data_list is empty")
+                                exit(0)
                     data = data_list[index].copy(deep=True)
                     data = data.dropna()
                     if common.PKL is False:
