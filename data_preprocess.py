@@ -23,7 +23,7 @@ if __name__ == ("__main__"):
     for index, ts_code in enumerate(ts_codes):
         try:
             # tqdm.set_description("Loading data: %s" % (ts_code))
-            if common.data_queue.empty() == False:
+            while common.data_queue.empty() == False:
                 data_list += [common.data_queue.get()]
                 data_len = max(data_len, common.data_queue.qsize())
             Err_nums = 5
