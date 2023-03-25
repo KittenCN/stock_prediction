@@ -29,6 +29,7 @@ OUTPUT_DIMENSION=4
 INPUT_DIMENSION=20
 TQDM_NCOLS = 100
 NUM_WORKERS = 4
+PKL = True
 
 mean_list=[]
 std_list=[]
@@ -56,12 +57,14 @@ def check_exist(address):
 
 check_exist("./stock_handle")
 check_exist("./stock_daily")
+check_exist("./pkl_handle")
 check_exist("./png")
 check_exist("./png/train_loss/")
 check_exist("./png/predict/")
 
 train_path="./stock_handle/stock_train.csv"
 test_path="./stock_handle/stock_test.csv"
+train_pkl_path="./pkl_handle/train.pkl"
 
 class DataLoaderX(DataLoader):
     def __iter__(self):
@@ -386,3 +389,16 @@ def add_target(df):
     ])
     df_queue.put(df)
     return df
+
+def load_data(ts_codes):
+    for ts_code in ts_codes:
+        if data_queue.empty():
+            print("data_queue is empty, loading data...")
+        if GET_DATA:
+            # get_stock_data(ts_code, False)
+            # dataFrame = stock_data_queue.get()
+            import_csv(ts_code, None)
+            data = csv_queue.get()
+            data_queue.put(data)
+            # data_list.append(data)
+            

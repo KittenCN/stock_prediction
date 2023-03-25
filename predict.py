@@ -13,6 +13,7 @@ import torch.nn as nn
 import torch.optim as optim
 import os
 import time
+import dill
 from tqdm import tqdm
 from datetime import datetime
 from torch.cuda.amp import autocast, GradScaler
@@ -21,13 +22,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode")
 parser.add_argument('--model', default="lstm", type=str, help="lstm or transformer")
 parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
-parser.add_argument('--begin_code', default="", type=str, help="begin code")
+# parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--epochs', default=2, type=int, help="epochs")
 parser.add_argument('--seq_len', default=179, type=int, help="SEQ_LEN")
 parser.add_argument('--lr', default=0.001, type=float, help="LEARNING_RATE")
 parser.add_argument('--wd', default=0.0001, type=float, help="WEIGHT_DECAY")
 parser.add_argument('--workers', default=4, type=int, help="num_workers")
-
+parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of csv file")
 args = parser.parse_args()
 last_save_time = 0
 
@@ -138,7 +139,7 @@ def contrast_lines(test_code):
     global stock_test, test_loss, accuracy_list, predict_list, loss_list, lo_list
 
     print("test_code=", test_code)
-    load_data(test_code)
+    common.load_data(test_code)
     data = common.data_queue.get()
 
     if data.empty or data["ts_code"][0] == "None":
@@ -210,19 +211,6 @@ def contrast_lines(test_code):
     pbar.close()
     plt.close()
 
-
-def load_data(ts_codes):
-    for ts_code in ts_codes:
-        if common.data_queue.empty():
-            print("data_queue is empty, loading data...")
-        if common.GET_DATA:
-            # get_stock_data(ts_code, False)
-            # dataFrame = common.stock_data_queue.get()
-            common.import_csv(ts_code, None)
-            data = common.csv_queue.get()
-            common.data_queue.put(data)
-            # data_list.append(data)
-
 if __name__=="__main__":
     global test_loss
     loss_list=[]
@@ -235,6 +223,7 @@ if __name__=="__main__":
     common.LEARNING_RATE = args.lr
     common.WEIGHT_DECAY = args.wd
     common.NUM_WORKERS = args.workers
+    common.PKL = False if args.pkl <= 0 else True
     test_loss = 0.00
     symbol = 'Generic.Data'
     # symbol = '000001.SZ'
@@ -284,8 +273,12 @@ if __name__=="__main__":
     test_index = random.randint(0, len(ts_codes) - 1)
     test_code = [ts_codes[test_index]]
     if mode == 'train':
-        data_thread = threading.Thread(target=load_data, args=(ts_codes,))
-        data_thread.start()
+        if common.PKL is False:
+            data_thread = threading.Thread(target=common.load_data, args=(ts_codes,))
+            data_thread.start()
+        else:
+            with open(common.train_pkl_path, 'rb') as f:
+                common.data_queue = dill.load(f)
         #data_thread.join()
         scaler = GradScaler()
         pbar = tqdm(total=common.EPOCH, leave=False, ncols=common.TQDM_NCOLS)
@@ -293,7 +286,7 @@ if __name__=="__main__":
         data_len=0
         for epoch in range(0,common.EPOCH):
             # if common.data_queue.empty() and data_thread.is_alive() == False:
-            #     data_thread = threading.Thread(target=load_data, args=(ts_codes,))  
+            #     data_thread = threading.Thread(target=common.load_data, args=(ts_codes,))  
             #     data_thread.start()
             if len(lo_list) == 0:
                     m_loss = 0
@@ -306,15 +299,15 @@ if __name__=="__main__":
                     # if common.GET_DATA:
                     #     dataFrame = get_stock_data(ts_code, False)
                     # data = import_csv(ts_code, dataFrame)
-                    if args.begin_code != "":
-                        if ts_code != args.begin_code:
-                            code_bar.update(1)
-                            continue
-                        else:
-                            args.begin_code = ""
+                    # if args.begin_code != "":
+                    #     if ts_code != args.begin_code:
+                    #         code_bar.update(1)
+                    #         continue
+                    #     else:
+                    #         args.begin_code = ""
                     lastFlag = 0
                     # data = common.data_queue.get()
-                    if common.data_queue.empty() == False:
+                    while common.data_queue.empty() == False:
                         data_list += [common.data_queue.get()]
                         data_len = max(data_len, common.data_queue.qsize())
                     Err_nums = 5
@@ -328,36 +321,39 @@ if __name__=="__main__":
                             exit(0)
                     data = data_list[index].copy(deep=True)
                     data = data.dropna()
-                    # data_len = len(data_list)
-                    if data is None or data["ts_code"][0] == "None":
-                        tqdm.write("data is empty or data has invalid col")
-                        code_bar.update(1)
-                        continue
-                    if data['ts_code'][0] != ts_code:
-                        tqdm.write("Error: ts_code is not match")
-                        exit(0)
+                    if common.PKL is False:
+                        # data_len = len(data_list)
+                        if data is None or data["ts_code"][0] == "None":
+                            tqdm.write("data is empty or data has invalid col")
+                            code_bar.update(1)
+                            continue
+                        if data['ts_code'][0] != ts_code:
+                            tqdm.write("Error: ts_code is not match")
+                            exit(0)
+                        # df_draw=data[-period:]
+                        # draw_Kline(df_draw,period,symbol)
+                        data.drop(['ts_code','Date'],axis=1,inplace = True)    
+                        train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
+                        # print("Split the data for trainning and testing...")
+                        if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
+                            # tqdm.write(ts_code + ":train_size is too small or too large")
+                            code_bar.update(1)
+                            continue
+                        Train_data=data[:train_size+common.SEQ_LEN]
+                        Test_data=data[train_size-common.SEQ_LEN:]
+                        if Train_data is None or Test_data is None:
+                            tqdm.write(ts_code + ":Train_data or Test_data is None")
+                            code_bar.update(1)
+                            continue
+                        # Train_data.to_csv(common.train_path,sep=',',index=False,header=False)
+                        # Test_data.to_csv(common.test_path,sep=',',index=False,header=False)
+                    else:
+                        Train_data = data
                     if len(loss_list) == 0:
                         m_loss = 0
                     else:
                         m_loss = np.mean(loss_list)
                     code_bar.set_description("%s, %d, %e" % (ts_code,data_len,m_loss))
-                    # df_draw=data[-period:]
-                    # draw_Kline(df_draw,period,symbol)
-                    data.drop(['ts_code','Date'],axis=1,inplace = True)    
-                    train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
-                    # print("Split the data for trainning and testing...")
-                    if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
-                        # tqdm.write(ts_code + ":train_size is too small or too large")
-                        code_bar.update(1)
-                        continue
-                    Train_data=data[:train_size+common.SEQ_LEN]
-                    Test_data=data[train_size-common.SEQ_LEN:]
-                    if Train_data is None or Test_data is None:
-                        tqdm.write(ts_code + ":Train_data or Test_data is None")
-                        code_bar.update(1)
-                        continue
-                    # Train_data.to_csv(common.train_path,sep=',',index=False,header=False)
-                    # Test_data.to_csv(common.test_path,sep=',',index=False,header=False)
                     stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPUT_DIMENSION)
                     iteration=0
                     loss_list=[]
