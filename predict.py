@@ -300,7 +300,7 @@ if __name__=="__main__":
                 m_loss = np.mean(lo_list)
             pbar.set_description("%d, %e"%(epoch+1,m_loss))
             code_bar = tqdm(total=codes_len, ncols=common.TQDM_NCOLS)
-            for index, ts_code in range(codes_len):
+            for index, ts_code in enumerate(ts_codes):
                 try:
                     # if common.GET_DATA:
                     #     dataFrame = get_stock_data(ts_code, False)
@@ -326,6 +326,10 @@ if __name__=="__main__":
                             if Err_nums == 0:
                                 tqdm.write("Error: data_list is empty")
                                 exit(0)
+                    elif index >= len(data_list):
+                        tqdm.write("Error: data_list is empty")
+                        code_bar.close()
+                        break
                     data = data_list[index].copy(deep=True)
                     data = data.dropna()
                     if common.PKL is False:
