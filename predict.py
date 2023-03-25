@@ -278,6 +278,7 @@ if __name__=="__main__":
         if common.PKL is False:
             data_thread = threading.Thread(target=common.load_data, args=(ts_codes,))
             data_thread.start()
+            codes_len = len(ts_codes)
         else:
             with open(common.train_pkl_path, 'rb') as f:
                 common.data_queue = dill.load(f)
@@ -285,6 +286,7 @@ if __name__=="__main__":
                 data_list += [common.data_queue.get()]
                 data_len = max(data_len, common.data_queue.qsize())
             random.shuffle(data_list)
+            codes_len = len(data_list)
         #data_thread.join()
         scaler = GradScaler()
         pbar = tqdm(total=common.EPOCH, leave=False, ncols=common.TQDM_NCOLS)
@@ -297,8 +299,8 @@ if __name__=="__main__":
             else:
                 m_loss = np.mean(lo_list)
             pbar.set_description("%d, %e"%(epoch+1,m_loss))
-            code_bar = tqdm(total=len(ts_codes), ncols=common.TQDM_NCOLS)
-            for index, ts_code in enumerate(ts_codes):
+            code_bar = tqdm(total=codes_len, ncols=common.TQDM_NCOLS)
+            for index, ts_code in range(codes_len):
                 try:
                     # if common.GET_DATA:
                     #     dataFrame = get_stock_data(ts_code, False)
