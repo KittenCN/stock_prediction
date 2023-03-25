@@ -362,7 +362,7 @@ if __name__=="__main__":
                     iteration=0
                     loss_list=[]
                 except Exception as e:
-                    print(ts_code, e)
+                    print(ts_code,"main function ", e)
                     code_bar.update(1)
                     continue
                 #开始训练神经网络
