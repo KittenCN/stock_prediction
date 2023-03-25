@@ -349,6 +349,7 @@ if __name__=="__main__":
                         # Test_data.to_csv(common.test_path,sep=',',index=False,header=False)
                     else:
                         Train_data = data
+                        ts_code = "pkl_queue"
                     if len(loss_list) == 0:
                         m_loss = 0
                     else:
