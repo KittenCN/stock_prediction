@@ -23,7 +23,7 @@ parser.add_argument('--mode', default="test", type=str, help="select running mod
 parser.add_argument('--model', default="lstm", type=str, help="lstm or transformer")
 parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
 # parser.add_argument('--begin_code', default="", type=str, help="begin code")
-parser.add_argument('--epochs', default=2, type=int, help="epochs")
+parser.add_argument('--epochs', default=1, type=int, help="epochs")
 parser.add_argument('--seq_len', default=179, type=int, help="SEQ_LEN")
 parser.add_argument('--lr', default=0.001, type=float, help="LEARNING_RATE")
 parser.add_argument('--wd', default=0.0001, type=float, help="WEIGHT_DECAY")
@@ -93,18 +93,18 @@ def test(dataloader):
 
     # if len(stock_test) < 4:
     #     return 0.00
-    
-    test_optimizer=optim.Adam(test_model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)
+    predict_list = []
+    # test_optimizer=optim.Adam(test_model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)
     if os.path.exists(save_path+"_Model.pkl") and os.path.exists(save_path+"_Optimizer.pkl"):
         test_model.load_state_dict(torch.load(save_path+"_Model.pkl"))
-        test_optimizer.load_state_dict(torch.load(save_path+"_Optimizer.pkl"))
+        # test_optimizer.load_state_dict(torch.load(save_path+"_Optimizer.pkl"))
 
     test_model.eval()
     # accuracy_fn = nn.MSELoss()
 
     with torch.no_grad():
         for data, label in dataloader:
-            test_optimizer.zero_grad()
+            # test_optimizer.zero_grad()
             predict = test_model.forward(data)
             predict_list.append(predict)
     #         if(predict.shape == label.shape):
@@ -138,7 +138,6 @@ def loss_curve(loss_list):
         print("Error: loss_curve", e)
 
 def contrast_lines(test_code):
-    global stock_test, loss_list, lo_list
     # global test_loss, accuracy_list, predict_list
     # test_loss = 0.00
 
@@ -160,16 +159,13 @@ def contrast_lines(test_code):
         print("Error: train_size is too small or too large")
         return -1
 
-    # Train_data = data[:train_size + common.SEQ_LEN]
+    Train_data = data[:train_size + common.SEQ_LEN]
     Test_data = data[train_size - common.SEQ_LEN:]
-    # if Train_data is None or Test_data is None:
-        # print("Error: Train_data or Test_data is None")
-        #     return
-    if Test_data is None:
-        print("Error: Test_data is None")
+    if Train_data is None or Test_data is None:
+        print("Error: Train_data or Test_data is None")
         return
 
-    # stock_train = common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPUT_DIMENSION)
+    stock_train = common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPUT_DIMENSION)
     stock_test = common.Stock_Data(train=False, dataFrame=Test_data, label_num=common.OUTPUT_DIMENSION)
 
     dataloader = common.DataLoaderX(dataset=stock_test, batch_size=common.BATCH_SIZE, shuffle=False, drop_last=True, num_workers=common.NUM_WORKERS, pin_memory=True)
@@ -253,7 +249,7 @@ if __name__=="__main__":
         exit(0)
 
     model=model.to(common.device, non_blocking=True)
-    test_model.to('cpu', non_blocking=True)
+    test_model=test_model.to('cpu', non_blocking=True)
     print(model)
     criterion=nn.MSELoss()
     optimizer=optim.Adam(model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)
@@ -275,8 +271,6 @@ if __name__=="__main__":
     else:
         ts_codes = [symbol]
     random.shuffle(ts_codes)
-    test_index = random.randint(0, len(ts_codes) - 1)
-    test_code = [ts_codes[test_index]]
     if mode == 'train':
         lo_list=[]
         data_len=0
@@ -356,9 +350,9 @@ if __name__=="__main__":
                             code_bar.update(1)
                             continue
                         Train_data=data[:train_size+common.SEQ_LEN]
-                        Test_data=data[train_size-common.SEQ_LEN:]
-                        if Train_data is None or Test_data is None:
-                            tqdm.write(ts_code + ":Train_data or Test_data is None")
+                        # Test_data=data[train_size-common.SEQ_LEN:]
+                        if Train_data is None:
+                            tqdm.write(ts_code + ":Train_data is None")
                             code_bar.update(1)
                             continue
                         # Train_data.to_csv(common.train_path,sep=',',index=False,header=False)
@@ -405,6 +399,9 @@ if __name__=="__main__":
     elif mode == "test":
         if args.test_code != "":
             test_code = [args.test_code]
+        else:
+            test_index = random.randint(0, len(ts_codes) - 1)
+            test_code = [ts_codes[test_index]]
         while contrast_lines(test_code) == -1:
             test_index = random.randint(0, len(ts_codes) - 1)
             test_code = [ts_codes[test_index]]
