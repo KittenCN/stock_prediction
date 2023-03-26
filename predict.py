@@ -29,6 +29,7 @@ parser.add_argument('--lr', default=0.001, type=float, help="LEARNING_RATE")
 parser.add_argument('--wd', default=0.0001, type=float, help="WEIGHT_DECAY")
 parser.add_argument('--workers', default=4, type=int, help="num_workers")
 parser.add_argument('--pkl', default=0, type=int, help="use pkl file instead of csv file")
+parser.add_argument('--test_code', default="", type=str, help="test code")
 args = parser.parse_args()
 last_save_time = 0
 
@@ -398,6 +399,8 @@ if __name__=="__main__":
             test_index = random.randint(0, len(ts_codes) - 1)
             test_code = [ts_codes[test_index]]
     elif mode == "test":
+        if args.test_code != "":
+            test_code = [args.test_code]
         while contrast_lines(test_code) == -1:
             test_index = random.randint(0, len(ts_codes) - 1)
             test_code = [ts_codes[test_index]]
