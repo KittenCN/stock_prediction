@@ -30,7 +30,7 @@ parser.add_argument('--lr', default=0.001, type=float, help="LEARNING_RATE")
 parser.add_argument('--wd', default=0.0001, type=float, help="WEIGHT_DECAY")
 parser.add_argument('--workers', default=1, type=int, help="num_workers")
 parser.add_argument('--pkl', default=0, type=int, help="use pkl file instead of csv file")
-parser.add_argument('--test_code', default="000001.SZ", type=str, help="test code")
+parser.add_argument('--test_code', default="", type=str, help="test code")
 args = parser.parse_args()
 last_save_time = 0
 
