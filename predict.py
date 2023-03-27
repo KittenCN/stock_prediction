@@ -454,7 +454,7 @@ if __name__=="__main__":
             test_index = random.randint(0, len(ts_codes) - 1)
             test_code = [ts_codes[test_index]]
     elif mode == "test":
-        if args.test_code != "":
+        if args.test_code != "" or args.test_code == "all":
             test_code = [args.test_code]
         else:
             test_index = random.randint(0, len(ts_codes) - 1)
@@ -466,9 +466,12 @@ if __name__=="__main__":
         if args.test_code == "":
             print("Error: test_code is empty")
             exit(0)
-        else:
+        elif args.test_code in ts_codes:
             test_code = [args.test_code]
             predict(test_code)
+        else:
+            print("Error: test_code is not in ts_codes")
+            exit(0)
 
 
 
