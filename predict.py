@@ -2,6 +2,7 @@
 # coding: utf-8
 
 import argparse
+import copy
 import glob
 import random
 import threading
@@ -19,15 +20,15 @@ from datetime import datetime
 from torch.cuda.amp import autocast, GradScaler
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', default="test", type=str, help="select running mode")
-parser.add_argument('--model', default="lstm", type=str, help="lstm or transformer")
+parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
+parser.add_argument('--model', default="transformer", type=str, help="lstm or transformer")
 parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
 # parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--epochs', default=1, type=int, help="epochs")
-parser.add_argument('--seq_len', default=179, type=int, help="SEQ_LEN")
+parser.add_argument('--seq_len', default=1, type=int, help="SEQ_LEN")
 parser.add_argument('--lr', default=0.001, type=float, help="LEARNING_RATE")
 parser.add_argument('--wd', default=0.0001, type=float, help="WEIGHT_DECAY")
-parser.add_argument('--workers', default=4, type=int, help="num_workers")
+parser.add_argument('--workers', default=1, type=int, help="num_workers")
 parser.add_argument('--pkl', default=0, type=int, help="use pkl file instead of csv file")
 parser.add_argument('--test_code', default="", type=str, help="test code")
 args = parser.parse_args()
@@ -94,31 +95,76 @@ def test(dataloader):
     # if len(stock_test) < 4:
     #     return 0.00
     predict_list = []
+    accuracy_list = []
     # test_optimizer=optim.Adam(test_model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)
     if os.path.exists(save_path+"_Model.pkl") and os.path.exists(save_path+"_Optimizer.pkl"):
         test_model.load_state_dict(torch.load(save_path+"_Model.pkl"))
         # test_optimizer.load_state_dict(torch.load(save_path+"_Optimizer.pkl"))
 
     test_model.eval()
-    # accuracy_fn = nn.MSELoss()
+    accuracy_fn = nn.MSELoss()
 
     with torch.no_grad():
         for data, label in dataloader:
             # test_optimizer.zero_grad()
             predict = test_model.forward(data)
             predict_list.append(predict)
-    #         if(predict.shape == label.shape):
-    #             accuracy = accuracy_fn(predict, label)
-    #             accuracy_list.append(accuracy.item())
-    #         else:
-    #             tqdm.write(f"test error: predict.shape != label.shape")
-    #             continue
+            if(predict.shape == label.shape):
+                accuracy = accuracy_fn(predict, label)
+                accuracy_list.append(accuracy.item())
+            else:
+                tqdm.write(f"test error: predict.shape != label.shape")
+                continue
 
-    # if not accuracy_list:
-    #     accuracy_list = [0]
+    if not accuracy_list:
+        accuracy_list = [0]
 
-    # test_loss = np.mean(accuracy_list)
-    return predict_list
+    test_loss = np.mean(accuracy_list)
+    return test_loss, predict_list
+
+
+def predict(test_code):
+    print("test_code=", test_code)
+    common.load_data(test_code)
+    data = common.data_queue.get()
+    data = data.dropna()
+
+    if data.empty or data["ts_code"][0] == "None":
+        print("Error: data is empty or ts_code is None")
+        return
+
+    if data['ts_code'][0] != test_code[0]:
+        print("Error: ts_code is not match")
+        return
+
+    data.drop(['ts_code', 'Date'], axis=1, inplace=True)
+    train_size = int(common.TRAIN_WEIGHT * (data.shape[0]))
+    if train_size < common.SEQ_LEN or train_size + common.SEQ_LEN > data.shape[0]:
+        print("Error: train_size is too small or too large")
+        return -1
+
+    # Train_data = data[:train_size + common.SEQ_LEN]
+    # Test_data = data[train_size - common.SEQ_LEN:]
+    Train_data = copy.deepcopy(data)
+    Test_data = copy.deepcopy(data)
+    if Train_data is None or Test_data is None:
+        print("Error: Train_data or Test_data is None")
+        return
+
+    stock_train = common.Stock_Data(mode=0, dataFrame=Train_data, label_num=common.OUTPUT_DIMENSION)
+    stock_predict = common.Stock_Data(mode=2, dataFrame=Test_data, label_num=common.OUTPUT_DIMENSION)
+
+    dataloader = common.DataLoaderX(dataset=stock_predict, batch_size=1, shuffle=False, drop_last=True, num_workers=common.NUM_WORKERS, pin_memory=True)
+    accuracy_list, predict_list = [], []
+    test_loss, predict_list = test(dataloader)
+    print("test_data MSELoss:(pred-real)/real=", test_loss)
+    _tmp = []
+    prediction_list = []
+    for index in range(common.OUTPUT_DIMENSION):
+        if common.use_list[index] == 1:
+            _tmp.append(predict_list[0][0][index]*common.std_list[index]+common.mean_list[index])
+    prediction_list.append(np.array(_tmp))
+    print("predict_list=", prediction_list)
 
 
 def loss_curve(loss_list):
@@ -144,14 +190,15 @@ def contrast_lines(test_code):
     print("test_code=", test_code)
     common.load_data(test_code)
     data = common.data_queue.get()
+    data = data.dropna()
 
     if data.empty or data["ts_code"][0] == "None":
         print("Error: data is empty or ts_code is None")
         return
 
-    if data['ts_code'][0] != test_code[0]:
-        print("Error: ts_code is not match")
-        return
+    # if data['ts_code'][0] != test_code[0]:
+    #     print("Error: ts_code is not match")
+    #     return
 
     data.drop(['ts_code', 'Date'], axis=1, inplace=True)
     train_size = int(common.TRAIN_WEIGHT * (data.shape[0]))
@@ -159,23 +206,23 @@ def contrast_lines(test_code):
         print("Error: train_size is too small or too large")
         return -1
 
-    Train_data = data[:train_size + common.SEQ_LEN]
-    Test_data = data[train_size - common.SEQ_LEN:]
+    Train_data = copy.deepcopy(data)
+    Test_data = copy.deepcopy(data)
     if Train_data is None or Test_data is None:
         print("Error: Train_data or Test_data is None")
         return
 
-    stock_train = common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPUT_DIMENSION)
-    stock_test = common.Stock_Data(train=False, dataFrame=Test_data, label_num=common.OUTPUT_DIMENSION)
+    stock_train = common.Stock_Data(mode=0, dataFrame=Train_data, label_num=common.OUTPUT_DIMENSION)
+    stock_test = common.Stock_Data(mode=1, dataFrame=Test_data, label_num=common.OUTPUT_DIMENSION)
 
     dataloader = common.DataLoaderX(dataset=stock_test, batch_size=common.BATCH_SIZE, shuffle=False, drop_last=True, num_workers=common.NUM_WORKERS, pin_memory=True)
-    # accuracy_list, predict_list = [], []
-    predict_list = test(dataloader)
-    # print("test_data MSELoss:(pred-real)/real=", test_loss)
+    accuracy_list, predict_list = [], []
+    test_loss, predict_list = test(dataloader)
+    print("test_data MSELoss:(pred-real)/real=", test_loss)
 
     real_list = []
     prediction_list = []
-    for i,(data,label) in enumerate(dataloader):
+    for i,(_,label) in enumerate(dataloader):
         for idx in range(common.BATCH_SIZE):
             _tmp = []
             for index in range(common.OUTPUT_DIMENSION):
@@ -183,15 +230,20 @@ def contrast_lines(test_code):
                     # real_list.append(np.array(label[idx]*common.std_list[0]+common.mean_list[0]))
                     _tmp.append(label[idx][index]*common.std_list[index]+common.mean_list[index])
             real_list.append(np.array(_tmp))
-    for item in predict_list:
-        item=item.to("cpu", non_blocking=True)
-        for idx in range(common.BATCH_SIZE):
+    # real_list = copy.deepcopy(stock_test.label.numpy())
+    # for i in range(len(real_list[0])):
+    #     real_list[:, i] = real_list[:, i] * (common.std_list[i] + 1e-8) + common.mean_list[i]
+
+    for items in predict_list:
+        items=items.to("cpu", non_blocking=True)
+        for idxs in items:
             _tmp = []
-            for index in range(common.OUTPUT_DIMENSION):
+            for index, item in enumerate(idxs):
                 if common.use_list[index] == 1:
                     # prediction_list.append(np.array((item[idx]*common.std_list[0]+common.mean_list[0])))
-                    _tmp.append(item[idx][index]*common.std_list[index]+common.mean_list[index])
+                    _tmp.append(item*common.std_list[index]+common.mean_list[index])
             prediction_list.append(np.array(_tmp))
+    # real_list = real_list[abs(len(real_list)-len(prediction_list)):]
     pbar = tqdm(total=common.OUTPUT_DIMENSION, ncols=common.TQDM_NCOLS)
     for i in range(common.OUTPUT_DIMENSION):
         try:
@@ -199,7 +251,7 @@ def contrast_lines(test_code):
             _real_list = np.transpose(real_list)[i]
             _prediction_list = np.transpose(prediction_list)[i]
             plt.figure()
-            x = np.linspace(1, len(_real_list), len(_real_list))
+            x = np.linspace(0, len(_real_list), len(_real_list))
             plt.plot(x, np.array(_real_list), label="real_"+common.name_list[i])
             plt.plot(x, np.array(_prediction_list), label="prediction_"+common.name_list[i])
             plt.legend()
@@ -358,14 +410,14 @@ if __name__=="__main__":
                         # Train_data.to_csv(common.train_path,sep=',',index=False,header=False)
                         # Test_data.to_csv(common.test_path,sep=',',index=False,header=False)
                     else:
-                        Train_data = data
+                        Train_data = copy.deepcopy(data)
                         ts_code = "pkl_queue"
                     if len(loss_list) == 0:
                         m_loss = 0
                     else:
                         m_loss = np.mean(loss_list)
                     code_bar.set_description("%s, %d, %e" % (ts_code,data_len,m_loss))
-                    stock_train=common.Stock_Data(train=True, dataFrame=Train_data, label_num=common.OUTPUT_DIMENSION)
+                    stock_train=common.Stock_Data(mode=0, dataFrame=Train_data, label_num=common.OUTPUT_DIMENSION)
                     iteration=0
                     loss_list=[]
                 except Exception as e:
@@ -405,6 +457,13 @@ if __name__=="__main__":
         while contrast_lines(test_code) == -1:
             test_index = random.randint(0, len(ts_codes) - 1)
             test_code = [ts_codes[test_index]]
+    elif mode == "predict":
+        if args.test_code == "":
+            print("Error: test_code is empty")
+            exit(0)
+        else:
+            test_code = [args.test_code]
+            predict(test_code)
 
 
 

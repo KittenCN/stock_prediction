@@ -72,9 +72,11 @@ class DataLoaderX(DataLoader):
 
 #完成数据集类
 class Stock_Data(Dataset):
-    def __init__(self, train=True, transform=None, dataFrame=None, label_num=1):
+    # mode 0:train 1:test 2:predict
+    def __init__(self, mode=0, transform=None, dataFrame=None, label_num=1):
         try:
-            self.train = train
+            assert mode in [0, 1, 2]
+            self.mode = mode
             self.data = self.load_data(dataFrame)
             self.normalize_data()
             self.value, self.label = self.generate_value_label_tensors(label_num)
@@ -83,7 +85,7 @@ class Stock_Data(Dataset):
             return None
 
     def load_data(self, dataFrame):
-        if self.train:
+        if self.mode in [0, 2]:
             path = train_path
         else:
             path = test_path
@@ -98,27 +100,37 @@ class Stock_Data(Dataset):
 
     def normalize_data(self):
         for i in range(len(self.data[0])):
-            if self.train:
+            if self.mode == 0:
                 mean_list.append(np.mean(self.data[:, i]))
                 std_list.append(np.std(self.data[:, i]))
 
             self.data[:, i] = (self.data[:, i] - mean_list[i]) / (std_list[i] + 1e-8)
 
     def generate_value_label_tensors(self, label_num):
-        value = torch.rand(self.data.shape[0] - SEQ_LEN, SEQ_LEN, self.data.shape[1])
-        label = torch.rand(self.data.shape[0] - SEQ_LEN, label_num)
+        if self.mode in [0, 1]:
+            value = torch.rand(self.data.shape[0] - SEQ_LEN, SEQ_LEN, self.data.shape[1])
+            label = torch.rand(self.data.shape[0] - SEQ_LEN, label_num)
 
-        for i in range(self.data.shape[0] - SEQ_LEN):
-            value[i, :, :] = torch.from_numpy(self.data[i:i + SEQ_LEN, :].reshape(SEQ_LEN, self.data.shape[1]))
+            for i in range(self.data.shape[0] - SEQ_LEN):
+                _value_tmp = np.copy(np.flip(self.data[i + 1:i + SEQ_LEN + 1, :].reshape(SEQ_LEN, self.data.shape[1]), 0))
+                value[i, :, :] = torch.from_numpy(_value_tmp)
 
-            _tmp = []
-            for index in range(OUTPUT_DIMENSION):
-                if use_list[index] == 1:
-                    _tmp.append(self.data[i + SEQ_LEN, index])
+                _tmp = []
+                for index in range(OUTPUT_DIMENSION):
+                    if use_list[index] == 1:
+                        _tmp.append(self.data[i, index])
 
-            label[i, :] = torch.Tensor(_tmp)
-
-        return value, label
+                label[i, :] = torch.Tensor(_tmp)
+        elif self.mode == 2:
+            value = torch.rand(1, SEQ_LEN, self.data.shape[1])
+            label = torch.rand(1, label_num)
+            for i in range(0, SEQ_LEN):
+                _i = SEQ_LEN - i - 1
+                value[0, i, :] = torch.from_numpy(self.data[_i, :].reshape(1, self.data.shape[1]))
+                
+        _value = value.flip(0)
+        _label = label.flip(0)
+        return _value, _label
 
     def __getitem__(self, index):
         return self.value[index], self.label[index]
@@ -176,21 +188,25 @@ class TransAm(nn.Module):
         self.pos_encoder = PositionalEncoding(feature_size)
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=feature_size, nhead=10, dropout=dropout)
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=num_layers)
-        self.decoder = nn.Linear(feature_size, 1)
+        # self.decoder = nn.Linear(feature_size, 1)
+        self.transformer_decoder_layer = nn.TransformerDecoderLayer(d_model=feature_size, nhead=10, dropout=dropout)
+        self.transformer_decoder = nn.TransformerDecoder(self.transformer_decoder_layer, num_layers)
         self.linear1 = nn.Linear(SEQ_LEN, OUTPUT_DIMENSION)
         self.init_weights()
         self.src_key_padding_mask = None
 
     def init_weights(self):
         initrange = 0.1
-        nn.init.zeros_(self.decoder.bias)
-        nn.init.uniform_(self.decoder.weight, -initrange, initrange)
+        # nn.init.zeros_(self.decoder.bias)
+        # nn.init.uniform_(self.decoder.weight, -initrange, initrange)
 
     def forward(self, src: torch.Tensor, seq_len: int = SEQ_LEN) -> torch.Tensor:
-        src = self.pos_encoder(src)
+r        src = self.pos_encoder(src)
+        tgt = self.pos_encoder(src)
         output = self.transformer_encoder(src)
-        output = self.decoder(output)
-        output = torch.squeeze(output)
+        # output = self.decoder(output)
+        output = self.transformer_decoder(tgt, output)
+        # output = torch.squeeze(output)
         output = self.linear1(output)
         return output
     
