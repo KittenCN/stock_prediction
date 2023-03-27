@@ -25,7 +25,7 @@ parser.add_argument('--model', default="transformer", type=str, help="lstm or tr
 parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
 # parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--epochs', default=1, type=int, help="epochs")
-parser.add_argument('--seq_len', default=1, type=int, help="SEQ_LEN")
+parser.add_argument('--seq_len', default=180, type=int, help="SEQ_LEN")
 parser.add_argument('--lr', default=0.001, type=float, help="LEARNING_RATE")
 parser.add_argument('--wd', default=0.0001, type=float, help="WEIGHT_DECAY")
 parser.add_argument('--workers', default=1, type=int, help="num_workers")
@@ -292,10 +292,14 @@ if __name__=="__main__":
         model=common.LSTM(dimension=common.INPUT_DIMENSION)
         test_model=common.LSTM(dimension=common.INPUT_DIMENSION)
         save_path=lstm_path
+        criterion=nn.MSELoss()
     elif model_mode=="TRANSFORMER":
         model=common.TransAm(feature_size=common.INPUT_DIMENSION)
         test_model=common.TransAm(feature_size=common.INPUT_DIMENSION)
+        # model=common.TransformerModel(input_dim=common.INPUT_DIMENSION, d_model=512, nhead=8, num_layers=6, dim_feedforward=2048, output_dim=common.OUTPUT_DIMENSION)
+        # test_model=common.TransformerModel(input_dim=common.INPUT_DIMENSION, d_model=512, nhead=8, num_layers=6, dim_feedforward=2048, output_dim=common.OUTPUT_DIMENSION)
         save_path=transformer_path
+        criterion=nn.MSELoss()
     else:
         print("No such model")
         exit(0)
@@ -303,7 +307,6 @@ if __name__=="__main__":
     model=model.to(common.device, non_blocking=True)
     test_model=test_model.to('cpu', non_blocking=True)
     print(model)
-    criterion=nn.MSELoss()
     optimizer=optim.Adam(model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)
     if os.path.exists(save_path+"_Model.pkl") and os.path.exists(save_path+"_Optimizer.pkl"):
         print("Load model and optimizer from file")

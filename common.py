@@ -15,7 +15,7 @@ from torch.utils.data import Dataset, DataLoader
 from prefetch_generator import BackgroundGenerator
 
 TRAIN_WEIGHT=0.9
-SEQ_LEN=179
+SEQ_LEN=180
 LEARNING_RATE=0.001   # 0.00001
 WEIGHT_DECAY=0.0001   # 0.05
 BATCH_SIZE=512
@@ -188,27 +188,54 @@ class TransAm(nn.Module):
         self.pos_encoder = PositionalEncoding(feature_size)
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=feature_size, nhead=10, dropout=dropout)
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=num_layers)
-        # self.decoder = nn.Linear(feature_size, 1)
-        self.transformer_decoder_layer = nn.TransformerDecoderLayer(d_model=feature_size, nhead=10, dropout=dropout)
-        self.transformer_decoder = nn.TransformerDecoder(self.transformer_decoder_layer, num_layers)
+        self.decoder = nn.Linear(feature_size, 1)
         self.linear1 = nn.Linear(SEQ_LEN, OUTPUT_DIMENSION)
         self.init_weights()
         self.src_key_padding_mask = None
 
     def init_weights(self):
         initrange = 0.1
-        # nn.init.zeros_(self.decoder.bias)
-        # nn.init.uniform_(self.decoder.weight, -initrange, initrange)
+        nn.init.zeros_(self.decoder.bias)
+        nn.init.uniform_(self.decoder.weight, -initrange, initrange)
 
     def forward(self, src: torch.Tensor, seq_len: int = SEQ_LEN) -> torch.Tensor:
-r        src = self.pos_encoder(src)
-        tgt = self.pos_encoder(src)
+        src = self.pos_encoder(src)
         output = self.transformer_encoder(src)
-        # output = self.decoder(output)
-        output = self.transformer_decoder(tgt, output)
-        # output = torch.squeeze(output)
+        output = self.decoder(output)
+        output = torch.squeeze(output)
         output = self.linear1(output)
         return output
+    
+class TransformerModel(nn.Module):
+    def __init__(self, input_dim, d_model, nhead, num_layers, dim_feedforward, output_dim):
+        super(TransformerModel, self).__init__()
+
+        self.embedding = nn.Linear(input_dim, d_model)
+        self.positional_encoding = self.generate_positional_encoding(d_model)
+
+        self.transformer_encoder_layer = nn.TransformerEncoderLayer(d_model, nhead, dim_feedforward)
+        self.transformer_encoder = nn.TransformerEncoder(self.transformer_encoder_layer, num_layers)
+
+        self.pooling = nn.AdaptiveAvgPool1d(1)
+        self.fc = nn.Linear(d_model, output_dim)
+
+    def forward(self, src):
+        batch_size, seq_length, _ = src.size()
+        src = self.embedding(src).permute(1, 0, 2) + self.positional_encoding[:seq_length, :].unsqueeze(1)
+        
+        memory = self.transformer_encoder(src)
+        pooled = self.pooling(memory.permute(1, 2, 0))
+        output = self.fc(pooled.squeeze(2))
+        return output
+
+    def generate_positional_encoding(self, d_model, max_len=SEQ_LEN):
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * -(torch.log(torch.tensor(10000.0)) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(1).transpose(0, 1)
+        return pe
     
 def is_number(num):
     pattern = re.compile(r'^[-+]?[-0-9]\d*\.\d*|[-+]?\.?[0-9]\d*$')
@@ -417,4 +444,8 @@ def load_data(ts_codes):
             data = csv_queue.get()
             data_queue.put(data)
             # data_list.append(data)
-            
+
+def cross_entropy(pred, target):
+    logsoftmax = nn.LogSoftmax()
+    return torch.mean(torch.sum(-target * logsoftmax(pred), dim=1))
+        
