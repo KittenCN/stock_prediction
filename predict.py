@@ -184,7 +184,7 @@ def loss_curve(loss_list):
         plt.xlabel("iteration")
         now = datetime.now()
         date_string = now.strftime("%Y%m%d%H%M%S")
-        plt.savefig("./png/train_loss/"+cnname+"_"+date_string+"_train_loss.png",dpi=600)
+        plt.savefig("./png/train_loss/"+cnname+"_"+model_mode+"_"+date_string+"_train_loss.png",dpi=600)
         # plt.show()
         plt.close()
     except Exception as e:
@@ -276,7 +276,7 @@ def contrast_lines(test_code):
             plt.legend()
             now = datetime.now()
             date_string = now.strftime("%Y%m%d%H%M%S")
-            plt.savefig("./png/predict/" + cnname + "_" + common.name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
+            plt.savefig("./png/predict/" + cnname + "_" + model_mode + "_" + common.name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
             pbar.update(1)
         except Exception as e:
             print("Error: contrast_lines", e)
