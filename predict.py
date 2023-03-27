@@ -20,8 +20,8 @@ from datetime import datetime
 from torch.cuda.amp import autocast, GradScaler
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', default="test", type=str, help="select running mode: train, test, predict")
-parser.add_argument('--model', default="transformer", type=str, help="lstm or transformer")
+parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
+parser.add_argument('--model', default="lstm", type=str, help="lstm or transformer")
 parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
 # parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--epochs', default=1, type=int, help="epochs")
@@ -31,7 +31,7 @@ parser.add_argument('--wd', default=0.0001, type=float, help="WEIGHT_DECAY")
 parser.add_argument('--workers', default=1, type=int, help="num_workers")
 parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of csv file")
 parser.add_argument('--test_code', default="", type=str, help="test code")
-parser.add_argument('--test_gpu', default=0, type=int, help="test method use gpu or not")
+parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu or not")
 args = parser.parse_args()
 last_save_time = 0
 
@@ -328,6 +328,15 @@ if __name__=="__main__":
         test_model=test_model.to('cpu', non_blocking=True)
     else:
         test_model=test_model.to(common.device, non_blocking=True)
+    if torch.cuda.device_count() >= 1:
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        if torch.cuda.device_count() > 1:
+            model = nn.DataParallel(model)
+            if args.test_gpu == 1:
+                test_model = nn.DataParallel(test_model)
+    else:
+        print("Let's use CPU!")
+
     print(model)
     optimizer=optim.Adam(model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)
     if os.path.exists(save_path+"_Model.pkl") and os.path.exists(save_path+"_Optimizer.pkl"):
