@@ -20,7 +20,7 @@ from datetime import datetime
 from torch.cuda.amp import autocast, GradScaler
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
+parser.add_argument('--mode', default="test", type=str, help="select running mode: train, test, predict")
 parser.add_argument('--model', default="transformer", type=str, help="lstm or transformer")
 parser.add_argument('--batch_size', default=32, type=int, help="Batch_size")
 # parser.add_argument('--begin_code', default="", type=str, help="begin code")
@@ -29,7 +29,7 @@ parser.add_argument('--seq_len', default=180, type=int, help="SEQ_LEN")
 parser.add_argument('--lr', default=0.001, type=float, help="LEARNING_RATE")
 parser.add_argument('--wd', default=0.0001, type=float, help="WEIGHT_DECAY")
 parser.add_argument('--workers', default=1, type=int, help="num_workers")
-parser.add_argument('--pkl', default=0, type=int, help="use pkl file instead of csv file")
+parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of csv file")
 parser.add_argument('--test_code', default="", type=str, help="test code")
 args = parser.parse_args()
 last_save_time = 0
@@ -201,20 +201,20 @@ def contrast_lines(test_code):
         while common.data_queue.empty() == False:
             data_list += [common.data_queue.get()]
         random.shuffle(data_list)
-        test_index = random.randint(0, len(ts_codes) - 1)
+        test_index = random.randint(0, len(data_list) - 1)
         data = data_list[test_index]
     
     data = data.dropna()
-
-    if data.empty or data["ts_code"][0] == "None":
+    
+    if data.empty or (common.PKL is False and data["ts_code"][0] == "None"):
         print("Error: data is empty or ts_code is None")
         return
 
     # if data['ts_code'][0] != test_code[0]:
     #     print("Error: ts_code is not match")
     #     return
-
-    data.drop(['ts_code', 'Date'], axis=1, inplace=True)
+    if common.PKL is False:
+        data.drop(['ts_code', 'Date'], axis=1, inplace=True)
     train_size = int(common.TRAIN_WEIGHT * (data.shape[0]))
     if train_size < common.SEQ_LEN or train_size + common.SEQ_LEN > data.shape[0]:
         print("Error: train_size is too small or too large")
