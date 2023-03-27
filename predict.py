@@ -30,7 +30,7 @@ parser.add_argument('--lr', default=0.001, type=float, help="LEARNING_RATE")
 parser.add_argument('--wd', default=0.0001, type=float, help="WEIGHT_DECAY")
 parser.add_argument('--workers', default=1, type=int, help="num_workers")
 parser.add_argument('--pkl', default=0, type=int, help="use pkl file instead of csv file")
-parser.add_argument('--test_code', default="", type=str, help="test code")
+parser.add_argument('--test_code', default="000001.SZ", type=str, help="test code")
 args = parser.parse_args()
 last_save_time = 0
 
@@ -103,7 +103,7 @@ def test(dataloader):
 
     test_model.eval()
     accuracy_fn = nn.MSELoss()
-
+    pbar = tqdm(total=len(dataloader), leave=False, ncols=common.TQDM_NCOLS)
     with torch.no_grad():
         for data, label in dataloader:
             # test_optimizer.zero_grad()
@@ -112,10 +112,12 @@ def test(dataloader):
             if(predict.shape == label.shape):
                 accuracy = accuracy_fn(predict, label)
                 accuracy_list.append(accuracy.item())
+                pbar.update(1)
             else:
                 tqdm.write(f"test error: predict.shape != label.shape")
+                pbar.update(1)
                 continue
-
+    pbar.close()
     if not accuracy_list:
         accuracy_list = [0]
 
@@ -294,8 +296,8 @@ if __name__=="__main__":
         save_path=lstm_path
         criterion=nn.MSELoss()
     elif model_mode=="TRANSFORMER":
-        model=common.TransAm(feature_size=common.INPUT_DIMENSION)
-        test_model=common.TransAm(feature_size=common.INPUT_DIMENSION)
+        model=common.Transformer(feature_size=common.INPUT_DIMENSION)
+        test_model=common.Transformer(feature_size=common.INPUT_DIMENSION)
         # model=common.TransformerModel(input_dim=common.INPUT_DIMENSION, d_model=512, nhead=8, num_layers=6, dim_feedforward=2048, output_dim=common.OUTPUT_DIMENSION)
         # test_model=common.TransformerModel(input_dim=common.INPUT_DIMENSION, d_model=512, nhead=8, num_layers=6, dim_feedforward=2048, output_dim=common.OUTPUT_DIMENSION)
         save_path=transformer_path
