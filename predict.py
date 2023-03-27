@@ -189,9 +189,21 @@ def contrast_lines(test_code):
     # global test_loss, accuracy_list, predict_list
     # test_loss = 0.00
 
-    print("test_code=", test_code)
-    common.load_data(test_code)
-    data = common.data_queue.get()
+
+    if common.PKL is False:
+        print("test_code=", test_code)
+        common.load_data(test_code)
+        data = common.data_queue.get()
+    else:
+        data_list = []
+        with open(common.train_pkl_path, 'rb') as f:
+            common.data_queue = dill.load(f)
+        while common.data_queue.empty() == False:
+            data_list += [common.data_queue.get()]
+        random.shuffle(data_list)
+        test_index = random.randint(0, len(ts_codes) - 1)
+        data = data_list[test_index]
+    
     data = data.dropna()
 
     if data.empty or data["ts_code"][0] == "None":
