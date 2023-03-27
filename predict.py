@@ -31,6 +31,7 @@ parser.add_argument('--wd', default=0.0001, type=float, help="WEIGHT_DECAY")
 parser.add_argument('--workers', default=1, type=int, help="num_workers")
 parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of csv file")
 parser.add_argument('--test_code', default="", type=str, help="test code")
+parser.add_argument('--test_gpu', default=0, type=int, help="test method use gpu or not")
 args = parser.parse_args()
 last_save_time = 0
 
@@ -106,6 +107,10 @@ def test(dataloader):
     pbar = tqdm(total=len(dataloader), leave=False, ncols=common.TQDM_NCOLS)
     with torch.no_grad():
         for data, label in dataloader:
+            if args.test_gpu == 1:
+                data, label = data.to(common.device, non_blocking=True), label.to(common.device, non_blocking=True)
+            else:
+                data, label = data.to("cpu", non_blocking=True), label.to("cpu", non_blocking=True)
             # test_optimizer.zero_grad()
             predict = test_model.forward(data)
             predict_list.append(predict)
@@ -319,7 +324,10 @@ if __name__=="__main__":
         exit(0)
 
     model=model.to(common.device, non_blocking=True)
-    test_model=test_model.to('cpu', non_blocking=True)
+    if args.test_gpu == 0:
+        test_model=test_model.to('cpu', non_blocking=True)
+    else:
+        test_model=test_model.to(common.device, non_blocking=True)
     print(model)
     optimizer=optim.Adam(model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)
     if os.path.exists(save_path+"_Model.pkl") and os.path.exists(save_path+"_Optimizer.pkl"):
