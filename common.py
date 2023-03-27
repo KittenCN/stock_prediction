@@ -221,10 +221,10 @@ class TransformerModel(nn.Module):
 
     def forward(self, src):
         batch_size, seq_length, _ = src.size()
-        src = self.embedding(src).permute(1, 0, 2) + self.positional_encoding[:seq_length, :].unsqueeze(1)
+        src = self.embedding(src) + self.positional_encoding[:seq_length, :]
         
         memory = self.transformer_encoder(src)
-        pooled = self.pooling(memory.permute(1, 2, 0))
+        pooled = self.pooling(memory.permute(0, 2, 1))
         output = self.fc(pooled.squeeze(2))
         return output
 
@@ -234,7 +234,7 @@ class TransformerModel(nn.Module):
         div_term = torch.exp(torch.arange(0, d_model, 2).float() * -(torch.log(torch.tensor(10000.0)) / d_model))
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(1).transpose(0, 1)
+        pe = pe.unsqueeze(1).transpose(0, 1).to(device)
         return pe
     
 class Pos_Encoding(nn.Module):

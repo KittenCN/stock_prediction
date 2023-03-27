@@ -296,10 +296,10 @@ if __name__=="__main__":
         save_path=lstm_path
         criterion=nn.MSELoss()
     elif model_mode=="TRANSFORMER":
-        model=common.Transformer(feature_size=common.INPUT_DIMENSION)
-        test_model=common.Transformer(feature_size=common.INPUT_DIMENSION)
-        # model=common.TransformerModel(input_dim=common.INPUT_DIMENSION, d_model=512, nhead=8, num_layers=6, dim_feedforward=2048, output_dim=common.OUTPUT_DIMENSION)
-        # test_model=common.TransformerModel(input_dim=common.INPUT_DIMENSION, d_model=512, nhead=8, num_layers=6, dim_feedforward=2048, output_dim=common.OUTPUT_DIMENSION)
+        # model=common.Transformer(feature_size=common.INPUT_DIMENSION)
+        # test_model=common.Transformer(feature_size=common.INPUT_DIMENSION)
+        model=common.TransformerModel(input_dim=common.INPUT_DIMENSION, d_model=512, nhead=8, num_layers=6, dim_feedforward=2048, output_dim=common.OUTPUT_DIMENSION)
+        test_model=common.TransformerModel(input_dim=common.INPUT_DIMENSION, d_model=512, nhead=8, num_layers=6, dim_feedforward=2048, output_dim=common.OUTPUT_DIMENSION)
         save_path=transformer_path
         criterion=nn.MSELoss()
     else:
