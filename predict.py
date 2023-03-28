@@ -197,24 +197,28 @@ def contrast_lines(test_code):
 
 
     if common.PKL is False:
-        print("test_code=", test_code)
         common.load_data(test_code)
         data = common.data_queue.get()
     else:
         data_list = []
+        test_index = 0
         with open(common.train_pkl_path, 'rb') as f:
             common.data_queue = dill.load(f)
         while common.data_queue.empty() == False:
-            data_list += [common.data_queue.get()]
-        random.shuffle(data_list)
-        test_index = random.randint(0, len(data_list) - 1)
-        data = data_list[test_index]
+            item = common.data_queue.get()
+            if item['ts_code'][0] in test_code:
+                test_index = data_list.index(item)
+                break
+        common.data_queue = common.queue.Queue()
+        _data = data_list[test_index]
+        data = copy.deepcopy(_data)
+        data.drop(['ts_code','Date'],axis=1,inplace = True)  
     
     data = data.dropna()
-    
+    print("test_code=", test_code)
     if data.empty or (common.PKL is False and data["ts_code"][0] == "None"):
         print("Error: data is empty or ts_code is None")
-        return
+        return -1
 
     # if data['ts_code'][0] != test_code[0]:
     #     print("Error: ts_code is not match")
@@ -230,7 +234,7 @@ def contrast_lines(test_code):
     Test_data = copy.deepcopy(data)
     if Train_data is None or Test_data is None:
         print("Error: Train_data or Test_data is None")
-        return
+        return -1
 
     stock_train = common.Stock_Data(mode=0, dataFrame=Train_data, label_num=common.OUTPUT_DIMENSION)
     stock_test = common.Stock_Data(mode=1, dataFrame=Test_data, label_num=common.OUTPUT_DIMENSION)
@@ -447,7 +451,8 @@ if __name__=="__main__":
                         # Test_data.to_csv(common.test_path,sep=',',index=False,header=False)
                     else:
                         Train_data = copy.deepcopy(data)
-                        ts_code = "pkl_queue"
+                        Train_data.drop(['ts_code','Date'],axis=1,inplace = True)
+                        ts_code = data['ts_code'][0]
                     if len(loss_list) == 0:
                         m_loss = 0
                     else:
