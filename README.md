@@ -1,59 +1,85 @@
-# 基于神经网络的通用股票预测模型
+# 基于神经网络的通用股票预测模型 A general stock prediction model based on neural networks
 
-## 1 项目介绍
+## 1 项目介绍 Project Introduction
 
 基本思路及创意来自于：https://github.com/MiaoChenglin125/stock_prediction-based-on-lstm-and-transformer
 由于原作者貌似已经放弃更新，我将继续按照现有掌握的新的模型和技术，继续迭代这个程序
+The basic idea and creativity come from: https://github.com/MiaoChenglin125/stock_prediction-based-on-lstm-and-transformer. As the original author seems to have abandoned the updates, I will continue to iterate this program based on the new models and technologies that I have mastered.
 
 ## New
 * 20230327
 * 1. 修改了部分运行逻辑，配合load pkl预处理文件，极大的提高了训练速度
+*    Modified some running logic and used preprocessed pkl files to greatly improve training speed.
 * 2. 修正了一个影响极大的关于数据流方向的bug
+*    Corrected a bug that had a great impact on the direction of data flow.
 * 3. 尝试使用新的模型
+*    Tried a new model.
 * 4. 增加了一个新的指标，用于评估模型的好坏
+*    Added a new index to evaluate the quality of the model.
 * 20230325
 * 1. 增加数据预处理功能，并能将预处理好的queue保存为pkl文件，减少IO损耗
+*     Add data preprocessing function and save the preprocessed queue as a pkl file to reduce IO loss.
 * 2. 修改不必要的代码
+*     Modify unnecessary code.
 * 3. 简化逻辑，减少时间负责度，方向是以空间换时间
+*     Simplify the logic and reduce the time burden. The direction is to trade space for time.
 * 4. 增加常见的指标，增加预测精度
+*     Add common indicators to increase prediction accuracy.
 * 20230322
 * 1. 增加输出内容控制，可以自行定义输出的内容和数量
+*     Add output content control, you can define the content and quantity of the output yourself.
 * 2. 修改读取数据源为本地csv文件
+*     Modify the data source to local csv files.
 * 3. 修改IO逻辑，使用多线程读取指定文件夹下的csv文件，并存储到内存中，反复训练，减少IO次数
+*     Modify the IO logic to use multiple threads to read the csv files in the specified folder and store them in memory, repeatedly train, and reduce the number of IO operations.
 * 4. 修改lstm, transformer模型
+*     Modify the lstm and transformer models.
 * 5. 增加下载数据功能，请使用自己的api token
+*     Add download data function, please use your own api token.
 
-## 获取下载数据的api token:
+## 获取下载数据的api token: Get the api token to download data:
 * 1. 在https://tushare.pro/ 网站注册，并按要求获取足够的积分（到2023年3月为止，只需要修改下用户信息，就足够积分了，以后不能确定）
+*    Register on https://tushare.pro/ website and obtain enough points as required (as of March 2023, only modifying user information is sufficient to obtain enough points, but it may not be guaranteed in the future).
 * 2. 在https://tushare.pro/user/token 页面可以查看自己的api token
+*    You can view your api token on https://tushare.pro/user/token page.
 * 3. 在本项目根目录建立一个api.txt，并将获得的api token写入这个文件
+*    Create an api.txt file in the root directory of this project and write the api token you obtained into this file.
 * 4. 使用本项目getdata.py，即可自动下载日数据
+*    Use the getdata.py of this project to automatically download the daily data.
 
 股票行情是引导交易市场变化的一大重要因素，若能够掌握股票行情的走势，则对于个人和企业的投资都有巨大的帮助。然而，股票走势会受到多方因素的影响，因此难以从影响因素入手定量地进行衡量。但如今，借助于机器学习，可以通过搭建网络，学习一定规模的股票数据，通过网络训练，获取一个能够较为准确地预测股票行情的模型，很大程度地帮助我们掌握股票的走势。本项目便搭建了**LSTM（长短期记忆网络）**成功地预测了股票的走势。
+Stock market trends are an important factor in guiding changes in the trading market. If we can master the trend of stock market trends, it would be of great help for personal and enterprise investments. However, stock market trends are influenced by multiple factors, making it difficult to measure them quantitatively from the perspective of influencing factors. Fortunately, with the help of machine learning, we can build a network, learn a certain scale of stock data, and obtain a model that can predict stock market trends more accurately through network training, which greatly helps us to master the trend of stocks. This project uses LSTM (Long Short-Term Memory Network) to successfully predict stock trends.
 
 首先在**数据集**方面，我们选择上证000001号，中国平安股票（编号SZ_000001)数据集采用2016.01.01-2019.12.31股票数据，数据内容包括当天日期，开盘价，收盘价，最高价，最低价，交易量，换手率。数据集按照0.1比例分割产生测试集。训练过程以第T-99到T天数据作为训练输入，预测第T+1天该股票开盘价。(此处特别感谢**Tushare**提供的股票日数据集，欢迎大家多多支持)
+First, in terms of the dataset, we chose the dataset of China Ping An stock (SZ_000001), which is the Shanghai Stock Exchange 000001 index. The stock data covers the period from January 1, 2016, to December 31, 2019, including the date, opening price, closing price, highest price, lowest price, trading volume, and turnover rate. The dataset is split into a test set and a training set in a 9:1 ratio. The training process takes data from T-99 to T days as input and predicts the opening price of the stock on day T+1. (Special thanks to Tushare for providing the daily stock dataset, and we encourage everyone to support them.)
 
 在**训练模型及结果**方面，我们首先采用了LSTM（长短期记忆网络），它相比传统的神经网络能够保持上下文信息，更有利于股票预测模型基于原先的行情，预测未来的行情。LSTM网络帮助我们得到了很好的拟合结果，loss很快趋于0。之后，我们又采用比LSTM模型更新提出的Transformer Encoder部分进行测试。但发现，结果并没有LSTM优越，曲线拟合的误差较大，并且loss的下降较慢。因此本项目，重点介绍LSTM模型预测股票行情的实现思路。
+In terms of training models and results, we first used LSTM (Long Short-Term Memory Network). Compared with traditional neural networks, LSTM can maintain context information, which is more conducive to predicting future market trends based on past trends. The LSTM network helped us achieve a good fitting result, and the loss quickly tended to 0. Then, we tested the Transformer Encoder part proposed by more updated models than LSTM. However, we found that the results were not superior to LSTM, and the fitting error was large, and the loss decreased slowly. Therefore, this project focuses on introducing the implementation of the LSTM model to predict stock market trends.
 
-## 2 LSTM模型原理
+## 2 LSTM模型原理 Principles of LSTM model
 
-### 2.1 时间序列模型
+### 2.1 时间序列模型 Time Series Model
 
  **时间序列模型**：时间序列预测分析就是利用过去一段时间内某事件时间的特征来预测未来一段时间内该事件的特征。这是一类相对比较复杂的预测建模问题，和回归分析模型的预测不同，时间序列模型是依赖于事件发生的先后顺序的，同样大小的值改变顺序后输入模型产生的结果是不同的。
+  **Time series model**: Time series prediction analysis is to use the characteristics of the event time in the past period of time to predict the characteristics of the event in the future period of time. This is a relatively complex prediction modeling problem. Unlike the prediction of regression analysis models, time series models are dependent on the order of the occurrence of events. The same size of the value changes the order of input into the model to produce different results.
 
-### 2.1 从RNN到LSTM
+### 2.1 从RNN到LSTM From RNN to LSTM
 
 **RNN：**递归神经网络RNN每一次隐含层的计算结果都与当前输入以及上一次的隐含层结果相关。通过这种方法，RNN的计算结果便具备了记忆之前几次结果的特点。其中，**ｘ**为输入层，ｏ为输出层，**s**为隐含层，而**t**指第几次的计算，**V,W,U**为权重，第ｔ次隐含层状态如下公式所示：
+RNN (Recurrent Neural Network): The calculation result of each hidden layer of the recurrent neural network (RNN) is related to the current input and the previous hidden layer result. Through this method, the calculation result of RNN has the characteristic of memorizing the previous results. In the following formula, x is the input layer, o is the output layer, s is the hidden layer, and t indicates the calculation time, while V, W, U are weights. The formula for the t-th hidden layer state is as follows:
+
 $$
 St = f(U*Xt + W*St-1)　（１）
 $$
 <img src="readme\RNN.png" alt="RNN" style="zoom:50%;" />
 
 可见，通过RNN模型想要当前隐含层状态与前ｎ次相关，需要增大计算量，复杂度呈指数级增长。然而采用LSTM网络可解决这一问题。
+As we can see, if we want the current hidden layer state to be related to the previous n states through the RNN model, it requires a significant increase in computation, and the complexity grows exponentially. However, this problem can be solved by using the LSTM network.
 
-**LSTM（长短期记忆网络）：**
+**LSTM（长短期记忆网络）LSTM (Long Short-Term Memory Network)：**
 
 LSTM是一种特殊的RNN，它主要是Eileen解决长序列训练过程中的梯度消失和梯度爆炸问题。相比RNN，LSTM更能够在长的序列中又更好的表现。
+LSTM is a special RNN, which is mainly used to solve the problem of gradient disappearance and gradient explosion in the training process of long sequences. Compared with RNN, LSTM can perform better in long sequences.
 
 <img src="readme\LSTM.png" alt="LSTM" style="zoom:67%;" />
 
