@@ -32,6 +32,7 @@ parser.add_argument('--workers', default=1, type=int, help="num_workers")
 parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of csv file")
 parser.add_argument('--test_code', default="", type=str, help="test code")
 parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu or not")
+parser.add_argument('--predict_days', default=1, type=int, help="number of the predict days")
 args = parser.parse_args()
 last_save_time = 0
 
@@ -270,9 +271,10 @@ def contrast_lines(test_code):
             _real_list = np.transpose(real_list)[i]
             _prediction_list = np.transpose(prediction_list)[i]
             plt.figure()
-            x = np.linspace(0, len(_real_list), len(_real_list))
-            plt.plot(x, np.array(_real_list), label="real_"+common.name_list[i])
-            plt.plot(x, np.array(_prediction_list), label="prediction_"+common.name_list[i])
+            x1 = np.linspace(0, len(_real_list), len(_real_list))
+            x2 = np.linspace(0, len(_prediction_list), len(_prediction_list))
+            plt.plot(x1, np.array(_real_list), label="real_"+common.name_list[i])
+            plt.plot(x2, np.array(_prediction_list), label="prediction_"+common.name_list[i])
             plt.legend()
             now = datetime.now()
             date_string = now.strftime("%Y%m%d%H%M%S")

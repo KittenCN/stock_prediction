@@ -44,7 +44,7 @@ if __name__ == ("__main__"):
             if data['ts_code'][0] != ts_code:
                 tqdm.write("Error: ts_code is not match")
                 exit(0)
-            data.drop(['ts_code','Date'],axis=1,inplace = True)    
+            # data.drop(['ts_code','Date'],axis=1,inplace = True)    
             train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
             if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
                 # tqdm.write(ts_code + ":train_size is too small or too large")
