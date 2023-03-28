@@ -200,17 +200,15 @@ def contrast_lines(test_code):
         common.load_data(test_code)
         data = common.data_queue.get()
     else:
-        data_list = []
-        test_index = 0
+        _data = common.NoneDataFrame
         with open(common.train_pkl_path, 'rb') as f:
             common.data_queue = dill.load(f)
         while common.data_queue.empty() == False:
             item = common.data_queue.get()
             if item['ts_code'][0] in test_code:
-                test_index = data_list.index(item)
+                _data = item
                 break
         common.data_queue = common.queue.Queue()
-        _data = data_list[test_index]
         data = copy.deepcopy(_data)
         data.drop(['ts_code','Date'],axis=1,inplace = True)  
     
