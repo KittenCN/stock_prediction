@@ -18,24 +18,24 @@ The basic idea and creativity come from: https://github.com/MiaoChenglin125/stoc
 *    Added a new index to evaluate the quality of the model.
 * 20230325
 * 1. 增加数据预处理功能，并能将预处理好的queue保存为pkl文件，减少IO损耗
-*     Add data preprocessing function and save the preprocessed queue as a pkl file to reduce IO loss.
+*    Add data preprocessing function and save the preprocessed queue as a pkl file to reduce IO loss.
 * 2. 修改不必要的代码
-*     Modify unnecessary code.
+*    Modify unnecessary code.
 * 3. 简化逻辑，减少时间负责度，方向是以空间换时间
-*     Simplify the logic and reduce the time burden. The direction is to trade space for time.
+*    Simplify the logic and reduce the time burden. The direction is to trade space for time.
 * 4. 增加常见的指标，增加预测精度
-*     Add common indicators to increase prediction accuracy.
+*    Add common indicators to increase prediction accuracy.
 * 20230322
 * 1. 增加输出内容控制，可以自行定义输出的内容和数量
-*     Add output content control, you can define the content and quantity of the output yourself.
+*    Add output content control, you can define the content and quantity of the output yourself.
 * 2. 修改读取数据源为本地csv文件
-*     Modify the data source to local csv files.
+*    Modify the data source to local csv files.
 * 3. 修改IO逻辑，使用多线程读取指定文件夹下的csv文件，并存储到内存中，反复训练，减少IO次数
-*     Modify the IO logic to use multiple threads to read the csv files in the specified folder and store them in memory, repeatedly train, and reduce the number of IO operations.
+*    Modify the IO logic to use multiple threads to read the csv files in the specified folder and store them in memory, repeatedly train, and reduce the number of IO operations.
 * 4. 修改lstm, transformer模型
-*     Modify the lstm and transformer models.
+*    Modify the lstm and transformer models.
 * 5. 增加下载数据功能，请使用自己的api token
-*     Add download data function, please use your own api token.
+*    Add download data function, please use your own api token.
 
 ## 获取下载数据的api token: Get the api token to download data:
 * 1. 在https://tushare.pro/ 网站注册，并按要求获取足够的积分（到2023年3月为止，只需要修改下用户信息，就足够积分了，以后不能确定）
@@ -84,29 +84,37 @@ LSTM is a special RNN, which is mainly used to solve the problem of gradient dis
 <img src="readme\LSTM.png" alt="LSTM" style="zoom:67%;" />
 
 LSTM拥有两个传输状态： ![[公式]](https://www.zhihu.com/equation?tex=c%5Et)在 （cell state）， ![[公式]](https://www.zhihu.com/equation?tex=h%5Et)（hidden state），其中 ![[公式]](https://www.zhihu.com/equation?tex=c%5Et) 的改变往往很慢，而 ![[公式]](https://www.zhihu.com/equation?tex=h%5Et)在不同的节点下会有很大的区别。
+LSTM has two transmission states: ![[公式]](https://www.zhihu.com/equation?tex=c%5Et) in （cell state）， ![[公式]](https://www.zhihu.com/equation?tex=h%5Et)（hidden state），where the change of ![[公式]](https://www.zhihu.com/equation?tex=c%5Et) is often slow, while the hidden state ![[公式]](https://www.zhihu.com/equation?tex=h%5Et)  can vary greatly at different nodes.
 
 - 首先，使用LSTM的当前输入 ![[公式]](https://www.zhihu.com/equation?tex=x%5Et)和上一个状态传递下来的![[公式]](https://www.zhihu.com/equation?tex=h%5E%7Bt-1%7D)得到四个状态：![[公式]](https://www.zhihu.com/equation?tex=z%5Ef+) ， ![[公式]](https://www.zhihu.com/equation?tex=z%5Ei) ，![[公式]](https://www.zhihu.com/equation?tex=z%5Eo)，![[公式]](https://www.zhihu.com/equation?tex=z)，前三者为拼接向量乘以权重矩阵后使用sigmoid函数得到0-1之间的值作为门控状态，后者为通过tanh函数得到（-1）-1之间的值。
+First, using the current input ![[公式]](https://www.zhihu.com/equation?tex=x%5Et)  and the previous state ![[公式]](https://www.zhihu.com/equation?tex=h%5E%7Bt-1%7D)  passed down by LSTM, four states are obtained: ![[公式]](https://www.zhihu.com/equation?tex=z%5Ef+) ， ![[公式]](https://www.zhihu.com/equation?tex=z%5Ei) ，![[公式]](https://www.zhihu.com/equation?tex=z%5Eo)，![[公式]](https://www.zhihu.com/equation?tex=z)，, where the first three are gate states obtained by using sigmoid function on the concatenated vector multiplied by the weight matrix, and the last one is obtained by using the tanh function to get values between -1 and 1.
 
   <img src="readme\LSTM2.png" alt="LSTM2" style="zoom:67%;" />
 
-- LSTM内部有三个阶段：**忘记阶段、选择记忆阶段、输出阶段**
+- LSTM内部有三个阶段：**忘记阶段、选择记忆阶段、输出阶段**  LSTM has three stages: the forget stage, the select memory stage, and the output stage.
 
   - **忘记阶段：**通过计算 ![[公式]](https://www.zhihu.com/equation?tex=z%5Ef)来作为门控，控制上一个状态的 ![[公式]](https://www.zhihu.com/equation?tex=c%5E%7Bt-1%7D)需要遗忘的内容。
+  - **Forget stage: **By computing ![[公式]](https://www.zhihu.com/equation?tex=z%5Ef) as a gate control, the content of the previous state ![[公式]](https://www.zhihu.com/equation?tex=c%5E%7Bt-1%7D) needs to be forgotten.
 
   - **选择记忆阶段：**对输入![[公式]](https://www.zhihu.com/equation?tex=x%5Et)进行选择记忆，门控信号由 ![[公式]](https://www.zhihu.com/equation?tex=z%5Ei)进行控制，输入内容由![[公式]](https://www.zhihu.com/equation?tex=z+)进行表示。
+  - **Select memory stage: **Select memory for input ![[公式]](https://www.zhihu.com/equation?tex=x%5Et), gate control signal controlled by ![[公式]](https://www.zhihu.com/equation?tex=z%5Ei), and input content represented by ![[公式]](https://www.zhihu.com/equation?tex=z+).
 
   - **输出阶段：**决定当前状态输出的内容，通过 ![[公式]](https://www.zhihu.com/equation?tex=z%5Eo)控制，并且还对上一阶段得到的 ![[公式]](https://www.zhihu.com/equation?tex=c%5Et)进行放缩。
+  - **Output stage: **Decide the content of the current state output, controlled by ![[公式]](https://www.zhihu.com/equation?tex=z%5Eo), and also scale the previous stage ![[公式]](https://www.zhihu.com/equation?tex=c%5Et).
 
     <img src="readme\LSTM3.png" alt="LSTM3" style="zoom:67%;" />
 
 
 
-## ３LSTM预测股票模型实现
+## ３LSTM预测股票模型实现 LSTM prediction model implementation for stock forecasting
 
 **１、数据集准备**
+**1. Data set preparation**
 
 - 数据集分割：数据集按照0.1比例分割产生测试集。训练过程以第T-99到T天数据作为训练输入，预测第T+1天该股票开盘价。
+- Data Set Splitting: The data set is split into training and testing sets in a 0.1 ratio, with the testing set being 10% of the data. During training, the input for predicting the opening price of the stock on day T+1 is the stock market data from day T-99 to day T. Therefore, the training set comprises data from the first day to day T-99, and the testing set comprises data from day T to the end of the data set. This methodology ensures that the LSTM model is effectively trained on historical stock market data to make predictions for future stock market trends.
 - 对数据进行标准化：训练集与测试集都需要按列除以极差。在训练完成后需要进行逆处理来获得结果。
+- Data normalization: Both the training set and the testing set need to be divided by the range of values along each column. After training is complete, the results need to be processed in reverse to obtain the results.
 
 $$
 train([:,i])=(train([:,i]))-min(train[:,i])/(max(train[:,i])-min(train[:,i])) （2）
@@ -118,62 +126,85 @@ $$
 
 
 
-**２、模型搭建**
+**２、模型搭建** 
+**2. Model construction**
 
 使用pytorch框架搭建LSTM模型，torch.nn.LSTM()当中包含的**参数设置**：
+When building an LSTM model using the PyTorch framework with the torch.nn.LSTM() module：
 
 - 输入特征的维数: input_size=dimension(dimension=8)
+- The dimensionality of input features: input_size=dimension(dimension=8)
 - LSTM中隐层的维度: hidden_size=128
+- The dimension of the hidden layer in LSTM: hidden_size=128
 - 循环神经网络的层数：num_layers=3
+- The number of layers of the recurrent neural network: num_layers=3
 - batch_first: TRUE
 
 - 偏置：bias默认使用
+- Bias: bias is used by default
 
 **全连接层参数**设置：
+The parameter settings for the fully connected layer include:
 
 - 第一层：in_features=128, out_featrues=16
+- The first layer: in_features=128, out_featrues=16
 - 第二层：in_features=16, out_features=1 (映射到一个值)
+- The second layer: in_features=16, out_features=1 (mapped to a value)
 
 **３、模型训练**
+**3. Model training**
 
 - 经过调试，确定学习率lr=0.00001
+- After debugging, a learning rate of lr=0.00001 was determined.
 
 - 优化函数：批量梯度下降(SGD)
+- Optimization function: Stochastic Gradient Descent (SGD)
 
 - 批大小batch_size=4
+- Batch size:batch_size=4
 
 - 训练代数epoch=100
+- Train epochs: epoch=100
 
 - 损失函数：MSELoss均方损失函数，最终训练模型得到MSELoss下降为0.8左右。
+- Loss function: MSELoss mean square loss function, the final training model obtained MSELoss down to about 0.8.
 
   <img src="readme\MSE.png" alt="MSE" style="zoom:80%;" />
 
 **４、模型预测**
+**4. Model prediction**
 
 测试集使用已训练的模型进行验证，与真实数据不叫得到平均绝对百分比误差（MAPELoss）为0.04，可以得到测试集的准确率为96%。
+The trained model was used to validate the test set, and the average absolute percentage error (MAPELoss) was obtained as 0.04, indicating a testing accuracy of 96% compared to the ground truth data.
 
 <img src="readme\MAPE.png" alt="MAPE" style="zoom: 80%;" />
 
 **５、模型成果**
+**5. Model results**
 
 下图是对整体数据集最后一百天的K线展示：当日开盘价低于收盘价则为红色，当日开盘价高于收盘价为绿色。图中还现实了当日交易量以及均线等信息。
+The following figure shows the K-line display for the last hundred days of the entire dataset: red indicates that the opening price is lower than the closing price, while green indicates that the opening price is higher than the closing price. The figure also displays daily trading volume and moving average information.
 
 <img src="readme\candleline.png" alt="candleline" style="zoom: 50%;" />
 
 LSTM模型进行预测的测试集结果与真实结果对比图，可见LSTM模型预测的结果和现实股票的走势十分接近，因此具有很大的参考价值。
+The following figure shows the comparison between the test results predicted by the LSTM model and the real results. It can be seen that the predicted results of the LSTM model are very close to the actual trend of the stock, indicating that it has great reference value.
 
 <img src="readme\prediction.png" alt="prediction" style="zoom:50%;" />
 
 LSTM模型训练过程中MSELoss的变化，可以看到随着训练代数的增加，此模型的MSELoss逐渐趋于0。
+The change of MSELoss during the training process of the LSTM model can be seen, and it can be observed that with the increase of training iterations, the MSELoss of the model gradually approaches 0.
 
 <img src="readme\loss.png" alt="loss" style="zoom: 67%;" />
 
 
 
 ## ４结语
+## 4 Conclusion
 
 本项目使用机器学习方法解决了股票市场预测的问题。项目采用开源股票数据中心的上证000001号，中国平安股票（编号SZ_000001)，使用更加适合进行长时间序列预测的LSTM(长短期记忆神经网络)进行训练，通过对训练集序列的训练，在测试集上预测开盘价，最终得到准确率为96%的LSTM股票预测模型，较为精准地实现解决了股票市场预测的问题。
+This project uses machine learning methods to solve the problem of stock market prediction. The project uses the Shanghai Stock Exchange 000001, China Ping An stock (code SZ_000001) from an open-source stock data center and trains it using LSTM (Long Short-Term Memory Neural Network) which is more suitable for long-term sequence prediction. By training on the training set sequence and predicting the opening price on the test set, we obtained an LSTM stock prediction model with an accuracy rate of 96%, which effectively solves the problem of stock market prediction with high precision.
 
 在项目开展过程当中，也采用过比LSTM更加新提出的Transformer模型，但对测试集的预测效果并不好，后期分析认为可能是由于在一般Transformer模型中由encoder和对应的decoder层，但在本项目的模型中使用了全连接层代替decoder，所以导致效果不佳。在后序的研究中，可以进一步改进，或许可以得到比LSTM更加优化的结果。
-
+During the project, we also tried using the Transformer model, which is more recently proposed than LSTM. However, the prediction performance on the test set was not good. Further analysis revealed that this might be due to the fact that in the general Transformer model, there are encoder and corresponding decoder layers, but in our model, we used fully connected layers instead of the decoder. Therefore, the performance was not as good as expected. In future research, we can further improve the model or explore other approaches to potentially obtain better results than LSTM.
 
