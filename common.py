@@ -64,7 +64,7 @@ check_exist("./png/predict/")
 
 train_path="./stock_handle/stock_train.csv"
 test_path="./stock_handle/stock_test.csv"
-train_pkl_path="./pkl_handle/train.pkl"
+train_pkl_path="./pkl_handle/train"+"_"+str(SEQ_LEN)+".pkl"
 
 class DataLoaderX(DataLoader):
     def __iter__(self):

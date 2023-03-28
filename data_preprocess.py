@@ -36,14 +36,16 @@ if __name__ == ("__main__"):
                     tqdm.write("Error: data_list is empty")
                     exit(0)
             data = data_list[index].copy(deep=True)
-            data = data.dropna()
+            # data = data.dropna()
+            data = data.fillna(0, inplace=True)
             if data is None or data["ts_code"][0] == "None":
                 tqdm.write("data is empty or data has invalid col")
                 pbar.update(1)
                 continue
-            if data['ts_code'][0] != ts_code:
-                tqdm.write("Error: ts_code is not match")
-                exit(0)
+            ts_code = data["ts_code"][0]
+            # if data['ts_code'][0] != ts_code:
+            #     tqdm.write("Error: ts_code is not match")
+            #     exit(0)
             # data.drop(['ts_code','Date'],axis=1,inplace = True)    
             train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
             if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
