@@ -136,7 +136,7 @@ def predict(test_code):
     common.load_data(test_code)
     data = common.data_queue.get()
     # data = data.dropna()
-    data = data.fillna(0, inplace=True)
+    data.fillna(0, inplace=True)
 
     if data.empty or data["ts_code"][0] == "None":
         print("Error: data is empty or ts_code is None")
@@ -214,7 +214,7 @@ def contrast_lines(test_code):
         data.drop(['ts_code','Date'],axis=1,inplace = True)  
     
     # data = data.dropna()
-    data = data.fillna(0, inplace=True)
+    data.fillna(0, inplace=True)
     print("test_code=", test_code)
     if data.empty or (common.PKL is False and data["ts_code"][0] == "None"):
         print("Error: data is empty or ts_code is None")
@@ -423,37 +423,33 @@ if __name__=="__main__":
                         break
                     data = data_list[index].copy(deep=True)
                     # data = data.dropna()
-                    data = data.fillna(0, inplace=True)
-                    if common.PKL is False:
-                        # data_len = len(data_list)
-                        if data is None or data["ts_code"][0] == "None":
-                            tqdm.write("data is empty or data has invalid col")
-                            code_bar.update(1)
-                            continue
-                        if data['ts_code'][0] != ts_code:
-                            tqdm.write("Error: ts_code is not match")
-                            exit(0)
-                        # df_draw=data[-period:]
-                        # draw_Kline(df_draw,period,symbol)
-                        data.drop(['ts_code','Date'],axis=1,inplace = True)    
-                        train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
-                        # print("Split the data for trainning and testing...")
-                        if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
-                            # tqdm.write(ts_code + ":train_size is too small or too large")
-                            code_bar.update(1)
-                            continue
-                        Train_data=data[:train_size+common.SEQ_LEN]
-                        # Test_data=data[train_size-common.SEQ_LEN:]
-                        if Train_data is None:
-                            tqdm.write(ts_code + ":Train_data is None")
-                            code_bar.update(1)
-                            continue
-                        # Train_data.to_csv(common.train_path,sep=',',index=False,header=False)
-                        # Test_data.to_csv(common.test_path,sep=',',index=False,header=False)
-                    else:
-                        Train_data = copy.deepcopy(data)
-                        Train_data.drop(['ts_code','Date'],axis=1,inplace = True)
-                        ts_code = data['ts_code'][0]
+                    data.fillna(0, inplace=True)
+                    # data_len = len(data_list)
+                    if data is None or data["ts_code"][0] == "None":
+                        tqdm.write("data is empty or data has invalid col")
+                        code_bar.update(1)
+                        continue
+                    # if data['ts_code'][0] != ts_code:
+                    #     tqdm.write("Error: ts_code is not match")
+                    #     exit(0)
+                    # df_draw=data[-period:]
+                    # draw_Kline(df_draw,period,symbol)
+                    ts_code = data['ts_code'][0]
+                    data.drop(['ts_code','Date'],axis=1,inplace = True)    
+                    train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
+                    # print("Split the data for trainning and testing...")
+                    if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
+                        # tqdm.write(ts_code + ":train_size is too small or too large")
+                        code_bar.update(1)
+                        continue
+                    Train_data=data[:train_size+common.SEQ_LEN]
+                    # Test_data=data[train_size-common.SEQ_LEN:]
+                    if Train_data is None:
+                        tqdm.write(ts_code + ":Train_data is None")
+                        code_bar.update(1)
+                        continue
+                    # Train_data.to_csv(common.train_path,sep=',',index=False,header=False)
+                    # Test_data.to_csv(common.test_path,sep=',',index=False,header=False)
                     if len(loss_list) == 0:
                         m_loss = 0
                     else:

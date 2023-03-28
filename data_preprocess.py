@@ -37,7 +37,7 @@ if __name__ == ("__main__"):
                     exit(0)
             data = data_list[index].copy(deep=True)
             # data = data.dropna()
-            data = data.fillna(0, inplace=True)
+            data.fillna(0, inplace=True)
             if data is None or data["ts_code"][0] == "None":
                 tqdm.write("data is empty or data has invalid col")
                 pbar.update(1)
@@ -47,12 +47,13 @@ if __name__ == ("__main__"):
             #     tqdm.write("Error: ts_code is not match")
             #     exit(0)
             # data.drop(['ts_code','Date'],axis=1,inplace = True)    
-            train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
-            if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
-                # tqdm.write(ts_code + ":train_size is too small or too large")
-                pbar.update(1)
-                continue
-            dump_queue.put(data[:train_size+common.SEQ_LEN])
+            # train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
+            # if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
+            #     # tqdm.write(ts_code + ":train_size is too small or too large")
+            #     pbar.update(1)
+            #     continue
+            # dump_queue.put(data[:train_size+common.SEQ_LEN])
+            dump_queue.put(data)
             pbar.update(1)
         except Exception as e:
             print(ts_code, e)
