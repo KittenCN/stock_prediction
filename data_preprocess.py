@@ -37,7 +37,7 @@ if __name__ == ("__main__"):
                     exit(0)
             data = data_list[index].copy(deep=True)
             # data = data.dropna()
-            data.fillna(0, inplace=True)
+            # data.fillna(0, inplace=True)
             if data is None or data["ts_code"][0] == "None":
                 tqdm.write("data is empty or data has invalid col")
                 pbar.update(1)

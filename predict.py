@@ -135,8 +135,8 @@ def predict(test_code):
     print("test_code=", test_code)
     common.load_data(test_code)
     data = common.data_queue.get()
-    # data = data.dropna()
-    data.fillna(0, inplace=True)
+    data = data.dropna()
+    # data.fillna(0, inplace=True)
 
     if data.empty or data["ts_code"][0] == "None":
         print("Error: data is empty or ts_code is None")
@@ -213,8 +213,8 @@ def contrast_lines(test_code):
         data = copy.deepcopy(_data)
         data.drop(['ts_code','Date'],axis=1,inplace = True)  
     
-    # data = data.dropna()
-    data.fillna(0, inplace=True)
+    data = data.dropna()
+    # data.fillna(0, inplace=True)
     print("test_code=", test_code)
     if data.empty or (common.PKL is False and data["ts_code"][0] == "None"):
         print("Error: data is empty or ts_code is None")
@@ -422,8 +422,8 @@ if __name__=="__main__":
                         code_bar.close()
                         break
                     data = data_list[index].copy(deep=True)
-                    # data = data.dropna()
-                    data.fillna(0, inplace=True)
+                    data = data.dropna()
+                    # data.fillna(0, inplace=True)
                     # data_len = len(data_list)
                     if data is None or data["ts_code"][0] == "None":
                         tqdm.write("data is empty or data has invalid col")
