@@ -147,7 +147,7 @@ class LSTM(nn.Module):
         self.LeakyReLU=nn.LeakyReLU()
         # self.ELU = nn.ELU()
         # self.ReLU = nn.ReLU()
-    def forward(self,x):
+    def forward(self,x, tgt):
         # out,_=self.lstm(x)
         lengths = [s.size(0) for s in x] # 获取数据真实的长度
         x_packed = nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True, enforce_sorted=False)
@@ -161,7 +161,7 @@ class LSTM(nn.Module):
         return x
 
 class TransformerModel(nn.Module):
-    def __init__(self, input_dim, d_model, nhead, num_layers, dim_feedforward, output_dim):
+    def __init__(self, input_dim, d_model, nhead, num_layers, dim_feedforward, output_dim, target_vocab_size):
         super(TransformerModel, self).__init__()
 
         self.embedding = nn.Linear(input_dim, d_model)
@@ -170,20 +170,38 @@ class TransformerModel(nn.Module):
         self.transformer_encoder_layer = nn.TransformerEncoderLayer(d_model, nhead, dim_feedforward)
         self.transformer_encoder = nn.TransformerEncoder(self.transformer_encoder_layer, num_layers)
 
+        # Add the decoder layers
+        self.transformer_decoder_layer = nn.TransformerDecoderLayer(d_model, nhead, dim_feedforward)
+        self.transformer_decoder = nn.TransformerDecoder(self.transformer_decoder_layer, num_layers)
+
+        # self.target_embedding = nn.Embedding(target_vocab_size, d_model)
+        self.target_embedding = nn.Linear(output_dim, d_model)
+
         self.pooling = nn.AdaptiveAvgPool1d(1)
         self.fc = nn.Linear(d_model, output_dim)
 
-    def forward(self, src):
+    def forward(self, src, tgt):
         batch_size, seq_length, _ = src.size()
         embedding = self.embedding(src)
-        src = embedding + self.positional_encoding[:seq_length, :].to(embedding.device)
+        src = embedding + self.positional_encoding[:, :seq_length, :].to(embedding.device)
         
         memory = self.transformer_encoder(src)
-        pooled = self.pooling(memory.permute(0, 2, 1))
-        output = self.fc(pooled.squeeze(2))
+
+        # Prepare the target sequence for decoding
+        tgt = tgt.unsqueeze(1)
+        tgt_embedding = self.target_embedding(tgt)
+        tgt_seq_length = tgt.size(1)
+        tgt = tgt_embedding + self.positional_encoding[:, :tgt_seq_length, :].to(tgt_embedding.device)
+
+        # Pass the target sequence and memory through the decoder
+        output = self.transformer_decoder(tgt, memory)
+
+        # Apply the final linear layer
+        output = self.fc(output).squeeze(1)
+
         return output
 
-    def generate_positional_encoding(self, d_model, max_len=SEQ_LEN):
+    def generate_positional_encoding(self, d_model, max_len=5000):
         pe = torch.zeros(max_len, d_model)
         position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
         div_term = torch.exp(torch.arange(0, d_model, 2).float() * -(torch.log(torch.tensor(10000.0)) / d_model))
