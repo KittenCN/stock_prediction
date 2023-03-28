@@ -11,6 +11,10 @@ The basic idea and creativity come from: https://github.com/MiaoChenglin125/stoc
 * 20230328
 * 1. 修改预处理数据文件格式，增加ts_code和date两个字段，方便后续使用
 *    Modify the format of the preprocessed data file, add two fields ts_code and date, for future use.
+* 2. 修改lstm和transformer模型，以支持混合长度输入
+*    Modify the lstm and transformer models to support mixed length input.
+* 3. 在transformer模型，增加了 decoder层，期望增加预测精度
+*    Added a decoder layer in the transformer model, hoping to increase the prediction accuracy.
 * 20230327
 * 1. 修改了部分运行逻辑，配合load pkl预处理文件，极大的提高了训练速度
 *    Modified some running logic and used preprocessed pkl files to greatly improve training speed.

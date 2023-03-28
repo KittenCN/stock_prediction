@@ -147,7 +147,7 @@ class LSTM(nn.Module):
         self.LeakyReLU=nn.LeakyReLU()
         # self.ELU = nn.ELU()
         # self.ReLU = nn.ReLU()
-    def forward(self,x):
+    def forward(self,x, tgt):
         # out,_=self.lstm(x)
         lengths = [s.size(0) for s in x] # 获取数据真实的长度
         x_packed = nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True, enforce_sorted=False)
@@ -159,55 +159,9 @@ class LSTM(nn.Module):
         # x=self.ELU(x)
         x=self.linear2(x)
         return x
-#传入tensor进行位置编码
-class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, max_len=SEQ_LEN):
-        super(PositionalEncoding, self).__init__()
-        self.max_len = max_len
-        self.d_model = d_model
-        self.div_term = nn.Parameter(torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model)), requires_grad=False)
-        self.pe = nn.Parameter(torch.zeros(max_len, d_model), requires_grad=False)
-        self._init_pe()
 
-    def _init_pe(self):
-        position = torch.arange(0, self.max_len, dtype=torch.float).unsqueeze(1)
-        self.pe[:, 0::2] = torch.sin(position * self.div_term)
-        self.pe[:, 1::2] = torch.cos(position * self.div_term)
-
-    def forward(self, x):
-        pe = self.pe[:x.size(1), :]
-        pe = pe.unsqueeze(0).expand(x.size(0), -1, -1)
-        pe = pe.to(x.device, non_blocking=True).float()
-        return x + pe
-
-class TransAm(nn.Module):
-    def __init__(self, feature_size: int = 8, num_layers: int = 6, dropout: float = 0.1):
-        super(TransAm, self).__init__()
-        self.model_type = 'Transformer'
-        self.src_mask = None
-        self.pos_encoder = PositionalEncoding(feature_size)
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=feature_size, nhead=10, dropout=dropout)
-        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=num_layers)
-        self.decoder = nn.Linear(feature_size, 1)
-        self.linear1 = nn.Linear(SEQ_LEN, OUTPUT_DIMENSION)
-        self.init_weights()
-        self.src_key_padding_mask = None
-
-    def init_weights(self):
-        initrange = 0.1
-        nn.init.zeros_(self.decoder.bias)
-        nn.init.uniform_(self.decoder.weight, -initrange, initrange)
-
-    def forward(self, src: torch.Tensor, seq_len: int = SEQ_LEN) -> torch.Tensor:
-        src = self.pos_encoder(src)
-        output = self.transformer_encoder(src)
-        output = self.decoder(output)
-        output = torch.squeeze(output)
-        output = self.linear1(output)
-        return output
-    
 class TransformerModel(nn.Module):
-    def __init__(self, input_dim, d_model, nhead, num_layers, dim_feedforward, output_dim):
+    def __init__(self, input_dim, d_model, nhead, num_layers, dim_feedforward, output_dim, target_vocab_size):
         super(TransformerModel, self).__init__()
 
         self.embedding = nn.Linear(input_dim, d_model)
@@ -216,20 +170,38 @@ class TransformerModel(nn.Module):
         self.transformer_encoder_layer = nn.TransformerEncoderLayer(d_model, nhead, dim_feedforward)
         self.transformer_encoder = nn.TransformerEncoder(self.transformer_encoder_layer, num_layers)
 
+        # Add the decoder layers
+        self.transformer_decoder_layer = nn.TransformerDecoderLayer(d_model, nhead, dim_feedforward)
+        self.transformer_decoder = nn.TransformerDecoder(self.transformer_decoder_layer, num_layers)
+
+        # self.target_embedding = nn.Embedding(target_vocab_size, d_model)
+        self.target_embedding = nn.Linear(output_dim, d_model)
+
         self.pooling = nn.AdaptiveAvgPool1d(1)
         self.fc = nn.Linear(d_model, output_dim)
 
-    def forward(self, src):
+    def forward(self, src, tgt):
         batch_size, seq_length, _ = src.size()
         embedding = self.embedding(src)
-        src = embedding + self.positional_encoding[:seq_length, :].to(embedding.device)
+        src = embedding + self.positional_encoding[:, :seq_length, :].to(embedding.device)
         
         memory = self.transformer_encoder(src)
-        pooled = self.pooling(memory.permute(0, 2, 1))
-        output = self.fc(pooled.squeeze(2))
+
+        # Prepare the target sequence for decoding
+        tgt = tgt.unsqueeze(1)
+        tgt_embedding = self.target_embedding(tgt)
+        tgt_seq_length = tgt.size(1)
+        tgt = tgt_embedding + self.positional_encoding[:, :tgt_seq_length, :].to(tgt_embedding.device)
+
+        # Pass the target sequence and memory through the decoder
+        output = self.transformer_decoder(tgt, memory)
+
+        # Apply the final linear layer
+        output = self.fc(output).squeeze(1)
+
         return output
 
-    def generate_positional_encoding(self, d_model, max_len=SEQ_LEN):
+    def generate_positional_encoding(self, d_model, max_len=5000):
         pe = torch.zeros(max_len, d_model)
         position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
         div_term = torch.exp(torch.arange(0, d_model, 2).float() * -(torch.log(torch.tensor(10000.0)) / d_model))
@@ -237,44 +209,6 @@ class TransformerModel(nn.Module):
         pe[:, 1::2] = torch.cos(position * div_term)
         pe = pe.unsqueeze(1).transpose(0, 1)
         return pe
-    
-class Pos_Encoding(nn.Module):
-    def __init__(self, d_model, max_len):
-        super(Pos_Encoding, self).__init__()
-        self.register_buffer('pe', self._init_pe(d_model, max_len))
-
-    def _init_pe(self, d_model, max_len):
-        pe = torch.zeros(max_len, d_model)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        return pe.unsqueeze(0)
-
-    def forward(self, x):
-        return x + self.pe[:, :x.size(1), :]
-
-class Transformer(nn.Module):
-    def __init__(self, feature_size: int = INPUT_DIMENSION, num_layers: int = 6, dropout: float = 0.1, seq_len: int = SEQ_LEN, output_dimension: int = OUTPUT_DIMENSION):
-        super(Transformer, self).__init__()
-        self.pos_encoder = Pos_Encoding(feature_size, seq_len)
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=feature_size, nhead=10, dropout=dropout)
-        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=num_layers)
-        self.global_avg_pool = nn.AdaptiveAvgPool1d(1)
-        self.linear1 = nn.Linear(feature_size, output_dimension)
-        self.init_weights()
-
-    def init_weights(self):
-        initrange = 0.1
-        self.linear1.bias.data.zero_()
-        self.linear1.weight.data.uniform_(-initrange, initrange)
-
-    def forward(self, src: torch.Tensor) -> torch.Tensor:
-        src = self.pos_encoder(src)
-        output = self.transformer_encoder(src)
-        output = self.global_avg_pool(output.permute(0, 2, 1)).squeeze(2)
-        output = self.linear1(output)
-        return output
     
 def is_number(num):
     pattern = re.compile(r'^[-+]?[-0-9]\d*\.\d*|[-+]?\.?[0-9]\d*$')
