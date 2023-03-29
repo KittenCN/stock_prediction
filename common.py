@@ -161,7 +161,7 @@ class LSTM(nn.Module):
         return x
 
 class TransformerModel(nn.Module):
-    def __init__(self, input_dim, d_model, nhead, num_layers, dim_feedforward, output_dim, target_vocab_size):
+    def __init__(self, input_dim, d_model, nhead, num_layers, dim_feedforward, output_dim):
         super(TransformerModel, self).__init__()
 
         self.embedding = nn.Linear(input_dim, d_model)
@@ -170,34 +170,32 @@ class TransformerModel(nn.Module):
         self.transformer_encoder_layer = nn.TransformerEncoderLayer(d_model, nhead, dim_feedforward)
         self.transformer_encoder = nn.TransformerEncoder(self.transformer_encoder_layer, num_layers)
 
-        # Add the decoder layers
         self.transformer_decoder_layer = nn.TransformerDecoderLayer(d_model, nhead, dim_feedforward)
         self.transformer_decoder = nn.TransformerDecoder(self.transformer_decoder_layer, num_layers)
 
-        # self.target_embedding = nn.Embedding(target_vocab_size, d_model)
         self.target_embedding = nn.Linear(output_dim, d_model)
 
-        self.pooling = nn.AdaptiveAvgPool1d(1)
         self.fc = nn.Linear(d_model, output_dim)
 
     def forward(self, src, tgt):
-        batch_size, seq_length, _ = src.size()
-        embedding = self.embedding(src)
-        src = embedding + self.positional_encoding[:, :seq_length, :].to(embedding.device)
-        
+        src = src.permute(1, 0, 2)
+
+        src_embedding = self.embedding(src)
+        src_seq_length = src.size(0)
+        src_batch_size = src.size(1)
+        src = src_embedding + self.positional_encoding[:src_seq_length, :src_batch_size, :].to(src_embedding.device)
+
         memory = self.transformer_encoder(src)
 
-        # Prepare the target sequence for decoding
         tgt = tgt.unsqueeze(1)
         tgt_embedding = self.target_embedding(tgt)
         tgt_seq_length = tgt.size(1)
-        tgt = tgt_embedding + self.positional_encoding[:, :tgt_seq_length, :].to(tgt_embedding.device)
+        tgt = tgt_embedding + self.positional_encoding[:tgt_seq_length, :src_batch_size, :].to(tgt_embedding.device)
 
-        # Pass the target sequence and memory through the decoder
-        output = self.transformer_decoder(tgt, memory)
+        output = self.transformer_decoder(tgt.transpose(0, 1), memory)
 
-        # Apply the final linear layer
-        output = self.fc(output).squeeze(1)
+        output = output.permute(1, 0, 2)
+        output = self.fc(output.squeeze(1))
 
         return output
 
@@ -207,8 +205,10 @@ class TransformerModel(nn.Module):
         div_term = torch.exp(torch.arange(0, d_model, 2).float() * -(torch.log(torch.tensor(10000.0)) / d_model))
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(1).transpose(0, 1)
+        pe = pe.unsqueeze(1)
         return pe
+
+
     
 def is_number(num):
     pattern = re.compile(r'^[-+]?[-0-9]\d*\.\d*|[-+]?\.?[0-9]\d*$')
