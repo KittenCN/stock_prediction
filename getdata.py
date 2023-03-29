@@ -13,7 +13,6 @@ args = parser.parse_args()
 api_token = ""
 with open('api.txt', 'r') as file:
     api_token = file.read()
-    print(api_token)
 pro = ts.pro_api(api_token)
 
 def get_stock_list():
