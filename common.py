@@ -408,8 +408,8 @@ def add_target(df):
 
 def load_data(ts_codes):
     for ts_code in ts_codes:
-        if data_queue.empty():
-            print("data_queue is empty, loading data...")
+        # if data_queue.empty():
+        #     print("data_queue is empty, loading data...")
         if GET_DATA:
             # get_stock_data(ts_code, False)
             # dataFrame = stock_data_queue.get()
