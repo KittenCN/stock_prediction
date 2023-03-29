@@ -6,6 +6,8 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import re
+
+from tqdm import tqdm
 import target
 import copy
 import mplfinance as mpf
@@ -438,19 +440,20 @@ def add_target(df):
     df_queue.put(df)
     return df
 
-def load_data(ts_codes):
+def load_data(ts_codes, pbar=False):
+    if pbar: 
+        pbar = tqdm(total=len(ts_codes))
     for ts_code in ts_codes:
-        # if data_queue.empty():
-        #     print("data_queue is empty, loading data...")
-        if GET_DATA:
-            # get_stock_data(ts_code, False)
-            # dataFrame = stock_data_queue.get()
-            ans = import_csv(ts_code, None)
-            if ans is None:
-                continue
-            data = csv_queue.get()
-            data_queue.put(data)
-            # data_list.append(data)
+        ans = import_csv(ts_code, None)
+        if ans is None:
+            continue
+        data = csv_queue.get()
+        data_queue.put(data)
+        if pbar:
+            pbar.update(1)
+    if pbar:
+        pbar.close()
+
 
 def cross_entropy(pred, target):
     logsoftmax = nn.LogSoftmax()
