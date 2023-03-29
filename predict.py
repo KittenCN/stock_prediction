@@ -22,7 +22,7 @@ from torch.cuda.amp import autocast, GradScaler
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
 parser.add_argument('--model', default="transformer", type=str, help="lstm or transformer")
-parser.add_argument('--batch_size', default=8, type=int, help="Batch_size")
+parser.add_argument('--batch_size', default=16, type=int, help="Batch_size")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--epochs', default=1, type=int, help="epochs")
 parser.add_argument('--seq_len', default=180, type=int, help="SEQ_LEN")
@@ -318,8 +318,8 @@ if __name__=="__main__":
         save_path=lstm_path
         criterion=nn.MSELoss()
     elif model_mode=="TRANSFORMER":
-        model=common.TransformerModel(input_dim=common.INPUT_DIMENSION, d_model=512, nhead=8, num_layers=6, dim_feedforward=2048, output_dim=common.OUTPUT_DIMENSION)
-        test_model=common.TransformerModel(input_dim=common.INPUT_DIMENSION, d_model=512, nhead=8, num_layers=6, dim_feedforward=2048, output_dim=common.OUTPUT_DIMENSION)
+        model=common.TransformerModel(input_dim=common.INPUT_DIMENSION, d_model=512, nhead=8, num_layers=6, dim_feedforward=2048, output_dim=common.OUTPUT_DIMENSION, max_len=common.SEQ_LEN)
+        test_model=common.TransformerModel(input_dim=common.INPUT_DIMENSION, d_model=512, nhead=8, num_layers=6, dim_feedforward=2048, output_dim=common.OUTPUT_DIMENSION, max_len=common.SEQ_LEN)
         save_path=transformer_path
         criterion=nn.MSELoss()
     else:

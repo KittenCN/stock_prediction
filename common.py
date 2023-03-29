@@ -160,42 +160,65 @@ class LSTM(nn.Module):
         x=self.linear2(x)
         return x
 
+class TransformerEncoderLayerWithNorm(nn.TransformerEncoderLayer):
+    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation="relu", norm=None):
+        super().__init__(d_model, nhead, dim_feedforward, dropout, activation)
+        if norm is not None:
+            self.norm1 = norm
+            self.norm2 = norm
+
+class TransformerDecoderLayerWithNorm(nn.TransformerDecoderLayer):
+    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation="relu", norm=None):
+        super().__init__(d_model, nhead, dim_feedforward, dropout, activation)
+        if norm is not None:
+            self.norm1 = norm
+            self.norm2 = norm
+            self.norm3 = norm
+
 class TransformerModel(nn.Module):
-    def __init__(self, input_dim, d_model, nhead, num_layers, dim_feedforward, output_dim):
+    def __init__(self, input_dim, d_model, nhead, num_layers, dim_feedforward, output_dim, max_len=5000):
         super(TransformerModel, self).__init__()
 
         self.embedding = nn.Linear(input_dim, d_model)
-        self.positional_encoding = self.generate_positional_encoding(d_model)
+        self.positional_encoding = nn.Embedding(max_len, d_model)
 
-        self.transformer_encoder_layer = nn.TransformerEncoderLayer(d_model, nhead, dim_feedforward)
+        self.transformer_encoder_layer = TransformerEncoderLayerWithNorm(d_model, nhead, dim_feedforward, norm=nn.LayerNorm(d_model))
         self.transformer_encoder = nn.TransformerEncoder(self.transformer_encoder_layer, num_layers)
 
-        self.transformer_decoder_layer = nn.TransformerDecoderLayer(d_model, nhead, dim_feedforward)
+        self.transformer_decoder_layer = TransformerDecoderLayerWithNorm(d_model, nhead, dim_feedforward, norm=nn.LayerNorm(d_model))
         self.transformer_decoder = nn.TransformerDecoder(self.transformer_decoder_layer, num_layers)
 
-        self.target_embedding = nn.Linear(output_dim, d_model)
 
+        self.target_embedding = nn.Linear(output_dim, d_model)
+        self.pooling = nn.AdaptiveAvgPool1d(1)
         self.fc = nn.Linear(d_model, output_dim)
 
+        self._initialize_weights()
+
     def forward(self, src, tgt):
-        src = src.permute(1, 0, 2)
+        src = src.permute(1, 0, 2) # (batch_size, seq_len, input_dim) -> (seq_len, batch_size, input_dim)
 
         src_embedding = self.embedding(src)
         src_seq_length = src.size(0)
         src_batch_size = src.size(1)
-        src = src_embedding + self.positional_encoding[:src_seq_length, :src_batch_size, :].to(src_embedding.device)
+
+        src_positions = torch.arange(src_seq_length, device=src.device).unsqueeze(1).expand(src_seq_length, src_batch_size)
+        src = src_embedding + self.positional_encoding(src_positions)
 
         memory = self.transformer_encoder(src)
 
         tgt = tgt.unsqueeze(1)
         tgt_embedding = self.target_embedding(tgt)
         tgt_seq_length = tgt.size(1)
-        tgt = tgt_embedding + self.positional_encoding[:tgt_seq_length, :src_batch_size, :].to(tgt_embedding.device)
+
+        tgt_positions = torch.arange(tgt_seq_length, device=tgt.device).unsqueeze(1).expand(tgt_seq_length, src_batch_size)
+        tgt = tgt_embedding + self.positional_encoding(tgt_positions)
 
         output = self.transformer_decoder(tgt.transpose(0, 1), memory)
 
-        output = output.permute(1, 0, 2)
-        output = self.fc(output.squeeze(1))
+        output = output.permute(1, 0, 2)  # (batch_size, seq_len, d_model) -> (seq_len, batch_size, d_model)
+        pooled_output = self.pooling(output.permute(0, 2, 1))
+        output = self.fc(pooled_output.squeeze(2))
 
         return output
 
@@ -207,6 +230,15 @@ class TransformerModel(nn.Module):
         pe[:, 1::2] = torch.cos(position * div_term)
         pe = pe.unsqueeze(1)
         return pe
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, (nn.Linear, nn.Embedding)):
+                nn.init.xavier_uniform_(m.weight)
+            elif isinstance(m, nn.LayerNorm):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
 
 
     
