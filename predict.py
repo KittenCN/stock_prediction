@@ -21,9 +21,9 @@ from torch.cuda.amp import autocast, GradScaler
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
-parser.add_argument('--model', default="transformer", type=str, help="lstm or transformer")
+parser.add_argument('--model', default="lstm", type=str, help="lstm or transformer")
 parser.add_argument('--batch_size', default=8, type=int, help="Batch_size")
-# parser.add_argument('--begin_code', default="", type=str, help="begin code")
+parser.add_argument('--begin_code', default="600965.SH", type=str, help="begin code")
 parser.add_argument('--epochs', default=1, type=int, help="epochs")
 parser.add_argument('--seq_len', default=180, type=int, help="SEQ_LEN")
 parser.add_argument('--lr', default=0.001, type=float, help="LEARNING_RATE")
@@ -232,7 +232,7 @@ def contrast_lines(test_code):
 
     Train_data = copy.deepcopy(data)
     Test_data = copy.deepcopy(data)
-    if Train_data is None or Test_data is None:
+    if Train_data.empty or Test_data.empty or Train_data is None or Test_data is None:
         print("Error: Train_data or Test_data is None")
         return -1
 
@@ -389,7 +389,7 @@ if __name__=="__main__":
                 m_loss = np.mean(lo_list)
             pbar.set_description("%d, %e"%(epoch+1,m_loss))
             code_bar = tqdm(total=codes_len, ncols=common.TQDM_NCOLS)
-            for index, ts_code in enumerate(ts_codes):
+            for index in range (codes_len):
                 try:
                     # if common.GET_DATA:
                     #     dataFrame = get_stock_data(ts_code, False)
@@ -423,7 +423,7 @@ if __name__=="__main__":
                     data = data.dropna()
                     # data.fillna(0, inplace=True)
                     # data_len = len(data_list)
-                    if data is None or data["ts_code"][0] == "None":
+                    if data.empty or data["ts_code"][0] == "None":
                         tqdm.write("data is empty or data has invalid col")
                         code_bar.update(1)
                         continue
@@ -433,6 +433,12 @@ if __name__=="__main__":
                     # df_draw=data[-period:]
                     # draw_Kline(df_draw,period,symbol)
                     ts_code = data['ts_code'][0]
+                    if args.begin_code != "":
+                        if ts_code != args.begin_code:
+                            code_bar.update(1)
+                            continue
+                        else:
+                            args.begin_code = ""
                     data.drop(['ts_code','Date'],axis=1,inplace = True)    
                     train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
                     # print("Split the data for trainning and testing...")
@@ -442,7 +448,7 @@ if __name__=="__main__":
                         continue
                     Train_data=data[:train_size+common.SEQ_LEN]
                     # Test_data=data[train_size-common.SEQ_LEN:]
-                    if Train_data is None:
+                    if Train_data.empty or Train_data is None:
                         tqdm.write(ts_code + ":Train_data is None")
                         code_bar.update(1)
                         continue
