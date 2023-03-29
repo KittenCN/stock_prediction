@@ -6,6 +6,8 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import re
+
+from tqdm import tqdm
 import target
 import copy
 import mplfinance as mpf
@@ -23,7 +25,7 @@ BATCH_SIZE=512
 EPOCH=100
 SAVE_NUM_ITER=100
 SAVE_NUM_EPOCH=10
-GET_DATA=True
+# GET_DATA=True
 TEST_NUM=25
 SAVE_INTERVAL=300
 OUTPUT_DIMENSION=4
@@ -101,7 +103,7 @@ class Stock_Data(Dataset):
 
     def normalize_data(self):
         for i in range(len(self.data[0])):
-            if self.mode == 0:
+            if self.mode in [0, 2]:
                 mean_list.append(np.mean(self.data[:, i]))
                 std_list.append(np.std(self.data[:, i]))
 
@@ -369,10 +371,10 @@ def add_target(df):
         vol = np.array(df['Volume'].values)
     
     times = times[::-1]
-    close = close[::-1]
-    hpri = hpri[::-1]
-    lpri = lpri[::-1]
-    vol = vol[::-1]
+    close = close[::-1].astype(float)
+    hpri = hpri[::-1].astype(float)
+    lpri = lpri[::-1].astype(float)
+    vol = vol[::-1].astype(float)
 
     macd_dif, macd_dea, macd_bar = target.MACD(close)
     df["macd_dif"] = cmp_append(macd_dif[::-1], df)
@@ -438,19 +440,19 @@ def add_target(df):
     df_queue.put(df)
     return df
 
-def load_data(ts_codes):
+def load_data(ts_codes, pbar=False):
+    if pbar: 
+        pbar = tqdm(total=len(ts_codes))
     for ts_code in ts_codes:
-        # if data_queue.empty():
-        #     print("data_queue is empty, loading data...")
-        if GET_DATA:
-            # get_stock_data(ts_code, False)
-            # dataFrame = stock_data_queue.get()
-            ans = import_csv(ts_code, None)
-            if ans is None:
-                continue
-            data = csv_queue.get()
-            data_queue.put(data)
-            # data_list.append(data)
+        ans = import_csv(ts_code, None)
+        if ans is None:
+            continue
+        data = csv_queue.get()
+        data_queue.put(data)
+        if pbar:
+            pbar.update(1)
+    if pbar:
+        pbar.close()
 
 def cross_entropy(pred, target):
     logsoftmax = nn.LogSoftmax()

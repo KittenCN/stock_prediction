@@ -24,25 +24,10 @@ if __name__ == ("__main__"):
         ts_codes.append(os.path.basename(csv_file).rsplit(".", 1)[0])
     # data_thread = threading.Thread(target=common.load_data, args=(ts_codes,))
     # data_thread.start()
+    common.load_data(ts_codes, True)
     pbar = tqdm(total=len(ts_codes), leave=False)
-    for index, ts_code in enumerate(ts_codes):
+    while common.data_queue.empty() == False:
         try:
-            # pbar.set_description(str(common.data_queue.qsize()))
-
-            # while common.data_queue.empty() == False:
-            #     data_list += [common.data_queue.get()]
-            #     data_len = max(data_len, common.data_queue.qsize())
-            # Err_nums = 5
-            # while index >= len(data_list):
-            #     if common.data_queue.empty() == False:
-            #         data_list += [common.data_queue.get()]
-            #     time.sleep(5)
-            #     Err_nums -= 1
-            #     if Err_nums == 0:
-            #         tqdm.write("Error: data_list is empty")
-            #         exit(0)
-            # data = data_list[index].copy(deep=True)
-            common.load_data([ts_code])
             data = common.data_queue.get()
             # data = data.dropna()
             # data.fillna(0, inplace=True)
@@ -51,16 +36,6 @@ if __name__ == ("__main__"):
                 pbar.update(1)
                 continue
             ts_code = data["ts_code"][0]
-            # if data['ts_code'][0] != ts_code:
-            #     tqdm.write("Error: ts_code is not match")
-            #     exit(0)
-            # data.drop(['ts_code','Date'],axis=1,inplace = True)    
-            # train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
-            # if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
-            #     # tqdm.write(ts_code + ":train_size is too small or too large")
-            #     pbar.update(1)
-            #     continue
-            # dump_queue.put(data[:train_size+common.SEQ_LEN])
             dump_queue.put(data)
             pbar.update(1)
         except Exception as e:

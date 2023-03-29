@@ -16,13 +16,13 @@ import os
 import time
 import dill
 from tqdm import tqdm
-from datetime import datetime
+from datetime import datetime, timedelta
 from torch.cuda.amp import autocast, GradScaler
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
+parser.add_argument('--mode', default="predict", type=str, help="select running mode: train, test, predict")
 parser.add_argument('--model', default="lstm", type=str, help="lstm or transformer")
-parser.add_argument('--batch_size', default=16, type=int, help="Batch_size")
+parser.add_argument('--batch_size', default=128, type=int, help="Batch_size")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--epochs', default=1, type=int, help="epochs")
 parser.add_argument('--seq_len', default=180, type=int, help="SEQ_LEN")
@@ -30,9 +30,9 @@ parser.add_argument('--lr', default=0.001, type=float, help="LEARNING_RATE")
 parser.add_argument('--wd', default=0.0001, type=float, help="WEIGHT_DECAY")
 parser.add_argument('--workers', default=1, type=int, help="num_workers")
 parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of csv file")
-parser.add_argument('--test_code', default="", type=str, help="test code")
+parser.add_argument('--test_code', default="000001.SZ", type=str, help="test code")
 parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu or not")
-parser.add_argument('--predict_days', default=1, type=int, help="number of the predict days")
+parser.add_argument('--predict_days', default=2, type=int, help="number of the predict days")
 args = parser.parse_args()
 last_save_time = 0
 
@@ -158,34 +158,53 @@ def predict(test_code):
         print("Error: ts_code is not match")
         return
 
-    data.drop(['ts_code', 'Date'], axis=1, inplace=True)
-    train_size = int(common.TRAIN_WEIGHT * (data.shape[0]))
-    if train_size < common.SEQ_LEN or train_size + common.SEQ_LEN > data.shape[0]:
+    predict_size = int(data.shape[0])
+    if predict_size < common.SEQ_LEN:
         print("Error: train_size is too small or too large")
-        return -1
+        return
 
     # Train_data = data[:train_size + common.SEQ_LEN]
     # Test_data = data[train_size - common.SEQ_LEN:]
-    Train_data = copy.deepcopy(data)
-    Test_data = copy.deepcopy(data)
-    if Train_data is None or Test_data is None:
+    predict_data = copy.deepcopy(data)
+    predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
+    lastdate = ""
+    if predict_data.empty or predict_data is None:
         print("Error: Train_data or Test_data is None")
         return
+    predict_days = int(args.predict_days)
+    while predict_days > 0:
+        stock_predict = common.Stock_Data(mode=2, dataFrame=predict_data, label_num=common.OUTPUT_DIMENSION)
+        dataloader = common.DataLoaderX(dataset=stock_predict, batch_size=1, shuffle=False, drop_last=True, num_workers=common.NUM_WORKERS, pin_memory=True)
+        accuracy_list, predict_list = [], []
+        test_loss, predict_list = test(dataloader)
+        # print("test_data MSELoss:(pred-real)/real=", test_loss)
+        _tmp = []
+        prediction_list = []
+        for index in range(common.OUTPUT_DIMENSION):
+            if common.use_list[index] == 1:
+                _tmp.append((predict_list[0][0][index]*common.std_list[index]+common.mean_list[index]).cpu().item())
+        if lastdate == "":
+            date_str = data["Date"][0].strftime("%Y%m%d")
+        else:
+            date_str = lastdate
+        date_obj = datetime.strptime(date_str, "%Y%m%d")
+        new_date_obj = date_obj + timedelta(days=1)
+        # date_string = new_date_obj.strftime("%Y%m%d")
+        lastdate = new_date_obj
+        _tmpdata = [test_code[0], new_date_obj]
+        _tmpdata = _tmpdata + copy.deepcopy(_tmp)
+        while len(_tmpdata) < data.columns.size:
+            _tmpdata.append(0)
+        _tmpdata = common.pd.DataFrame(_tmpdata).T
+        _tmpdata.columns = data.columns
+        predict_data = common.pd.concat([_tmpdata, data], axis=0, ignore_index=True)
+        predict_data.set_index(predict_data['Date'], inplace=True)
+        predict_data = common.add_target(predict_data)
+        predict_data = predict_data.dropna()
+        predict_days -= 1
 
-    stock_train = common.Stock_Data(mode=0, dataFrame=Train_data, label_num=common.OUTPUT_DIMENSION)
-    stock_predict = common.Stock_Data(mode=2, dataFrame=Test_data, label_num=common.OUTPUT_DIMENSION)
-
-    dataloader = common.DataLoaderX(dataset=stock_predict, batch_size=1, shuffle=False, drop_last=True, num_workers=common.NUM_WORKERS, pin_memory=True)
-    accuracy_list, predict_list = [], []
-    test_loss, predict_list = test(dataloader)
-    print("test_data MSELoss:(pred-real)/real=", test_loss)
-    _tmp = []
-    prediction_list = []
-    for index in range(common.OUTPUT_DIMENSION):
-        if common.use_list[index] == 1:
-            _tmp.append(predict_list[0][0][index]*common.std_list[index]+common.mean_list[index])
-    prediction_list.append(np.array(_tmp))
-    print("predict_list=", prediction_list)
+    # prediction_list.append(np.array(_tmp))
+    # print("predict_list=", prediction_list)
 
 
 def loss_curve(loss_list):
