@@ -132,8 +132,21 @@ def test(dataloader):
 
 def predict(test_code):
     print("test_code=", test_code)
-    common.load_data(test_code)
-    data = common.data_queue.get()
+    if common.PKL == 0:
+        common.load_data(test_code)
+        data = common.data_queue.get()
+    else:
+        _data = common.NoneDataFrame
+        with open(common.train_pkl_path, 'rb') as f:
+            common.data_queue = dill.load(f)
+        while common.data_queue.empty() == False:
+            item = common.data_queue.get()
+            if item['ts_code'][0] in test_code:
+                _data = item
+                break
+        common.data_queue = common.queue.Queue()
+        data = copy.deepcopy(_data)
+
     data = data.dropna()
     # data.fillna(0, inplace=True)
 

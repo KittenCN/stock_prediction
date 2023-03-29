@@ -1,3 +1,4 @@
+import argparse
 import queue
 import threading
 import time
@@ -7,6 +8,10 @@ import glob
 import os
 import dill
 from tqdm import tqdm
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--pklname', default="train.pkl", type=str, help="code")
+args = parser.parse_args()
 
 if __name__ == ("__main__"):
     csv_files = glob.glob("./stock_daily/*.csv")
@@ -62,6 +67,6 @@ if __name__ == ("__main__"):
             print(ts_code, e)
             pbar.update(1)
             continue
-    with open(common.train_pkl_path, "wb") as f:
+    with open("./pkl_handle/"+args.pklname, "wb") as f:
         dill.dump(dump_queue, f)
     pbar.close()
