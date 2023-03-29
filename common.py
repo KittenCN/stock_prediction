@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import re
 import target
+import copy
 import mplfinance as mpf
 import matplotlib as mpl# 用于设置曲线参数
 from cycler import cycler# 用于定制线条颜色
@@ -239,9 +240,6 @@ class TransformerModel(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
-
-
-    
 def is_number(num):
     pattern = re.compile(r'^[-+]?[-0-9]\d*\.\d*|[-+]?\.?[0-9]\d*$')
     result = pattern.match(num)
@@ -260,21 +258,23 @@ def data_wash(dataset,keepTime=False):
     return dataset
 
 def import_csv(stock_code, dataFrame=None):
-    if dataFrame is None:
-        file_path = f'stock_daily/{stock_code}.csv'
-        if os.path.exists(file_path):
-            df = pd.read_csv(file_path)
-        else:
-            csv_queue.put(NoneDataFrame)
-            return None
-    else:
-        df = dataFrame
     try:
+        if dataFrame is None:
+            file_path = f'stock_daily/{stock_code}.csv'
+            if os.path.exists(file_path):
+                df = pd.read_csv(file_path)
+            else:
+                # csv_queue.put(NoneDataFrame)
+                return None
+        elif isinstance(dataFrame, pd.DataFrame) and not dataFrame.empty:
+            df = copy.deepcopy(dataFrame)
+        else:
+            # csv_queue.put(NoneDataFrame)
+            return None
         add_target(df)
         df = df_queue.get()
-
-        data_wash(df, keepTime=False)
-        df = df_queue.get()
+        # data_wash(df, keepTime=False)
+        # df = df_queue.get()
         df.rename(
             columns={
                 'trade_date': 'Date', 'open': 'Open',
@@ -286,11 +286,11 @@ def import_csv(stock_code, dataFrame=None):
         df.set_index(df['Date'], inplace=True)
     except Exception as e:
         print(stock_code, e)
-        csv_queue.put(NoneDataFrame)
+        # csv_queue.put(NoneDataFrame)
         return None
 
     if df.empty:
-        csv_queue.put(NoneDataFrame)
+        # csv_queue.put(NoneDataFrame)
         return None
 
     csv_queue.put(df)
@@ -445,7 +445,9 @@ def load_data(ts_codes):
         if GET_DATA:
             # get_stock_data(ts_code, False)
             # dataFrame = stock_data_queue.get()
-            import_csv(ts_code, None)
+            ans = import_csv(ts_code, None)
+            if ans is None:
+                continue
             data = csv_queue.get()
             data_queue.put(data)
             # data_list.append(data)
