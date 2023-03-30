@@ -204,7 +204,8 @@ def predict(test_codes):
         spliced_data = copy.deepcopy(predict_data)
         predict_data['Date'] = common.pd.to_datetime(predict_data['Date'])
         predict_data['Date'] = predict_data['Date'].dt.strftime('%Y%m%d')
-        predict_data.drop(["macd_dif","macd_dea","macd_bar","k","d","j","boll_upper","boll_mid","boll_lower","cci","pdi","mdi","adx","adxr","taq_up","taq_mid","taq_down","trix","trma","atr"], axis=1, inplace=True)
+        # predict_data.drop(["macd_dif","macd_dea","macd_bar","k","d","j","boll_upper","boll_mid","boll_lower","cci","pdi","mdi","adx","adxr","taq_up","taq_mid","taq_down","trix","trma","atr"], axis=1, inplace=True)
+        predict_data = predict_data.loc[:,["ts_code","Date","Open","High","Low","Close","change","pct_chg","Volume","amount","pre_close"]]
         predict_data.rename(
             columns={
                 'Date': 'trade_date', 'Open': 'open',

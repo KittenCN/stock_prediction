@@ -28,7 +28,7 @@ SAVE_NUM_EPOCH=10
 # GET_DATA=True
 TEST_NUM=25
 SAVE_INTERVAL=300
-OUTPUT_DIMENSION=4
+OUTPUT_DIMENSION=8
 INPUT_DIMENSION=20
 TQDM_NCOLS = 100
 NUM_WORKERS = 4
@@ -46,7 +46,7 @@ NoneDataFrame = pd.DataFrame(columns=["ts_code"])
 NoneDataFrame["ts_code"] = ["None"]
 
 name_list = ["open", "high", "low", "close", "change", "pct_chg", "vol", "amount"]
-use_list = [1,1,1,1,0,0,0,0]
+use_list = [1,1,1,1,1,1,1,1]
 OUTPUT_DIMENSION = sum(use_list)
 assert OUTPUT_DIMENSION > 0
 
