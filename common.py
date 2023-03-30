@@ -25,7 +25,7 @@ BATCH_SIZE=512
 EPOCH=100
 SAVE_NUM_ITER=100
 SAVE_NUM_EPOCH=10
-GET_DATA=True
+# GET_DATA=True
 TEST_NUM=25
 SAVE_INTERVAL=300
 OUTPUT_DIMENSION=4
@@ -64,6 +64,7 @@ check_exist("./pkl_handle")
 check_exist("./png")
 check_exist("./png/train_loss/")
 check_exist("./png/predict/")
+check_exist("./png/test/")
 
 train_path="./stock_handle/stock_train.csv"
 test_path="./stock_handle/stock_test.csv"
@@ -89,6 +90,8 @@ class Stock_Data(Dataset):
 
     def load_data(self, dataFrame):
         if self.mode in [0, 2]:
+            mean_list.clear()
+            std_list.clear()
             path = train_path
         else:
             path = test_path
@@ -103,7 +106,7 @@ class Stock_Data(Dataset):
 
     def normalize_data(self):
         for i in range(len(self.data[0])):
-            if self.mode == 0:
+            if self.mode in [0, 2]:
                 mean_list.append(np.mean(self.data[:, i]))
                 std_list.append(np.std(self.data[:, i]))
 
@@ -259,10 +262,13 @@ def data_wash(dataset,keepTime=False):
     df_queue.put(dataset)
     return dataset
 
-def import_csv(stock_code, dataFrame=None):
+def import_csv(stock_code, dataFrame=None, csv_file=None):
     try:
         if dataFrame is None:
-            file_path = f'stock_daily/{stock_code}.csv'
+            if csv_file is not None:
+                file_path = csv_file
+            else:
+                file_path = f'stock_daily/{stock_code}.csv'
             if os.path.exists(file_path):
                 df = pd.read_csv(file_path)
             else:
@@ -283,7 +289,6 @@ def import_csv(stock_code, dataFrame=None):
                 'high': 'High', 'low': 'Low',
                 'close': 'Close', 'vol': 'Volume'},
             inplace=True)
-
         df['Date'] = pd.to_datetime(df['Date'], format='%Y%m%d')
         df.set_index(df['Date'], inplace=True)
     except Exception as e:
@@ -437,14 +442,17 @@ def add_target(df):
         "atr",
         "pre_close"
     ])
+    times = times[::-1]
     df_queue.put(df)
     return df
 
-def load_data(ts_codes, pbar=False):
+
+def load_data(ts_codes, pbar=False, csv_file=None):
     if pbar: 
         pbar = tqdm(total=len(ts_codes))
     for ts_code in ts_codes:
-        ans = import_csv(ts_code, None)
+        ans = import_csv(ts_code, None, csv_file)
+        
         if ans is None:
             continue
         data = csv_queue.get()
@@ -453,7 +461,6 @@ def load_data(ts_codes, pbar=False):
             pbar.update(1)
     if pbar:
         pbar.close()
-
 
 def cross_entropy(pred, target):
     logsoftmax = nn.LogSoftmax()
