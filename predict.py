@@ -20,9 +20,9 @@ from datetime import datetime, timedelta
 from torch.cuda.amp import autocast, GradScaler
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', default="predict", type=str, help="select running mode: train, test, predict")
-parser.add_argument('--model', default="lstm", type=str, help="lstm or transformer")
-parser.add_argument('--batch_size', default=128, type=int, help="Batch_size")
+parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
+parser.add_argument('--model', default="transformer", type=str, help="lstm or transformer")
+parser.add_argument('--batch_size', default=8, type=int, help="Batch_size")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--epochs', default=1, type=int, help="epochs")
 parser.add_argument('--seq_len', default=180, type=int, help="SEQ_LEN")
@@ -30,7 +30,7 @@ parser.add_argument('--lr', default=0.001, type=float, help="LEARNING_RATE")
 parser.add_argument('--wd', default=0.0001, type=float, help="WEIGHT_DECAY")
 parser.add_argument('--workers', default=1, type=int, help="num_workers")
 parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of csv file")
-parser.add_argument('--test_code', default="600581.SH", type=str, help="test code")
+parser.add_argument('--test_code', default="", type=str, help="test code")
 parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu or not")
 parser.add_argument('--predict_days', default=15, type=int, help="number of the predict days")
 args = parser.parse_args()
@@ -78,13 +78,13 @@ def train(epoch, dataloader, scaler, ts_code=""):
             continue
 
         if iteration % common.SAVE_NUM_ITER == 0 and time.time() - last_save_time >= common.SAVE_INTERVAL:
-            torch.save(model.state_dict(), save_path + "_Model.pkl")
-            torch.save(optimizer.state_dict(), save_path + "_Optimizer.pkl")
+            torch.save(model.state_dict(), save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Model.pkl")
+            torch.save(optimizer.state_dict(), save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Optimizer.pkl")
             last_save_time = time.time()
 
     if (epoch % common.SAVE_NUM_EPOCH == 0 or epoch == common.EPOCH) and time.time() - last_save_time >= common.SAVE_INTERVAL:
-        torch.save(model.state_dict(), save_path + "_Model.pkl")
-        torch.save(optimizer.state_dict(), save_path + "_Optimizer.pkl")
+        torch.save(model.state_dict(), save_path + "_out" + str(common.OUTPUT_DIMENSION) +  "_Model.pkl")
+        torch.save(optimizer.state_dict(), save_path + "_out" + str(common.OUTPUT_DIMENSION) +  "_Optimizer.pkl")
         last_save_time = time.time()
 
     subbar.close()
@@ -130,10 +130,10 @@ def test(dataloader):
     return test_loss, predict_list
 
 
-def predict(test_code):
-    print("test_code=", test_code)
+def predict(test_codes):
+    print("test_code=", test_codes)
     if common.PKL == 0:
-        common.load_data(test_code)
+        common.load_data(test_codes)
         data = common.data_queue.get()
     else:
         _data = common.NoneDataFrame
@@ -141,7 +141,7 @@ def predict(test_code):
             common.data_queue = dill.load(f)
         while common.data_queue.empty() == False:
             item = common.data_queue.get()
-            if item['ts_code'][0] in test_code:
+            if item['ts_code'][0] in test_codes:
                 _data = item
                 break
         common.data_queue = common.queue.Queue()
@@ -154,7 +154,7 @@ def predict(test_code):
         print("Error: data is empty or ts_code is None")
         return
 
-    if data['ts_code'][0] != test_code[0]:
+    if data['ts_code'][0] != test_codes[0]:
         print("Error: ts_code is not match")
         return
 
@@ -190,7 +190,7 @@ def predict(test_code):
         date_obj = datetime.strptime(date_str, "%Y%m%d")
         new_date_obj = date_obj + timedelta(days=1)
         # date_string = new_date_obj.strftime("%Y%m%d")
-        _tmpdata = [test_code[0], new_date_obj]
+        _tmpdata = [test_codes[0], new_date_obj]
         _tmpdata = _tmpdata + copy.deepcopy(_tmp)
         # while len(_tmpdata) < spliced_data.columns.size:
         #     _tmpdata.append(0)
@@ -212,7 +212,7 @@ def predict(test_code):
                 'Close': 'close', 'Volume': 'vol'},
             inplace=True)
         predict_data.to_csv(common.test_path,sep=',',index=False,header=True)
-        common.load_data([test_code[0]],None,common.test_path)
+        common.load_data([test_codes[0]],None,common.test_path)
         predict_data = common.data_queue.get()
         # predict_data.set_index(predict_data['Date'], inplace=True)
         # predict_data = common.add_target(predict_data)
@@ -238,7 +238,7 @@ def predict(test_code):
         plt.legend()
         now = datetime.now()
         date_string = now.strftime("%Y%m%d%H%M%S")
-        plt.savefig("./png/predict/" + cnname + "_" + model_mode + "_" + common.name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
+        plt.savefig("./png/predict/" + cnname + "_" + str(test_code[0]).split('.')[0] + str(test_code[0]).split('.')[1] + "_" + model_mode + "_" + common.name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
         pbar.update(1)
     pbar.close()
 
@@ -258,13 +258,13 @@ def loss_curve(loss_list):
     except Exception as e:
         print("Error: loss_curve", e)
 
-def contrast_lines(test_code):
+def contrast_lines(test_codes):
     # global test_loss, accuracy_list, predict_list
     # test_loss = 0.00
 
 
     if common.PKL is False:
-        common.load_data(test_code)
+        common.load_data(test_codes)
         data = common.data_queue.get()
     else:
         _data = common.NoneDataFrame
@@ -272,7 +272,7 @@ def contrast_lines(test_code):
             common.data_queue = dill.load(f)
         while common.data_queue.empty() == False:
             item = common.data_queue.get()
-            if item['ts_code'][0] in test_code:
+            if item['ts_code'][0] in test_codes:
                 _data = item
                 break
         common.data_queue = common.queue.Queue()
@@ -281,7 +281,7 @@ def contrast_lines(test_code):
     
     data = data.dropna()
     # data.fillna(0, inplace=True)
-    print("test_code=", test_code)
+    print("test_code=", test_codes)
     if data.empty or (common.PKL is False and data["ts_code"][0] == "None"):
         print("Error: data is empty or ts_code is None")
         return -1
@@ -348,7 +348,7 @@ def contrast_lines(test_code):
             plt.legend()
             now = datetime.now()
             date_string = now.strftime("%Y%m%d%H%M%S")
-            plt.savefig("./png/test/" + cnname + "_" + model_mode + "_" + common.name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
+            plt.savefig("./png/test/" + cnname + "_"  + str(test_code[0]).split('.')[0] + str(test_code[0]).split('.')[1] + "_" + model_mode + "_" + common.name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
             pbar.update(1)
         except Exception as e:
             print("Error: contrast_lines", e)
@@ -540,8 +540,8 @@ if __name__=="__main__":
                 train(epoch+1, train_dataloader, scaler, ts_code)
                 code_bar.update(1)
                 if time.time() - last_save_time >= common.SAVE_INTERVAL or index == len(ts_codes) - 1:
-                    torch.save(model.state_dict(),save_path+"_Model.pkl")
-                    torch.save(optimizer.state_dict(),save_path+"_Optimizer.pkl")
+                    torch.save(model.state_dict(),save_path + "_out" + str(common.OUTPUT_DIMENSION) +  "_Model.pkl")
+                    torch.save(optimizer.state_dict(),save_path + "_out" + str(common.OUTPUT_DIMENSION) +  "_Optimizer.pkl")
                     last_save_time = time.time()
             code_bar.close()
             pbar.update(1)
