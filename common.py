@@ -46,7 +46,7 @@ NoneDataFrame = pd.DataFrame(columns=["ts_code"])
 NoneDataFrame["ts_code"] = ["None"]
 
 name_list = ["open", "high", "low", "close", "change", "pct_chg", "vol", "amount"]
-use_list = [1,1,1,1,1,1,1,1]
+use_list = [1,1,1,1,0,0,0,0]
 OUTPUT_DIMENSION = sum(use_list)
 assert OUTPUT_DIMENSION > 0
 

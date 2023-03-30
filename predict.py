@@ -33,6 +33,7 @@ parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of 
 parser.add_argument('--test_code', default="", type=str, help="test code")
 parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu or not")
 parser.add_argument('--predict_days', default=15, type=int, help="number of the predict days")
+parser.add_argument('--use_list', default="1,1,1,1,0,0,0,0", type=str, help="column list")
 args = parser.parse_args()
 last_save_time = 0
 
@@ -101,6 +102,9 @@ def test(dataloader):
     if os.path.exists(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Optimizer.pkl"):
         test_model.load_state_dict(torch.load(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Model.pkl"))
         # test_optimizer.load_state_dict(torch.load(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Optimizer.pkl"))
+    else:
+        tqdm.write("No model found")
+        return -1, -1
 
     test_model.eval()
     accuracy_fn = nn.MSELoss()
@@ -174,18 +178,21 @@ def predict(test_codes):
     pbar = tqdm(total=predict_days, leave=False, ncols=common.TQDM_NCOLS)
     while predict_days > 0:
         lastdate = predict_data["Date"][0].strftime("%Y%m%d")
+        lastclose = predict_data["Close"][0]
         predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
         predict_data = predict_data.dropna()
         stock_predict = common.Stock_Data(mode=2, dataFrame=predict_data, label_num=common.OUTPUT_DIMENSION)
         dataloader = common.DataLoaderX(dataset=stock_predict, batch_size=1, shuffle=False, drop_last=True, num_workers=common.NUM_WORKERS, pin_memory=True)
         accuracy_list, predict_list = [], []
         test_loss, predict_list = test(dataloader)
+        if test_loss == -1 and predict_list == -1:
+            return
         # print("test_data MSELoss:(pred-real)/real=", test_loss)
         _tmp = []
         prediction_list = []
         for index in range(common.OUTPUT_DIMENSION):
             if common.use_list[index] == 1:
-                _tmp.append(round((predict_list[0][0][index]*common.std_list[index]+common.mean_list[index]).cpu().item(), 2))
+                _tmp.append((predict_list[0][0][index]*common.std_list[index]+common.mean_list[index]).cpu().item())
         date_str = lastdate
         date_obj = datetime.strptime(date_str, "%Y%m%d")
         new_date_obj = date_obj + timedelta(days=1)
@@ -196,8 +203,9 @@ def predict(test_codes):
         #     _tmpdata.append(0)
         _splice_data = copy.deepcopy(spliced_data).drop(['ts_code', 'Date'], axis=1)
         df_mean = _splice_data.mean().tolist()
-        for index in range(len(_tmpdata) - 2, len(df_mean)):
+        for index in range(len(_tmpdata) - 2, len(df_mean)-1):
             _tmpdata.append(df_mean[index])
+        _tmpdata.append(lastclose)
         _tmpdata = common.pd.DataFrame(_tmpdata).T
         _tmpdata.columns = spliced_data.columns
         predict_data = common.pd.concat([_tmpdata, spliced_data], axis=0, ignore_index=True)
@@ -224,7 +232,7 @@ def predict(test_codes):
 
     # prediction_list.append(np.array(_tmp))
     # print("predict_list=", prediction_list)
-    datalist = predict_data.iloc[:, 2:6].values.tolist()[::-1]
+    datalist = predict_data.iloc[:, 2:2+common.OUTPUT_DIMENSION].values.tolist()[::-1]
     real_list = datalist[:len(datalist)-int(args.predict_days)]
     prediction_list = datalist[len(datalist)-int(args.predict_days)-1:]
     pbar = tqdm(total=common.OUTPUT_DIMENSION, leave=False, ncols=common.TQDM_NCOLS)
@@ -309,6 +317,9 @@ def contrast_lines(test_codes):
     dataloader = common.DataLoaderX(dataset=stock_test, batch_size=common.BATCH_SIZE, shuffle=False, drop_last=True, num_workers=common.NUM_WORKERS, pin_memory=True)
     accuracy_list, predict_list = [], []
     test_loss, predict_list = test(dataloader)
+    if test_loss == -1 and predict_list == -1:
+        print("Error: No model excist")
+        exit(0)
     print("test_data MSELoss:(pred-real)/real=", test_loss)
 
     real_list = []
@@ -370,6 +381,8 @@ if __name__=="__main__":
     common.WEIGHT_DECAY = args.wd
     common.NUM_WORKERS = args.workers
     common.PKL = False if args.pkl <= 0 else True
+    common.use_list = [int(x) for x in args.use_list.split(",")]
+    common.OUTPUT_DIMENSION = sum(common.use_list)
     symbol = 'Generic.Data'
     # symbol = '000001.SZ'
     cnname = ""
