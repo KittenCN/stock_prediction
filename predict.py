@@ -30,9 +30,9 @@ parser.add_argument('--lr', default=0.001, type=float, help="LEARNING_RATE")
 parser.add_argument('--wd', default=0.0001, type=float, help="WEIGHT_DECAY")
 parser.add_argument('--workers', default=1, type=int, help="num_workers")
 parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of csv file")
-parser.add_argument('--test_code', default="000001.SZ", type=str, help="test code")
+parser.add_argument('--test_code', default="600581.SH", type=str, help="test code")
 parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu or not")
-parser.add_argument('--predict_days', default=2, type=int, help="number of the predict days")
+parser.add_argument('--predict_days', default=15, type=int, help="number of the predict days")
 args = parser.parse_args()
 last_save_time = 0
 
@@ -147,7 +147,7 @@ def predict(test_code):
         common.data_queue = common.queue.Queue()
         data = copy.deepcopy(_data)
 
-    data = data.dropna()
+    # data = data.dropna()
     # data.fillna(0, inplace=True)
 
     if data.empty or data["ts_code"][0] == "None":
@@ -166,13 +166,16 @@ def predict(test_code):
     # Train_data = data[:train_size + common.SEQ_LEN]
     # Test_data = data[train_size - common.SEQ_LEN:]
     predict_data = copy.deepcopy(data)
-    predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
-    lastdate = ""
+    spliced_data = copy.deepcopy(data)
     if predict_data.empty or predict_data is None:
         print("Error: Train_data or Test_data is None")
         return
     predict_days = int(args.predict_days)
+    pbar = tqdm(total=predict_days, leave=False, ncols=common.TQDM_NCOLS)
     while predict_days > 0:
+        lastdate = predict_data["Date"][0].strftime("%Y%m%d")
+        predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
+        predict_data = predict_data.dropna()
         stock_predict = common.Stock_Data(mode=2, dataFrame=predict_data, label_num=common.OUTPUT_DIMENSION)
         dataloader = common.DataLoaderX(dataset=stock_predict, batch_size=1, shuffle=False, drop_last=True, num_workers=common.NUM_WORKERS, pin_memory=True)
         accuracy_list, predict_list = [], []
@@ -182,30 +185,62 @@ def predict(test_code):
         prediction_list = []
         for index in range(common.OUTPUT_DIMENSION):
             if common.use_list[index] == 1:
-                _tmp.append((predict_list[0][0][index]*common.std_list[index]+common.mean_list[index]).cpu().item())
-        if lastdate == "":
-            date_str = data["Date"][0].strftime("%Y%m%d")
-        else:
-            date_str = lastdate
+                _tmp.append(round((predict_list[0][0][index]*common.std_list[index]+common.mean_list[index]).cpu().item(), 2))
+        date_str = lastdate
         date_obj = datetime.strptime(date_str, "%Y%m%d")
         new_date_obj = date_obj + timedelta(days=1)
         # date_string = new_date_obj.strftime("%Y%m%d")
-        lastdate = new_date_obj
         _tmpdata = [test_code[0], new_date_obj]
         _tmpdata = _tmpdata + copy.deepcopy(_tmp)
-        while len(_tmpdata) < data.columns.size:
-            _tmpdata.append(0)
+        # while len(_tmpdata) < spliced_data.columns.size:
+        #     _tmpdata.append(0)
+        _splice_data = copy.deepcopy(spliced_data).drop(['ts_code', 'Date'], axis=1)
+        df_mean = _splice_data.mean().tolist()
+        for index in range(len(_tmpdata) - 2, len(df_mean)):
+            _tmpdata.append(df_mean[index])
         _tmpdata = common.pd.DataFrame(_tmpdata).T
-        _tmpdata.columns = data.columns
-        predict_data = common.pd.concat([_tmpdata, data], axis=0, ignore_index=True)
-        predict_data.set_index(predict_data['Date'], inplace=True)
-        predict_data = common.add_target(predict_data)
-        predict_data = predict_data.dropna()
+        _tmpdata.columns = spliced_data.columns
+        predict_data = common.pd.concat([_tmpdata, spliced_data], axis=0, ignore_index=True)
+        spliced_data = copy.deepcopy(predict_data)
+        predict_data['Date'] = common.pd.to_datetime(predict_data['Date'])
+        predict_data['Date'] = predict_data['Date'].dt.strftime('%Y%m%d')
+        predict_data.drop(["macd_dif","macd_dea","macd_bar","k","d","j","boll_upper","boll_mid","boll_lower","cci","pdi","mdi","adx","adxr","taq_up","taq_mid","taq_down","trix","trma","atr"], axis=1, inplace=True)
+        predict_data.rename(
+            columns={
+                'Date': 'trade_date', 'Open': 'open',
+                'High': 'high', 'Low': 'low',
+                'Close': 'close', 'Volume': 'vol'},
+            inplace=True)
+        predict_data.to_csv(common.test_path,sep=',',index=False,header=True)
+        common.load_data([test_code[0]],None,common.test_path)
+        predict_data = common.data_queue.get()
+        # predict_data.set_index(predict_data['Date'], inplace=True)
+        # predict_data = common.add_target(predict_data)
+        # predict_data = predict_data.dropna()
         predict_days -= 1
+        pbar.update(1)
+    pbar.close()
 
     # prediction_list.append(np.array(_tmp))
     # print("predict_list=", prediction_list)
-
+    datalist = predict_data.iloc[:, 2:6].values.tolist()[::-1]
+    real_list = datalist[:len(datalist)-int(args.predict_days)]
+    prediction_list = datalist[len(datalist)-int(args.predict_days)-1:]
+    pbar = tqdm(total=common.OUTPUT_DIMENSION, leave=False, ncols=common.TQDM_NCOLS)
+    for i in range(common.OUTPUT_DIMENSION):
+        _real_list = np.transpose(real_list)[i]
+        _prediction_list = np.transpose(prediction_list)[i]
+        plt.figure()
+        x1 = np.linspace(0, len(_real_list), len(_real_list))
+        x2 = np.linspace(len(_real_list), len(_real_list) + len(_prediction_list), len(_prediction_list))
+        plt.plot(x1, np.array(_real_list), label="real_"+common.name_list[i])
+        plt.plot(x2, np.array(_prediction_list), label="prediction_"+common.name_list[i])
+        plt.legend()
+        now = datetime.now()
+        date_string = now.strftime("%Y%m%d%H%M%S")
+        plt.savefig("./png/predict/" + cnname + "_" + model_mode + "_" + common.name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
+        pbar.update(1)
+    pbar.close()
 
 def loss_curve(loss_list):
     try:
@@ -313,7 +348,7 @@ def contrast_lines(test_code):
             plt.legend()
             now = datetime.now()
             date_string = now.strftime("%Y%m%d%H%M%S")
-            plt.savefig("./png/predict/" + cnname + "_" + model_mode + "_" + common.name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
+            plt.savefig("./png/test/" + cnname + "_" + model_mode + "_" + common.name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
             pbar.update(1)
         except Exception as e:
             print("Error: contrast_lines", e)
@@ -534,7 +569,7 @@ if __name__=="__main__":
         if args.test_code == "":
             print("Error: test_code is empty")
             exit(0)
-        elif args.test_code in ts_codes:
+        elif args.test_code in ts_codes or common.PKL == True:
             test_code = [args.test_code]
             predict(test_code)
         else:
