@@ -446,11 +446,13 @@ def add_target(df):
     df_queue.put(df)
     return df
 
+
 def load_data(ts_codes, pbar=False, csv_file=None):
     if pbar: 
         pbar = tqdm(total=len(ts_codes))
     for ts_code in ts_codes:
         ans = import_csv(ts_code, None, csv_file)
+        
         if ans is None:
             continue
         data = csv_queue.get()
