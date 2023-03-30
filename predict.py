@@ -100,9 +100,12 @@ def test(dataloader):
     accuracy_list = []
     # test_optimizer=optim.Adam(test_model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)
     if os.path.exists(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Optimizer.pkl"):
-        test_model.load_state_dict(torch.load(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Model.pkl"))
-        # test_optimizer.load_state_dict(torch.load(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Optimizer.pkl"))
-        if torch.cuda.device_count() > 1 and args.test_gpu == 1:
+        if torch.cuda.device_count() <= 1 or args.test_gpu == 0:
+            test_model.load_state_dict(torch.load(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Model.pkl"))
+            # test_optimizer.load_state_dict(torch.load(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Optimizer.pkl"))
+        else:
+            _test_model_dict = torch.load(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Model.pkl")
+            test_model.state_dict = _test_model_dict
             test_model = nn.DataParallel(test_model).to(common.device, non_blocking=True)
             # optimizer = nn.DataParallel(optimizer).to(common.device, non_blocking=True)
     else:
@@ -428,9 +431,14 @@ if __name__=="__main__":
     optimizer=optim.Adam(model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)
     if os.path.exists(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Optimizer.pkl"):
         print("Load model and optimizer from file")
-        model.load_state_dict(torch.load(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Model.pkl"))
-        optimizer.load_state_dict(torch.load(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Optimizer.pkl"))
-        if torch.cuda.device_count() > 1:
+        if torch.cuda.device_count() <= 1:
+            model.load_state_dict(torch.load(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Model.pkl"))
+            optimizer.load_state_dict(torch.load(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Optimizer.pkl"))
+        else:
+            _model_dict = torch.load(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Model.pkl")
+            _optimizer_dict = torch.load(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Optimizer.pkl")
+            model.state_dict = _model_dict
+            optimizer.state_dict = _optimizer_dict
             model = nn.DataParallel(model).to(common.device, non_blocking=True)
             optimizer = nn.DataParallel(optimizer).to(common.device, non_blocking=True)
     else:
