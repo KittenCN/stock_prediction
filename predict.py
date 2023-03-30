@@ -102,6 +102,9 @@ def test(dataloader):
     if os.path.exists(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Optimizer.pkl"):
         test_model.load_state_dict(torch.load(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Model.pkl"))
         # test_optimizer.load_state_dict(torch.load(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Optimizer.pkl"))
+        if torch.cuda.device_count() > 1 and args.test_gpu == 1:
+            test_model = nn.DataParallel(test_model).to(common.device, non_blocking=True)
+            # optimizer = nn.DataParallel(optimizer).to(common.device, non_blocking=True)
     else:
         tqdm.write("No model found")
         return -1, -1
@@ -427,6 +430,9 @@ if __name__=="__main__":
         print("Load model and optimizer from file")
         model.load_state_dict(torch.load(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Model.pkl"))
         optimizer.load_state_dict(torch.load(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Optimizer.pkl"))
+        if torch.cuda.device_count() > 1:
+            model = nn.DataParallel(model).to(common.device, non_blocking=True)
+            optimizer = nn.DataParallel(optimizer).to(common.device, non_blocking=True)
     else:
         print("No model and optimizer file, train from scratch")
 
