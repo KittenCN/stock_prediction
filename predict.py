@@ -47,6 +47,7 @@ def train(epoch, dataloader, scaler, ts_code=""):
     
     for i, (data, label) in enumerate(dataloader):
         try:
+            safe_save = False
             iteration += 1
             data, label = data.to(common.device, non_blocking=True), label.to(common.device, non_blocking=True)
             with autocast():
@@ -72,18 +73,19 @@ def train(epoch, dataloader, scaler, ts_code=""):
 
             subbar.set_description(f"{ts_code}, {iteration}, {loss.item():.2e}")
             subbar.update(1)
-
+            safe_save = True
         except Exception as e:
             print(f"code: {ts_code}, train error: {e}")
+            safe_save = False
             subbar.update(1)
             continue
 
-        if iteration % common.SAVE_NUM_ITER == 0 and time.time() - last_save_time >= common.SAVE_INTERVAL:
+        if iteration % common.SAVE_NUM_ITER == 0 and time.time() - last_save_time >= common.SAVE_INTERVAL  and safe_save == True:
             torch.save(model.state_dict(), save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Model.pkl")
             torch.save(optimizer.state_dict(), save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Optimizer.pkl")
             last_save_time = time.time()
 
-    if (epoch % common.SAVE_NUM_EPOCH == 0 or epoch == common.EPOCH) and time.time() - last_save_time >= common.SAVE_INTERVAL:
+    if (epoch % common.SAVE_NUM_EPOCH == 0 or epoch == common.EPOCH) and time.time() - last_save_time >= common.SAVE_INTERVAL and safe_save == True:
         torch.save(model.state_dict(), save_path + "_out" + str(common.OUTPUT_DIMENSION) +  "_Model.pkl")
         torch.save(optimizer.state_dict(), save_path + "_out" + str(common.OUTPUT_DIMENSION) +  "_Optimizer.pkl")
         last_save_time = time.time()
@@ -374,6 +376,7 @@ if __name__=="__main__":
     data_list=[]
     mode = args.mode
     model_mode = args.model.upper()
+    safe_save = False
     common.BATCH_SIZE = args.batch_size
     common.EPOCH = args.epochs
     common.SEQ_LEN = args.seq_len
@@ -553,7 +556,7 @@ if __name__=="__main__":
                 accuracy_list=[]
                 train(epoch+1, train_dataloader, scaler, ts_code)
                 code_bar.update(1)
-                if time.time() - last_save_time >= common.SAVE_INTERVAL or index == len(ts_codes) - 1:
+                if (time.time() - last_save_time >= common.SAVE_INTERVAL or index == len(ts_codes) - 1) and safe_save == True:
                     torch.save(model.state_dict(),save_path + "_out" + str(common.OUTPUT_DIMENSION) +  "_Model.pkl")
                     torch.save(optimizer.state_dict(),save_path + "_out" + str(common.OUTPUT_DIMENSION) +  "_Optimizer.pkl")
                     last_save_time = time.time()
