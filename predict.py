@@ -80,7 +80,7 @@ def train(epoch, dataloader, scaler, ts_code=""):
             subbar.update(1)
             continue
 
-        if iteration % common.SAVE_NUM_ITER == 0 and time.time() - last_save_time >= common.SAVE_INTERVAL  and safe_save == True:
+        if (iteration % common.SAVE_NUM_ITER == 0 and time.time() - last_save_time >= common.SAVE_INTERVAL)  and safe_save == True:
             torch.save(model.state_dict(), save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Model.pkl")
             torch.save(optimizer.state_dict(), save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Optimizer.pkl")
             last_save_time = time.time()
