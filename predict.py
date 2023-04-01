@@ -94,16 +94,10 @@ def train(epoch, dataloader, scaler, ts_code=""):
 
 
 def test(dataloader):
-    # global predict_list, test_loss, accuracy_list
-
-    # if len(stock_test) < 4:
-    #     return 0.00
     predict_list = []
     accuracy_list = []
-    # test_optimizer=optim.Adam(test_model.parameters(),lr=common.LEARNING_RATE, weight_decay=common.WEIGHT_DECAY)
     if os.path.exists(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Optimizer.pkl"):
         test_model.load_state_dict(torch.load(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Model.pkl"))
-        # test_optimizer.load_state_dict(torch.load(save_path + "_out" + str(common.OUTPUT_DIMENSION) + "_Optimizer.pkl"))
     else:
         tqdm.write("No model found")
         return -1, -1
@@ -153,9 +147,6 @@ def predict(test_codes):
         common.data_queue = common.queue.Queue()
         data = copy.deepcopy(_data)
 
-    # data = data.dropna()
-    # data.fillna(0, inplace=True)
-
     if data.empty or data["ts_code"][0] == "None":
         print("Error: data is empty or ts_code is None")
         return
@@ -189,7 +180,6 @@ def predict(test_codes):
         test_loss, predict_list = test(dataloader)
         if test_loss == -1 and predict_list == -1:
             return
-        # print("test_data MSELoss:(pred-real)/real=", test_loss)
         _tmp = []
         prediction_list = []
         for index in range(common.OUTPUT_DIMENSION):
@@ -201,8 +191,6 @@ def predict(test_codes):
         # date_string = new_date_obj.strftime("%Y%m%d")
         _tmpdata = [test_codes[0], new_date_obj]
         _tmpdata = _tmpdata + copy.deepcopy(_tmp)
-        # while len(_tmpdata) < spliced_data.columns.size:
-        #     _tmpdata.append(0)
         _splice_data = copy.deepcopy(spliced_data).drop(['ts_code', 'Date'], axis=1)
         df_mean = _splice_data.mean().tolist()
         for index in range(len(_tmpdata) - 2, len(df_mean)-1):
@@ -225,15 +213,11 @@ def predict(test_codes):
         predict_data.to_csv(common.test_path,sep=',',index=False,header=True)
         common.load_data([test_codes[0]],None,common.test_path)
         predict_data = common.data_queue.get()
-        # predict_data.set_index(predict_data['Date'], inplace=True)
-        # predict_data = common.add_target(predict_data)
-        # predict_data = predict_data.dropna()
+
         predict_days -= 1
         pbar.update(1)
     pbar.close()
 
-    # prediction_list.append(np.array(_tmp))
-    # print("predict_list=", prediction_list)
     datalist = predict_data.iloc[:, 2:2+common.OUTPUT_DIMENSION].values.tolist()[::-1]
     real_list = datalist[:len(datalist)-int(args.predict_days)]
     prediction_list = datalist[len(datalist)-int(args.predict_days)-1:]
@@ -270,10 +254,6 @@ def loss_curve(loss_list):
         print("Error: loss_curve", e)
 
 def contrast_lines(test_codes):
-    # global test_loss, accuracy_list, predict_list
-    # test_loss = 0.00
-
-
     if common.PKL is False:
         common.load_data(test_codes)
         data = common.data_queue.get()
@@ -463,9 +443,6 @@ if __name__=="__main__":
         scaler = GradScaler()
         pbar = tqdm(total=common.EPOCH, leave=False, ncols=common.TQDM_NCOLS)
         for epoch in range(0,common.EPOCH):
-            # if common.data_queue.empty() and data_thread.is_alive() == False:
-            #     data_thread = threading.Thread(target=common.load_data, args=(ts_codes,))  
-            #     data_thread.start()
             if len(lo_list) == 0:
                     m_loss = 0
             else:
@@ -474,17 +451,6 @@ if __name__=="__main__":
             code_bar = tqdm(total=codes_len, ncols=common.TQDM_NCOLS)
             for index in range (codes_len):
                 try:
-                    # if common.GET_DATA:
-                    #     dataFrame = get_stock_data(ts_code, False)
-                    # data = import_csv(ts_code, dataFrame)
-                    # if args.begin_code != "":
-                    #     if ts_code != args.begin_code:
-                    #         code_bar.update(1)
-                    #         continue
-                    #     else:
-                    #         args.begin_code = ""
-                    # lastFlag = 0
-                    # data = common.data_queue.get()
                     if common.PKL is False:
                         while common.data_queue.empty() == False:
                             data_list += [common.data_queue.get()]
@@ -510,11 +476,6 @@ if __name__=="__main__":
                         tqdm.write("data is empty or data has invalid col")
                         code_bar.update(1)
                         continue
-                    # if data['ts_code'][0] != ts_code:
-                    #     tqdm.write("Error: ts_code is not match")
-                    #     exit(0)
-                    # df_draw=data[-period:]
-                    # draw_Kline(df_draw,period,symbol)
                     ts_code = data['ts_code'][0]
                     if args.begin_code != "":
                         if ts_code != args.begin_code:
@@ -524,9 +485,7 @@ if __name__=="__main__":
                             args.begin_code = ""
                     data.drop(['ts_code','Date'],axis=1,inplace = True)    
                     train_size=int(common.TRAIN_WEIGHT*(data.shape[0]))
-                    # print("Split the data for trainning and testing...")
                     if train_size<common.SEQ_LEN or train_size+common.SEQ_LEN>data.shape[0]:
-                        # tqdm.write(ts_code + ":train_size is too small or too large")
                         code_bar.update(1)
                         continue
                     Train_data=data[:train_size+common.SEQ_LEN]
@@ -550,7 +509,6 @@ if __name__=="__main__":
                     code_bar.update(1)
                     continue
                 #开始训练神经网络
-                # print("Start training the model...")
                 train_dataloader=common.DataLoaderX(dataset=stock_train,batch_size=common.BATCH_SIZE,shuffle=False,drop_last=False, num_workers=common.NUM_WORKERS, pin_memory=True)
                 predict_list=[]
                 accuracy_list=[]
