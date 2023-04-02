@@ -151,8 +151,11 @@ class stock_queue_dataset(Dataset):
 
     def process_data(self):
         raw_data = self.load_data()
-        while raw_data is not None or len(raw_data) < SEQ_LEN:
-            raw_data = self.load_data()
+        if raw_data is not None:
+            while len(raw_data) < SEQ_LEN:
+                raw_data = self.load_data()
+                if raw_data is None:
+                    return None
         if raw_data is not None:
             normalized_data = self.normalize_data(raw_data)
             value, label = self.generate_value_label_tensors(normalized_data, self.label_num)
