@@ -19,6 +19,7 @@ parser.add_argument('--mode', default="train", type=str, help="select running mo
 parser.add_argument('--model', default="transformer", type=str, help="lstm or transformer")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of csv file")
+parser.add_argument('--pkl_queue', default=1, type=int, help="use pkl queue instead of csv file")
 parser.add_argument('--test_code', default="", type=str, help="test code")
 parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu or not")
 parser.add_argument('--predict_days', default=15, type=int, help="number of the predict days")
@@ -432,8 +433,8 @@ if __name__=="__main__":
             else:
                 m_loss = np.mean(lo_list)
             pbar.set_description("%d, %e"%(epoch+1,m_loss))
-            code_bar = tqdm(total=codes_len, ncols=TQDM_NCOLS)
-            if PKL is False:
+            if args.pkl_queue == 0:
+                code_bar = tqdm(total=codes_len, ncols=TQDM_NCOLS)
                 for index in range (codes_len):
                     try:
                         if PKL is False:
@@ -482,7 +483,11 @@ if __name__=="__main__":
                         # Train_data.to_csv(train_path,sep=',',index=False,header=False)
                         # Test_data.to_csv(test_path,sep=',',index=False,header=False)
                         stock_train=Stock_Data(mode=0, dataFrame=Train_data, label_num=OUTPUT_DIMENSION)
-                        
+                        if len(loss_list) == 0:
+                            m_loss = 0
+                        else:
+                            m_loss = np.mean(loss_list)
+                        code_bar.set_description("%s, %d, %e" % (ts_code,data_len,m_loss))
                     except Exception as e:
                         print(ts_code,"main function ", e)
                         code_bar.update(1)
@@ -492,11 +497,6 @@ if __name__=="__main__":
                 index = len(ts_codes) - 1
                 stock_train = stock_queue_dataset(mode=0, data_queue=data_queue, label_num=OUTPUT_DIMENSION)
             
-            if len(loss_list) == 0:
-                m_loss = 0
-            else:
-                m_loss = np.mean(loss_list)
-            code_bar.set_description("%s, %d, %e" % (ts_code,data_len,m_loss))
             iteration=0
             loss_list=[]
              #开始训练神经网络
@@ -504,12 +504,14 @@ if __name__=="__main__":
             predict_list=[]
             accuracy_list=[]
             train(epoch+1, train_dataloader, scaler, ts_code)
-            code_bar.update(1)
+            if args.pkl_queue == 0:
+                code_bar.update(1)
             if (time.time() - last_save_time >= SAVE_INTERVAL or index == len(ts_codes) - 1) and safe_save == True:
                 torch.save(model.state_dict(),save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Model.pkl")
                 torch.save(optimizer.state_dict(),save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Optimizer.pkl")
                 last_save_time = time.time()
-            code_bar.close()
+            if args.pkl_queue == 0:
+                code_bar.close()
             pbar.update(1)
         pbar.close()
         print("Training finished!")
