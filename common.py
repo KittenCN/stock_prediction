@@ -149,20 +149,56 @@ class stock_queue_dataset(Dataset):
         _label = label.flip(0)
         return _value, _label
 
+    # def process_data(self):
+    #     raw_data = self.load_data()
+    #     if raw_data is not None:
+    #         while len(raw_data) < SEQ_LEN:
+    #             raw_data = self.load_data()
+    #             if raw_data is None:
+    #                 return None
+    #     if raw_data is not None:
+    #         normalized_data = self.normalize_data(raw_data)
+    #         value, label = self.generate_value_label_tensors(normalized_data, self.label_num)
+    #         self.value_buffer.extend(value)
+    #         self.label_buffer.extend(label)
+    #     if raw_data is None:
+    #         return None
+
     def process_data(self):
-        raw_data = self.load_data()
-        if raw_data is not None:
-            while len(raw_data) < SEQ_LEN:
-                raw_data = self.load_data()
-                if raw_data is None:
-                    return None
-        if raw_data is not None:
-            normalized_data = self.normalize_data(raw_data)
-            value, label = self.generate_value_label_tensors(normalized_data, self.label_num)
-            self.value_buffer.extend(value)
-            self.label_buffer.extend(label)
-        if raw_data is None:
+        # Check if there is data in the queue
+        if self.data_queue.empty():
             return None
+
+        self.value_buffer = []
+        self.label_buffer = []
+
+        for _ in range(self.buffer_size):  # Loop for buffer_size times
+            try:
+                raw_data = self.load_data()
+                if raw_data is not None:
+                    while len(raw_data) < SEQ_LEN:
+                        raw_data = self.load_data()
+                        if raw_data is None:
+                            break
+                if raw_data is not None:
+                    normalized_data = self.normalize_data(raw_data)
+                    value, label = self.generate_value_label_tensors(normalized_data, self.label_num)
+                    
+                    self.value_buffer.extend(value)
+                    self.label_buffer.extend(label)
+
+                # if len(self.value_buffer) >= self.buffer_size:
+                #     break
+
+                if raw_data is None:
+                    break
+            except queue.Empty:
+                break
+
+        self.value_buffer = torch.stack(self.value_buffer)
+        self.label_buffer = torch.stack(self.label_buffer)
+        self.buffer_index = 0
+
 
     def __getitem__(self, index):
         while self.buffer_index >= len(self.value_buffer):
