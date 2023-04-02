@@ -165,7 +165,7 @@ class stock_queue_dataset(Dataset):
             self.value_buffer.clear()
             self.label_buffer.clear()
             self.buffer_index = 0
-            err = self.process_data()
+            self.process_data()
 
         value, label = self.value_buffer[self.buffer_index], self.label_buffer[self.buffer_index]
         self.buffer_index += 1
