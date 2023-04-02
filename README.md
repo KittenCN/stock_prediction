@@ -8,6 +8,11 @@
 The basic idea and creativity come from: https://github.com/MiaoChenglin125/stock_prediction-based-on-lstm-and-transformer. As the original author seems to have abandoned the updates, I will continue to iterate this program based on the new models and technologies that I have mastered.
 
 ## New
+* 20230402
+* 1. 修改dataset读取方式，使用data queue以及buffer，减少IO次数，提高训练速度
+*   Modify the dataset reading method to use data queue and buffer to reduce the number of IO operations and improve training speed.
+* 2. 将全局变量移动到init.py中，方便修改
+*   Move global variables to init.py for easy modification.
 * 20230328
 * 1. 修改预处理数据文件格式，增加ts_code和date两个字段，方便后续使用
 *    Modify the format of the preprocessed data file, add two fields ts_code and date, for future use.
