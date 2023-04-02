@@ -171,7 +171,9 @@ class stock_queue_dataset(Dataset):
             self.buffer_index = 0
             ans = self.process_data()
             if ans is None:
-                return None, None
+                break
+        if self.buffer_index >= len(self.value_buffer):
+            return None, None
         value, label = self.value_buffer[self.buffer_index], self.label_buffer[self.buffer_index]
         self.buffer_index += 1
         return value, label
@@ -503,3 +505,7 @@ def load_data(ts_codes, pbar=False, csv_file=None):
 def cross_entropy(pred, target):
     logsoftmax = nn.LogSoftmax()
     return torch.mean(torch.sum(-target * logsoftmax(pred), dim=1))
+
+def custom_collate(batch):
+    batch = list(filter(lambda x: x[0] is not None, batch))
+    return torch.utils.data.dataloader.default_collate(batch)

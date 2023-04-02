@@ -168,7 +168,7 @@ def predict(test_codes):
         predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
         predict_data = predict_data.dropna()
         stock_predict = Stock_Data(mode=2, dataFrame=predict_data, label_num=OUTPUT_DIMENSION)
-        dataloader = DataLoader(dataset=stock_predict, batch_size=1, shuffle=False, drop_last=True, num_workers=NUM_WORKERS, pin_memory=True)
+        dataloader = DataLoader(dataset=stock_predict, batch_size=1, shuffle=False, drop_last=True, num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
         accuracy_list, predict_list = [], []
         test_loss, predict_list = test(dataloader)
         if test_loss == -1 and predict_list == -1:
