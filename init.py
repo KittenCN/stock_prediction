@@ -24,6 +24,7 @@ INPUT_DIMENSION=20
 TQDM_NCOLS = 100
 NUM_WORKERS = 1
 PKL = True
+BUFFER_SIZE = 100
 
 mean_list=[]
 std_list=[]

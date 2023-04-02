@@ -168,7 +168,7 @@ def predict(test_codes):
         predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
         predict_data = predict_data.dropna()
         stock_predict = Stock_Data(mode=2, dataFrame=predict_data, label_num=OUTPUT_DIMENSION)
-        dataloader = DataLoader(dataset=stock_predict, batch_size=1, shuffle=False, drop_last=True, num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
+        dataloader = DataLoader(dataset=stock_predict, batch_size=1, shuffle=False, drop_last=True, num_workers=NUM_WORKERS, pin_memory=True)
         accuracy_list, predict_list = [], []
         test_loss, predict_list = test(dataloader)
         if test_loss == -1 and predict_list == -1:
@@ -499,12 +499,12 @@ if __name__=="__main__":
             else:
                 ts_code = "data_queue"
                 index = len(ts_codes) - 1
-                stock_train = stock_queue_dataset(mode=0, data_queue=data_queue, label_num=OUTPUT_DIMENSION)
+                stock_train = stock_queue_dataset(mode=0, data_queue=data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE)
             
             iteration=0
             loss_list=[]
              #开始训练神经网络
-            train_dataloader=DataLoader(dataset=stock_train,batch_size=BATCH_SIZE,shuffle=False,drop_last=False, num_workers=NUM_WORKERS, pin_memory=True)
+            train_dataloader=DataLoader(dataset=stock_train,batch_size=BATCH_SIZE,shuffle=False,drop_last=False, num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
             predict_list=[]
             accuracy_list=[]
             train(epoch+1, train_dataloader, scaler, ts_code)
