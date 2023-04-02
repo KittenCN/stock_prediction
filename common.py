@@ -194,7 +194,8 @@ class stock_queue_dataset(Dataset):
                     break
             except queue.Empty:
                 break
-
+        if len(self.value_buffer) == 0 or len(self.label_buffer) == 0:
+            return None
         self.value_buffer = torch.stack(self.value_buffer)
         self.label_buffer = torch.stack(self.label_buffer)
         self.buffer_index = 0
