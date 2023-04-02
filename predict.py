@@ -489,7 +489,7 @@ if __name__=="__main__":
                         continue
             else:
                 ts_code = "data_queue"
-                index == len(ts_codes) - 1
+                index = len(ts_codes) - 1
                 stock_train = stock_queue_dataset(mode=0, data_queue=data_queue, label_num=OUTPUT_DIMENSION)
             
             if len(loss_list) == 0:
