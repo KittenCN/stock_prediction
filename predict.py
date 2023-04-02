@@ -417,6 +417,7 @@ if __name__=="__main__":
     if mode == 'train':
         lo_list=[]
         data_len=0
+        total_length = 0
         if PKL is False:
             data_thread = threading.Thread(target=load_data, args=(ts_codes,))
             data_thread.start()
@@ -426,7 +427,9 @@ if __name__=="__main__":
                 # data_queue = dill.load(f)
                 _data_queue = dill.load(f)
                 while _data_queue.empty() == False:
-                    data_queue.put(_data_queue.get())
+                    _data = _data_queue.get()
+                    data_queue.put(_data)
+                    total_length += len(_data) - SEQ_LEN
             codes_len = data_queue.qsize()
             # while data_queue.empty() == False:
             #     data_list += [data_queue.get()]
@@ -434,6 +437,7 @@ if __name__=="__main__":
             # random.shuffle(data_list)
             # codes_len = len(data_list)
         #data_thread.join()
+        print("total codes: %d, total length: %d"%(codes_len, total_length))
         scaler = GradScaler()
         pbar = tqdm(total=EPOCH, leave=False, ncols=TQDM_NCOLS)
         for epoch in range(0,EPOCH):
@@ -504,7 +508,7 @@ if __name__=="__main__":
             else:
                 ts_code = "data_queue"
                 index = len(ts_codes) - 1
-                stock_train = stock_queue_dataset(mode=0, data_queue=data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE)
+                stock_train = stock_queue_dataset(mode=0, data_queue=data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_length)
             
             iteration=0
             loss_list=[]

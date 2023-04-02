@@ -85,23 +85,24 @@ class Stock_Data(Dataset):
 
 class stock_queue_dataset(Dataset):
     # mode 0:train 1:test 2:predict
-    def __init__(self, mode=0, data_queue=None, label_num=1, buffer_size=100):
+    def __init__(self, mode=0, data_queue=None, label_num=1, buffer_size=100, total_length=0):
         try:
             assert mode in [0, 1, 2]
             self.mode = mode
-            self.data_queue = multiprocessing.Queue()
+            self.data_queue = data_queue
             self.label_num = label_num
             self.buffer_size = buffer_size
             self.buffer_index = 0
             self.value_buffer = []
             self.label_buffer = []
-            if data_queue is not None:
-                self.total_length = 0
-                while not data_queue.empty():
-                    data_frame = data_queue.get()
-                    data_frame = data_frame.dropna()
-                    self.total_length += len(data_frame) - SEQ_LEN
-                    self.data_queue.put(data_frame)
+            self.total_length = total_length
+            # if data_queue is not None:
+            #     self.total_length = 0
+            #     while not data_queue.empty():
+            #         data_frame = data_queue.get()
+            #         data_frame = data_frame.dropna()
+            #         self.total_length += len(data_frame) - SEQ_LEN
+            #         self.data_queue.put(data_frame)
         except Exception as e:
             print(e)
             return None
@@ -207,10 +208,11 @@ class stock_queue_dataset(Dataset):
         return value, label
 
     def __len__(self):
-        if self.data_queue is None:
-            return len(self.value_buffer)
-        else:
-            return self.total_length
+        # if self.data_queue is None:
+        #     return len(self.value_buffer)
+        # else:
+        #     return self.total_length
+        return self.total_length
 #LSTM模型
 class LSTM(nn.Module):
     def __init__(self,dimension):
