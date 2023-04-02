@@ -151,7 +151,7 @@ class stock_queue_dataset(Dataset):
 
     def process_data(self):
         raw_data = self.load_data()
-        while len(raw_data) < SEQ_LEN:
+        while len(raw_data) < SEQ_LEN and raw_data is not None:
             raw_data = self.load_data()
         if raw_data is not None:
             normalized_data = self.normalize_data(raw_data)
