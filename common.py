@@ -1,4 +1,3 @@
-import sys
 import numpy as np
 import re
 import target
@@ -8,7 +7,6 @@ import matplotlib as mpl# 用于设置曲线参数
 from cycler import cycler# 用于定制线条颜色
 import matplotlib.pyplot as plt
 from prefetch_generator import BackgroundGenerator
-from tqdm import tqdm
 from init import *
 
 class DataLoaderX(DataLoader):
@@ -542,3 +540,13 @@ def custom_collate(batch):
         return torch.utils.data.dataloader.default_collate(batch)
     else:
         return None
+
+def save_model(model, optimizer, save_path):
+    torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_Model.pkl")
+    torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_Optimizer.pkl")
+
+def thread_save_model(model, optimizer, save_path):
+    _model = copy.deepcopy(model)
+    _optimizer = copy.deepcopy(optimizer)
+    data_thread = threading.Thread(target=save_model, args=(_model, _optimizer, save_path,))
+    data_thread.start()

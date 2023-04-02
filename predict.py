@@ -4,12 +4,10 @@ import argparse
 import copy
 import glob
 import random
-import threading
 import numpy as np
 import matplotlib.pyplot as plt
 import time
 import dill
-from tqdm import tqdm
 from datetime import datetime, timedelta
 from init import *
 from common import *
@@ -79,13 +77,15 @@ def train(epoch, dataloader, scaler, ts_code=""):
             continue
 
         if (iteration % SAVE_NUM_ITER == 0 and time.time() - last_save_time >= SAVE_INTERVAL)  and safe_save == True:
-            torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_Model.pkl")
-            torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_Optimizer.pkl")
+            # torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_Model.pkl")
+            # torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_Optimizer.pkl")
+            thread_save_model(model, optimizer, save_path)
             last_save_time = time.time()
 
     if (epoch % SAVE_NUM_EPOCH == 0 or epoch == EPOCH) and time.time() - last_save_time >= SAVE_INTERVAL and safe_save == True:
-        torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Model.pkl")
-        torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Optimizer.pkl")
+        # torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Model.pkl")
+        # torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Optimizer.pkl")
+        thread_save_model(model, optimizer, save_path)
         last_save_time = time.time()
 
     subbar.close()
@@ -516,8 +516,9 @@ if __name__=="__main__":
             if args.pkl_queue == 0:
                 code_bar.update(1)
             if (time.time() - last_save_time >= SAVE_INTERVAL or index == len(ts_codes) - 1) and safe_save == True:
-                torch.save(model.state_dict(),save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Model.pkl")
-                torch.save(optimizer.state_dict(),save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Optimizer.pkl")
+                # torch.save(model.state_dict(),save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Model.pkl")
+                # torch.save(optimizer.state_dict(),save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Optimizer.pkl")
+                thread_save_model(model, optimizer, save_path)
                 last_save_time = time.time()
             if args.pkl_queue == 0:
                 code_bar.close()
