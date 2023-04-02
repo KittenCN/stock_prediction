@@ -151,22 +151,24 @@ class stock_queue_dataset(Dataset):
 
     def process_data(self):
         raw_data = self.load_data()
-        if raw_data is not None:
-            while len(raw_data) < SEQ_LEN:
-                raw_data = self.load_data()
+        while raw_data is not None or len(raw_data) < SEQ_LEN:
+            raw_data = self.load_data()
         if raw_data is not None:
             normalized_data = self.normalize_data(raw_data)
             value, label = self.generate_value_label_tensors(normalized_data, self.label_num)
             self.value_buffer.extend(value)
             self.label_buffer.extend(label)
+        if raw_data is None:
+            return None
 
     def __getitem__(self, index):
-        if self.buffer_index >= len(self.value_buffer):
+        while self.buffer_index >= len(self.value_buffer):
             self.value_buffer.clear()
             self.label_buffer.clear()
             self.buffer_index = 0
-            self.process_data()
-
+            ans = self.process_data()
+            if ans is None:
+                return None, None
         value, label = self.value_buffer[self.buffer_index], self.label_buffer[self.buffer_index]
         self.buffer_index += 1
         return value, label

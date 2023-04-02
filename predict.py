@@ -38,6 +38,10 @@ def train(epoch, dataloader, scaler, ts_code=""):
         try:
             safe_save = False
             iteration += 1
+            if data is None or label is None:
+                tqdm.write(f"code: {ts_code}, train error: data is None or label is None")
+                subbar.update(1)
+                continue
             data, label = data.to(device, non_blocking=True), label.to(device, non_blocking=True)
             with autocast():
                 outputs = model.forward(data, label)
