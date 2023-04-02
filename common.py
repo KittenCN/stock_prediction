@@ -1,74 +1,15 @@
-import math
-import os
-import queue
+import sys
 import numpy as np
-import pandas as pd
-import torch
-import torch.nn as nn
 import re
-
-from tqdm import tqdm
 import target
 import copy
 import mplfinance as mpf
 import matplotlib as mpl# 用于设置曲线参数
 from cycler import cycler# 用于定制线条颜色
 import matplotlib.pyplot as plt
-from torch.utils.data import Dataset, DataLoader
 from prefetch_generator import BackgroundGenerator
-
-TRAIN_WEIGHT=0.9
-SEQ_LEN=180
-LEARNING_RATE=0.001   # 0.00001
-WEIGHT_DECAY=0.0001   # 0.05
-BATCH_SIZE=512
-EPOCH=10
-SAVE_NUM_ITER=10
-SAVE_NUM_EPOCH=1
-# GET_DATA=True
-TEST_NUM=25
-SAVE_INTERVAL=300
-OUTPUT_DIMENSION=8
-INPUT_DIMENSION=20
-TQDM_NCOLS = 100
-NUM_WORKERS = 4
-PKL = True
-
-mean_list=[]
-std_list=[]
-data_queue=queue.Queue()
-stock_data_queue=queue.Queue()
-stock_list_queue = queue.Queue()
-csv_queue=queue.Queue()
-df_queue=queue.Queue()
-
-NoneDataFrame = pd.DataFrame(columns=["ts_code"])
-NoneDataFrame["ts_code"] = ["None"]
-
-name_list = ["open", "high", "low", "close", "change", "pct_chg", "vol", "amount"]
-use_list = [1,1,1,1,0,0,0,0]
-OUTPUT_DIMENSION = sum(use_list)
-assert OUTPUT_DIMENSION > 0
-
-device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
-if device.type == "cuda":
-    torch.backends.cudnn.benchmark = True
-
-def check_exist(address):
-    if os.path.exists(address) == False:
-        os.mkdir(address)
-
-check_exist("./stock_handle")
-check_exist("./stock_daily")
-check_exist("./pkl_handle")
-check_exist("./png")
-check_exist("./png/train_loss/")
-check_exist("./png/predict/")
-check_exist("./png/test/")
-
-train_path="./stock_handle/stock_train.csv"
-test_path="./stock_handle/stock_test.csv"
-train_pkl_path="./pkl_handle/train.pkl"
+from tqdm import tqdm
+from init import *
 
 class DataLoaderX(DataLoader):
     def __iter__(self):
@@ -122,7 +63,7 @@ class Stock_Data(Dataset):
                 value[i, :, :] = torch.from_numpy(_value_tmp)
 
                 _tmp = []
-                for index in range(OUTPUT_DIMENSION):
+                for index in range(label_num):
                     if use_list[index] == 1:
                         _tmp.append(self.data[i, index])
 
@@ -143,6 +84,97 @@ class Stock_Data(Dataset):
 
     def __len__(self):
         return len(self.value)
+
+class stock_queue_dataset(Dataset):
+    # mode 0:train 1:test 2:predict
+    def __init__(self, mode=0, data_queue=None, label_num=1, buffer_size=100):
+        try:
+            assert mode in [0, 1, 2]
+            self.mode = mode
+            self.data_queue = multiprocessing.Queue()
+            self.label_num = label_num
+            self.buffer_size = buffer_size
+            self.buffer_index = 0
+            self.value_buffer = []
+            self.label_buffer = []
+            if data_queue is not None:
+                self.total_length = 0
+                while not data_queue.empty():
+                    data_frame = data_queue.get()
+                    data_frame = data_frame.dropna()
+                    self.total_length += len(data_frame) - SEQ_LEN
+                    self.data_queue.put(data_frame)
+        except Exception as e:
+            print(e)
+            return None
+
+    def load_data(self):
+        if self.data_queue.empty():
+            return None
+        else:
+            dataFrame = self.data_queue.get()
+            dataFrame.drop(['ts_code', 'Date'], axis=1, inplace=True)
+            dataFrame = dataFrame.dropna()
+            data = dataFrame.values[:, 0:INPUT_DIMENSION]
+            return data
+
+    def normalize_data(self, data):
+        if self.mode in [0, 2]:
+            mean_list.clear()
+            std_list.clear()
+        for i in range(len(data[0])):
+            if self.mode in [0, 2]:
+                mean_list.append(np.mean(data[:, i]))
+                std_list.append(np.std(data[:, i]))
+
+            data[:, i] = (data[:, i] - mean_list[i]) / (std_list[i] + 1e-8)
+        return data
+
+    def generate_value_label_tensors(self, data, label_num):
+        value = torch.rand(data.shape[0] - SEQ_LEN, SEQ_LEN, data.shape[1])
+        label = torch.rand(data.shape[0] - SEQ_LEN, label_num)
+
+        for i in range(data.shape[0] - SEQ_LEN):
+            _value_tmp = np.copy(np.flip(data[i + 1:i + SEQ_LEN + 1, :].reshape(SEQ_LEN, data.shape[1]), 0))
+            value[i, :, :] = torch.from_numpy(_value_tmp)
+
+            _tmp = []
+            for index in range(OUTPUT_DIMENSION):
+                if use_list[index] == 1:
+                    _tmp.append(data[i, index])
+
+            label[i, :] = torch.Tensor(_tmp)
+
+        _value = value.flip(0)
+        _label = label.flip(0)
+        return _value, _label
+
+    def process_data(self):
+        raw_data = self.load_data()
+        while len(raw_data) < SEQ_LEN:
+            raw_data = self.load_data()
+        if raw_data is not None:
+            normalized_data = self.normalize_data(raw_data)
+            value, label = self.generate_value_label_tensors(normalized_data, self.label_num)
+            self.value_buffer.extend(value)
+            self.label_buffer.extend(label)
+
+    def __getitem__(self, index):
+        if self.buffer_index >= len(self.value_buffer):
+            self.value_buffer.clear()
+            self.label_buffer.clear()
+            self.buffer_index = 0
+            err = self.process_data()
+
+        value, label = self.value_buffer[self.buffer_index], self.label_buffer[self.buffer_index]
+        self.buffer_index += 1
+        return value, label
+
+    def __len__(self):
+        if self.data_queue is None:
+            return len(self.value_buffer)
+        else:
+            return self.total_length
 #LSTM模型
 class LSTM(nn.Module):
     def __init__(self,dimension):
@@ -465,4 +497,3 @@ def load_data(ts_codes, pbar=False, csv_file=None):
 def cross_entropy(pred, target):
     logsoftmax = nn.LogSoftmax()
     return torch.mean(torch.sum(-target * logsoftmax(pred), dim=1))
-        

@@ -1,12 +1,8 @@
 import argparse
-import queue
-import threading
-import time
-import pandas as pd
-import common
 import glob
-import os
 import dill
+from init import *
+from common import *
 from tqdm import tqdm
 
 parser = argparse.ArgumentParser()
@@ -22,13 +18,13 @@ if __name__ == ("__main__"):
     dump_queue=queue.Queue()
     for csv_file in csv_files:
         ts_codes.append(os.path.basename(csv_file).rsplit(".", 1)[0])
-    # data_thread = threading.Thread(target=common.load_data, args=(ts_codes,))
+    # data_thread = threading.Thread(target=load_data, args=(ts_codes,))
     # data_thread.start()
-    common.load_data(ts_codes, True)
+    load_data(ts_codes, True)
     pbar = tqdm(total=len(ts_codes), leave=False)
-    while common.data_queue.empty() == False:
+    while data_queue.empty() == False:
         try:
-            data = common.data_queue.get()
+            data = data_queue.get()
             # data = data.dropna()
             # data.fillna(0, inplace=True)
             if data.empty or data["ts_code"][0] == "None":
