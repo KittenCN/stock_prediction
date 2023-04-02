@@ -545,4 +545,7 @@ def cross_entropy(pred, target):
 
 def custom_collate(batch):
     batch = list(filter(lambda x: x[0] is not None, batch))
-    return torch.utils.data.dataloader.default_collate(batch)
+    if len(batch) > 0:
+        return torch.utils.data.dataloader.default_collate(batch)
+    else:
+        return None

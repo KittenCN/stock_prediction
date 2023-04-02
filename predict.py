@@ -34,10 +34,15 @@ def train(epoch, dataloader, scaler, ts_code=""):
     model.train()
     subbar = tqdm(total=len(dataloader), leave=False, ncols=TQDM_NCOLS)
     
-    for i, (data, label) in enumerate(dataloader):
+    for i, batch in enumerate(dataloader):
         try:
             safe_save = False
             iteration += 1
+            if batch is None:
+                tqdm.write(f"code: {ts_code}, train error: batch is None")
+                subbar.update(1)
+                continue
+            data, label = batch
             if data is None or label is None:
                 tqdm.write(f"code: {ts_code}, train error: data is None or label is None")
                 subbar.update(1)
