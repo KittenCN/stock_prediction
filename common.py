@@ -169,9 +169,6 @@ class stock_queue_dataset(Dataset):
         if self.data_queue.empty():
             return None
 
-        self.value_buffer = []
-        self.label_buffer = []
-
         for _ in range(self.buffer_size):  # Loop for buffer_size times
             try:
                 raw_data = self.load_data()
@@ -196,10 +193,6 @@ class stock_queue_dataset(Dataset):
                 break
         if len(self.value_buffer) == 0 or len(self.label_buffer) == 0:
             return None
-        self.value_buffer = torch.stack(self.value_buffer)
-        self.label_buffer = torch.stack(self.label_buffer)
-        self.buffer_index = 0
-
 
     def __getitem__(self, index):
         while self.buffer_index >= len(self.value_buffer):
