@@ -3,6 +3,7 @@ import os
 import queue
 import torch
 import threading
+import copy
 import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
@@ -14,7 +15,7 @@ TRAIN_WEIGHT=0.9
 SEQ_LEN=180
 LEARNING_RATE=0.00001   # 0.00001
 WEIGHT_DECAY=0.05   # 0.05
-BATCH_SIZE=16
+BATCH_SIZE=4
 EPOCH=1
 SAVE_NUM_ITER=10
 SAVE_NUM_EPOCH=1
@@ -28,8 +29,20 @@ NUM_WORKERS = 1
 PKL = True
 BUFFER_SIZE = 100
 
+symbol = 'Generic.Data'
+# symbol = '000001.SZ'
+cnname = ""
+for item in symbol.split("."):
+    cnname += item
+lstm_path="./"+cnname+"/LSTM"
+transformer_path="./"+cnname+"/TRANSFORMER"
+save_path=lstm_path
+
+loss_list=[]
+data_list=[]
 mean_list=[]
 std_list=[]
+safe_save = False
 data_queue=multiprocessing.Queue()
 stock_data_queue=queue.Queue()
 stock_list_queue = queue.Queue()
@@ -53,6 +66,7 @@ def check_exist(address):
     if os.path.exists(address) == False:
         os.mkdir(address)
 
+check_exist("./" + cnname)
 check_exist("./stock_handle")
 check_exist("./stock_daily")
 check_exist("./pkl_handle")

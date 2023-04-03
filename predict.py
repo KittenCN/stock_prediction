@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 import argparse
-import copy
 import glob
 import random
 import numpy as np
@@ -350,21 +349,9 @@ def contrast_lines(test_codes):
     plt.close()
 
 if __name__=="__main__":
-    loss_list=[]
-    data_list=[]
     mode = args.mode
     model_mode = args.model.upper()
-    safe_save = False
     PKL = False if args.pkl <= 0 else True
-    symbol = 'Generic.Data'
-    # symbol = '000001.SZ'
-    cnname = ""
-    for item in symbol.split("."):
-        cnname += item
-    check_exist("./" + cnname)
-    lstm_path="./"+cnname+"/LSTM"
-    transformer_path="./"+cnname+"/TRANSFORMER"
-    save_path=lstm_path
 
     if model_mode=="LSTM":
         model=LSTM(dimension=INPUT_DIMENSION)

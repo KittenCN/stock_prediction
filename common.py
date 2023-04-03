@@ -1,7 +1,6 @@
 import numpy as np
 import re
 import target
-import copy
 import mplfinance as mpf
 import matplotlib as mpl# 用于设置曲线参数
 from cycler import cycler# 用于定制线条颜色
