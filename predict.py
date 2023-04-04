@@ -93,8 +93,8 @@ def train(epoch, dataloader, scaler, ts_code=""):
 def test(dataloader):
     predict_list = []
     accuracy_list = []
-    if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_Optimizer.pkl"):
-        test_model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_Model.pkl"))
+    if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + SEQ_LEN + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + SEQ_LEN + "_Optimizer.pkl"):
+        test_model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + SEQ_LEN + "_Model.pkl"))
     else:
         tqdm.write("No model found")
         return -1, -1
@@ -383,10 +383,10 @@ if __name__=="__main__":
 
     print(model)
     optimizer=optim.Adam(model.parameters(),lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
-    if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_Optimizer.pkl"):
+    if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + SEQ_LEN + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + SEQ_LEN + "_Optimizer.pkl"):
         print("Load model and optimizer from file")
-        model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_Model.pkl"))
-        optimizer.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_Optimizer.pkl"))
+        model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + SEQ_LEN + "_Model.pkl"))
+        optimizer.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + SEQ_LEN + "_Optimizer.pkl"))
     else:
         print("No model and optimizer file, train from scratch")
 

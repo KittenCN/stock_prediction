@@ -543,8 +543,8 @@ def custom_collate(batch):
         return None
 
 def save_model(model, optimizer, save_path):
-    torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_Model.pkl")
-    torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_Optimizer.pkl")
+    torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + SEQ_LEN + "_Model.pkl")
+    torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + SEQ_LEN + "_Optimizer.pkl")
 
 def thread_save_model(model, optimizer, save_path):
     _model = copy.deepcopy(model)
