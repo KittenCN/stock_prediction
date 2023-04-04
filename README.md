@@ -1,5 +1,65 @@
 # 基于神经网络的通用股票预测模型 A general stock prediction model based on neural networks
 
+## 0 使用方法 How to use
+* 1. 使用getdata.py下载数据，或者使用自己的数据源，将数据放在stock_daily目录下
+*    Use getdata.py to download data, or use your own data source, and put the data in the stock_daily directory.
+* 2. 使用data_preprocess.py预处理数据，生成pkl文件，放在pkl_handle目录下(可选)
+*    Use data_preprocess.py to preprocess data and generate pkl files in the pkl_handle directory (optional).
+* 3. 调整train.py和init.py中的参数，先使用predict..py训练模型，生成模型文件，再使用predict.py进行预测，生成预测结果或测试比照图
+*    Adjust the parameters in train.py and init.py, first use predict..py to train the model, generate the model file, and then use predict.py to predict, generate the prediction results or test comparison chart.
+
+## 0.1 predict.py参数介绍 Introduction to predict.py parameters
+* 1. --model: 模型名称，目前支持lstm和transformer
+*    --model: model name, currently supports lstm and transformer
+* 2. --mode: 模式，目前支持train,test和predict
+*    --mode: mode, currently supports train, test and predict
+* 3. --pkl: 是否使用pkl文件，目前支持1和0
+*    --pkl: whether to use pkl files, currently supports 1 and 0
+* 4. --pkl_queue: 是否使用pkl队列模式，以增加训练速度，目前支持1和0
+*    --pkl_queue: whether to use pkl queue mode to increase training speed, currently supports 1 and 0
+* 5. --test_code: 测试代码，目前支持股票代码
+*    --test_code: test code, currently supports stock code
+* 6. --test_gpu: 是否使用gpu测试，目前支持1和0
+*    --test_gpu: whether to use gpu test, currently supports 1 and 0
+* 7. --predict_days: 预测天数，目前支持数字
+*    --predict_days: number of days to predict, currently supports numbers
+
+## 0.2 init.py部分参数介绍 Introduction to some parameters in init.py
+* 1. TRAIN_WEIGHT: 训练权重，目前支持小于等于1的数字
+*    TRAIN_WEIGHT: training weight, currently supports numbers less than or equal to 1
+* 2. SEQ_LEN: 序列长度，目前支持数字
+*    SEQ_LEN: sequence length, currently supports numbers
+* 3. BATCH_SIZE: 批量大小，目前支持数字
+*    BATCH_SIZE: batch size, currently supports numbers
+* 4. EPOCH: 训练轮数，目前支持数字
+*    EPOCH: number of training rounds, currently supports numbers
+* 5. LEARNING_RATE: 学习率，目前支持小于等于1的数字
+*    LEARNING_RATE: learning rate, currently supports numbers less than or equal to 1
+* 6. WEIGHT_DECAY: 权重衰减，目前支持小于等于1的数字
+*    WEIGHT_DECAY: weight decay, currently supports numbers less than or equal to 1
+* 7. SAVE_NUM_ITER: 保存模型间隔，目前支持数字
+*    SAVE_NUM_ITER: interval to save model, currently supports numbers
+* 8. SAVE_NUM_EPOCH: 保存模型间隔，目前支持数字
+*    SAVE_NUM_EPOCH: interval to save model, currently supports numbers
+* 9. SAVE_INTERVAL: 保存模型时间间隔（秒），目前支持数字
+*    SAVE_INTERVAL: interval to save model (seconds), currently supports numbers
+* 10. OUTPUT_DIMENSION: 输出维度，目前支持数字
+*     OUTPUT_DIMENSION: output dimension, currently supports numbers
+* 11. INPUT_DIMENSION: 输入维度，目前支持数字
+*     INPUT_DIMENSION: input dimension, currently supports numbers
+* 12. NUM_WORKERS: 线程数，目前支持数字
+*     NUM_WORKERS: number of threads, currently supports numbers
+* 13. PKL: 是否使用pkl文件，目前支持True和False
+*     PKL: whether to use pkl files, currently supports True and False
+* 14. BUFFER_SIZE: 缓冲区大小，目前支持数字
+*     BUFFER_SIZE: buffer size, currently supports numbers
+* 15. symbol: 股票代码，目前支持股票代码或Generic.Data表示全部已下载的数据
+*     symbol: stock code, currently supports stock code or Generic.Data representing all downloaded data
+* 16. name_list: 需要预测的内容名称
+*     name_list: the name of the content to be predicted
+* 17. use_list: 需要预测的内容开关,1表示使用，0表示不使用
+*     use_list: switch for content to be predicted, 1 means use, 0 means not use
+
 ## 1 项目介绍 Project Introduction
 
 基本思路及创意来自于：https://github.com/MiaoChenglin125/stock_prediction-based-on-lstm-and-transformer
