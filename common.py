@@ -551,3 +551,10 @@ def thread_save_model(model, optimizer, save_path):
     _optimizer = copy.deepcopy(optimizer)
     data_thread = threading.Thread(target=save_model, args=(_model, _optimizer, save_path,))
     data_thread.start()
+
+def deep_copy_queue(q):
+    new_q = multiprocessing.Queue()
+    while not q.empty():
+        item = q.get()
+        new_q.put(copy.deepcopy(item))
+    return new_q

@@ -495,7 +495,8 @@ if __name__=="__main__":
             else:
                 ts_code = "data_queue"
                 index = len(ts_codes) - 1
-                stock_train = stock_queue_dataset(mode=0, data_queue=data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_length)
+                _stock_data_queue = deep_copy_queue(data_queue)
+                stock_train = stock_queue_dataset(mode=0, data_queue=_stock_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_length)
             
             iteration=0
             loss_list=[]
