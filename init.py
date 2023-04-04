@@ -78,3 +78,4 @@ check_exist("./png/test/")
 train_path="./stock_handle/stock_train.csv"
 test_path="./stock_handle/stock_test.csv"
 train_pkl_path="./pkl_handle/train.pkl"
+png_path="./png"

@@ -230,7 +230,7 @@ def predict(test_codes):
         plt.legend()
         now = datetime.now()
         date_string = now.strftime("%Y%m%d%H%M%S")
-        plt.savefig("./png/predict/" + cnname + "_" + str(test_code[0]).split('.')[0] + str(test_code[0]).split('.')[1] + "_" + model_mode + "_" + name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
+        plt.savefig(png_path + "/predict/" + cnname + "_" + str(test_code[0]).split('.')[0] + str(test_code[0]).split('.')[1] + "_" + model_mode + "_" + name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
         pbar.update(1)
     pbar.close()
 
@@ -244,7 +244,7 @@ def loss_curve(loss_list):
         plt.xlabel("iteration")
         now = datetime.now()
         date_string = now.strftime("%Y%m%d%H%M%S")
-        plt.savefig("./png/train_loss/"+cnname+"_"+model_mode+"_"+date_string+"_train_loss.png",dpi=600)
+        plt.savefig(png_path + "/train_loss/"+cnname+"_"+model_mode+"_"+date_string+"_train_loss.png",dpi=600)
         # plt.show()
         plt.close()
     except Exception as e:
@@ -339,7 +339,7 @@ def contrast_lines(test_codes):
             plt.legend()
             now = datetime.now()
             date_string = now.strftime("%Y%m%d%H%M%S")
-            plt.savefig("./png/test/" + cnname + "_"  + str(test_code[0]).split('.')[0] + str(test_code[0]).split('.')[1] + "_" + model_mode + "_" + name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
+            plt.savefig(png_path + "/test/" + cnname + "_"  + str(test_code[0]).split('.')[0] + str(test_code[0]).split('.')[1] + "_" + model_mode + "_" + name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
             pbar.update(1)
         except Exception as e:
             print("Error: contrast_lines", e)
