@@ -38,7 +38,7 @@ def train(epoch, dataloader, scaler, ts_code=""):
             if batch is None:
                 # tqdm.write(f"code: {ts_code}, train error: batch is None")
                 batch_none += 1
-                subbar.set_description(f"code:{ts_code}, i:{iteration}, bn:{batch_none}, loss:{loss.item():.2e}")
+                subbar.set_description(f"{ts_code}, e:{epoch}, bn:{batch_none}, loss:{loss.item():.2e}")
                 subbar.update(1)
                 continue
             data, label = batch
@@ -68,7 +68,7 @@ def train(epoch, dataloader, scaler, ts_code=""):
                 loss_list.append(loss.item())
                 lo_list.append(loss.item())
 
-            subbar.set_description(f"code:{ts_code}, i:{iteration}, bn:{batch_none}, loss:{loss.item():.2e}")
+            subbar.set_description(f"{ts_code}, e:{epoch}, bn:{batch_none}, loss:{loss.item():.2e}")
             subbar.update(1)
             safe_save = True
         except Exception as e:
