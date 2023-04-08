@@ -27,7 +27,7 @@ if device.type == "cuda":
     torch.backends.cudnn.benchmark = True
 
 def train(epoch, dataloader, scaler, ts_code=""):
-    global loss, last_save_time, loss_list, iteration, lo_list
+    global loss, last_save_time, loss_list, iteration, lo_list, batch_none, data_none
     model.train()
     subbar = tqdm(total=len(dataloader), leave=False, ncols=TQDM_NCOLS)
     
@@ -36,7 +36,9 @@ def train(epoch, dataloader, scaler, ts_code=""):
             safe_save = False
             iteration += 1
             if batch is None:
-                tqdm.write(f"code: {ts_code}, train error: batch is None")
+                # tqdm.write(f"code: {ts_code}, train error: batch is None")
+                batch_none += 1
+                subbar.set_description(f"code:{ts_code}, i:{iteration}, bn:{batch_none}, loss:{loss.item():.2e}")
                 subbar.update(1)
                 continue
             data, label = batch
@@ -66,7 +68,7 @@ def train(epoch, dataloader, scaler, ts_code=""):
                 loss_list.append(loss.item())
                 lo_list.append(loss.item())
 
-            subbar.set_description(f"{ts_code}, {iteration}, {loss.item():.2e}")
+            subbar.set_description(f"code:{ts_code}, i:{iteration}, bn:{batch_none}, loss:{loss.item():.2e}")
             subbar.update(1)
             safe_save = True
         except Exception as e:
@@ -93,8 +95,8 @@ def train(epoch, dataloader, scaler, ts_code=""):
 def test(dataloader):
     predict_list = []
     accuracy_list = []
-    if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + SEQ_LEN + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + SEQ_LEN + "_Optimizer.pkl"):
-        test_model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + SEQ_LEN + "_Model.pkl"))
+    if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"):
+        test_model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl"))
     else:
         tqdm.write("No model found")
         return -1, -1
@@ -383,10 +385,10 @@ if __name__=="__main__":
 
     print(model)
     optimizer=optim.Adam(model.parameters(),lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
-    if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + SEQ_LEN + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + SEQ_LEN + "_Optimizer.pkl"):
+    if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"):
         print("Load model and optimizer from file")
-        model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + SEQ_LEN + "_Model.pkl"))
-        optimizer.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + SEQ_LEN + "_Optimizer.pkl"))
+        model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl"))
+        optimizer.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"))
     else:
         print("No model and optimizer file, train from scratch")
 
@@ -499,6 +501,8 @@ if __name__=="__main__":
                 stock_train = stock_queue_dataset(mode=0, data_queue=_stock_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_length)
             
             iteration=0
+            batch_none = 0
+            data_none = 0
             loss_list=[]
              #开始训练神经网络
             train_dataloader=DataLoader(dataset=stock_train,batch_size=BATCH_SIZE,shuffle=False,drop_last=False, num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)

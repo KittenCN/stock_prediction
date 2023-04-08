@@ -12,7 +12,7 @@ from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 
 TRAIN_WEIGHT=0.9
-SEQ_LEN=180
+SEQ_LEN=30
 LEARNING_RATE=0.00001   # 0.00001
 WEIGHT_DECAY=0.05   # 0.05
 BATCH_SIZE=4
@@ -24,10 +24,10 @@ TEST_NUM=25
 SAVE_INTERVAL=300
 OUTPUT_DIMENSION=8
 INPUT_DIMENSION=20
-TQDM_NCOLS = 100
+TQDM_NCOLS = 150
 NUM_WORKERS = 1
 PKL = True
-BUFFER_SIZE = 100
+BUFFER_SIZE = 10
 
 symbol = 'Generic.Data'
 # symbol = '000001.SZ'

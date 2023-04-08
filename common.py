@@ -175,20 +175,19 @@ class stock_queue_dataset(Dataset):
                         raw_data = self.load_data()
                         if raw_data is None:
                             break
-                if raw_data is not None:
-                    normalized_data = self.normalize_data(raw_data)
-                    value, label = self.generate_value_label_tensors(normalized_data, self.label_num)
-                    
-                    self.value_buffer.extend(value)
-                    self.label_buffer.extend(label)
+                    if raw_data is not None:
+                        normalized_data = self.normalize_data(raw_data)
+                        value, label = self.generate_value_label_tensors(normalized_data, self.label_num)
+                        
+                        self.value_buffer.extend(value)
+                        self.label_buffer.extend(label)
+                    else:
+                        continue
+                else:
+                    continue
+            except:
+                continue
 
-                # if len(self.value_buffer) >= self.buffer_size:
-                #     break
-
-                if raw_data is None:
-                    break
-            except queue.Empty:
-                break
         if len(self.value_buffer) == 0 or len(self.label_buffer) == 0:
             return None
 
@@ -543,8 +542,8 @@ def custom_collate(batch):
         return None
 
 def save_model(model, optimizer, save_path):
-    torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + SEQ_LEN + "_Model.pkl")
-    torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + SEQ_LEN + "_Optimizer.pkl")
+    torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl")
+    torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl")
 
 def thread_save_model(model, optimizer, save_path):
     _model = copy.deepcopy(model)
