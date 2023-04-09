@@ -10,7 +10,7 @@ parser.add_argument('--pklname', default="train.pkl", type=str, help="code")
 args = parser.parse_args()
 
 if __name__ == ("__main__"):
-    csv_files = glob.glob("./stock_daily/*.csv")
+    csv_files = glob.glob(daily_path+"/*.csv")
     # data_list = []
     ts_codes =[]
     Train_data = pd.DataFrame()
@@ -38,6 +38,6 @@ if __name__ == ("__main__"):
             print(ts_code, e)
             pbar.update(1)
             continue
-    with open("./pkl_handle/"+args.pklname, "wb") as f:
+    with open(pkl_path+"/"+args.pklname, "wb") as f:
         dill.dump(dump_queue, f)
     pbar.close()

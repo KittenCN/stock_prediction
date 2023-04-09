@@ -66,16 +66,19 @@ def check_exist(address):
     if os.path.exists(address) == False:
         os.mkdir(address)
 
-check_exist("./" + cnname)
-check_exist("./stock_handle")
-check_exist("./stock_daily")
-check_exist("./pkl_handle")
-check_exist("./png")
-check_exist("./png/train_loss/")
-check_exist("./png/predict/")
-check_exist("./png/test/")
-
 train_path="./stock_handle/stock_train.csv"
 test_path="./stock_handle/stock_test.csv"
 train_pkl_path="./pkl_handle/train.pkl"
 png_path="./png"
+daily_path="./stock_daily"
+handle_path="./stock_handle"
+pkl_path="./pkl_handle"
+
+check_exist("./" + cnname)
+check_exist(handle_path)
+check_exist(daily_path)
+check_exist(pkl_path)
+check_exist(png_path)
+check_exist(png_path+"/train_loss/")
+check_exist(png_path+"/predict/")
+check_exist(png_path+"/test/")

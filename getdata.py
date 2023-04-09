@@ -4,6 +4,7 @@ import threading
 import time
 import tushare as ts
 import common
+from init import *
 from tqdm import tqdm
 
 parser = argparse.ArgumentParser()
@@ -72,7 +73,7 @@ def get_stock_data(ts_code="", save=True, start_code=""):
             time.sleep(0.1)
 
             if save:
-                df.to_csv(f"./stock_daily/{code}.csv", index=False)
+                df.to_csv(daily_path+f"/{code}.csv", index=False)
                 pbar.update(1)
 
             else:
@@ -87,8 +88,8 @@ def get_stock_data(ts_code="", save=True, start_code=""):
         pbar.close()
 
 if __name__ == "__main__":
-    if os.path.exists("./stock_daily") == False:
-        os.mkdir("./stock_daily")
+    # if os.path.exists(daily_path) == False:
+    #     os.mkdir(daily_path)
     if args.code != "":
         get_stock_data(args.code, save=True)
     else:
