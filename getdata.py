@@ -1,7 +1,4 @@
-import argparse
-import os
 import threading
-import time
 import tushare as ts
 import common
 from init import *
