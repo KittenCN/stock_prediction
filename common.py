@@ -335,7 +335,7 @@ def import_csv(stock_code, dataFrame=None, csv_file=None):
             if csv_file is not None:
                 file_path = csv_file
             else:
-                file_path = f'stock_daily/{stock_code}.csv'
+                file_path = daily_path+f"/{stock_code}.csv"
             if os.path.exists(file_path):
                 df = pd.read_csv(file_path)
             else:
