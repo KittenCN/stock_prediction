@@ -253,20 +253,22 @@ def loss_curve(loss_list):
         print("Error: loss_curve", e)
 
 def contrast_lines(test_codes):
+    data = NoneDataFrame
     if PKL is False:
         load_data(test_codes)
         data = data_queue.get()
     else:
-        _data = NoneDataFrame
         with open(train_pkl_path, 'rb') as f:
             data_queue = dill.load(f)
         while data_queue.empty() == False:
             item = data_queue.get()
             if item['ts_code'][0] in test_codes:
-                _data = item
+                data = copy.deepcopy(item)
                 break
+        if data is NoneDataFrame:
+            print("Error: data is None")
+            return
         data_queue = queue.Queue()
-        data = copy.deepcopy(_data)
         data.drop(['ts_code','Date'],axis=1,inplace = True)  
     
     data = data.dropna()
@@ -417,6 +419,7 @@ if __name__=="__main__":
                 _data_queue = dill.load(f)
                 while _data_queue.empty() == False:
                     _data = _data_queue.get()
+                    # _data = _data.dropna()
                     data_queue.put(_data)
                     total_length += len(_data) - SEQ_LEN
             codes_len = data_queue.qsize()
