@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import math
-import numpy as np
 import pandas as pd
+from init import *
 
 #------------------ 0级：核心工具函数 --------------------------------------------      
 def RD(N,D=3):   return np.round(N,D)        #四舍五入取3位小数 

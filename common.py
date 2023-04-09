@@ -1,4 +1,3 @@
-import numpy as np
 import re
 import target
 import mplfinance as mpf

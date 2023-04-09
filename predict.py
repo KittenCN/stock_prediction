@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 import random
-import numpy as np
 import matplotlib.pyplot as plt
-import dill
 from datetime import datetime, timedelta
 from init import *
 from common import *

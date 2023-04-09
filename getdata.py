@@ -2,7 +2,6 @@ import threading
 import tushare as ts
 import common
 from init import *
-from tqdm import tqdm
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--code', default="", type=str, help="code")
