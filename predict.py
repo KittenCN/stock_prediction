@@ -414,7 +414,7 @@ if __name__=="__main__":
                 _data_queue = dill.load(f)
                 while _data_queue.empty() == False:
                     _data = _data_queue.get()
-                    # _data = _data.dropna()
+                    _data = _data.dropna()
                     data_queue.put(_data)
                     total_length += len(_data) - SEQ_LEN
             codes_len = data_queue.qsize()
