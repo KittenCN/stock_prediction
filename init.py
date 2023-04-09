@@ -31,12 +31,6 @@ BUFFER_SIZE = 10
 
 symbol = 'Generic.Data'
 # symbol = '000001.SZ'
-cnname = ""
-for item in symbol.split("."):
-    cnname += item
-lstm_path="./"+cnname+"/LSTM"
-transformer_path="./"+cnname+"/TRANSFORMER"
-save_path=lstm_path
 
 loss_list=[]
 data_list=[]
@@ -65,16 +59,23 @@ if device.type == "cuda":
 def check_exist(address):
     if os.path.exists(address) == False:
         os.mkdir(address)
+root_path="."
+train_path=root_path+"/stock_handle/stock_train.csv"
+test_path=root_path+"/stock_handle/stock_test.csv"
+train_pkl_path=root_path+"/pkl_handle/train.pkl"
+png_path=root_path+"/png"
+daily_path=root_path+"/stock_daily"
+handle_path=root_path+"/stock_handle"
+pkl_path=root_path+"/pkl_handle"
 
-train_path="./stock_handle/stock_train.csv"
-test_path="./stock_handle/stock_test.csv"
-train_pkl_path="./pkl_handle/train.pkl"
-png_path="./png"
-daily_path="./stock_daily"
-handle_path="./stock_handle"
-pkl_path="./pkl_handle"
+cnname = ""
+for item in symbol.split("."):
+    cnname += item
+lstm_path=root_path+"/"+cnname+"/LSTM"
+transformer_path=root_path+"/"+cnname+"/TRANSFORMER"
+save_path=lstm_path
 
-check_exist("./" + cnname)
+check_exist(root_path+"/" + cnname)
 check_exist(handle_path)
 check_exist(daily_path)
 check_exist(pkl_path)
