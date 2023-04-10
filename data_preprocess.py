@@ -1,4 +1,3 @@
-from init import *
 from common import *
 
 parser = argparse.ArgumentParser()
