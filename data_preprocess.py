@@ -37,4 +37,6 @@ if __name__ == ("__main__"):
     with open(pkl_path+"/"+args.pklname, "wb") as f:
         dill.dump(dump_queue, f)
     pbar.close()
-    exit(0)
+    print("dump_queue size: ", dump_queue.qsize())
+    data_queue.close()
+    dump_queue.close()
