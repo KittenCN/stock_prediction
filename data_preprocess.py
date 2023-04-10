@@ -37,4 +37,3 @@ if __name__ == ("__main__"):
         dill.dump(dump_queue, f)
     pbar.close()
     print("dump_queue size: ", dump_queue.qsize())
-    data_queue.close()
