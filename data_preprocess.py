@@ -4,6 +4,7 @@ from common import *
 parser = argparse.ArgumentParser()
 parser.add_argument('--pklname', default="train.pkl", type=str, help="code")
 args = parser.parse_args()
+data_queue=queue.Queue()
 
 if __name__ == ("__main__"):
     csv_files = glob.glob(daily_path+"/*.csv")
