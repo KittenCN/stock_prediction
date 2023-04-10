@@ -409,6 +409,7 @@ if __name__=="__main__":
             data_thread.start()
             codes_len = len(ts_codes)
         else:
+            data_queue=multiprocessing.Queue()
             with open(train_pkl_path, 'rb') as f:
                 # data_queue = dill.load(f)
                 _data_queue = dill.load(f)
