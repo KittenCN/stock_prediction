@@ -39,4 +39,3 @@ if __name__ == ("__main__"):
     pbar.close()
     print("dump_queue size: ", dump_queue.qsize())
     data_queue.close()
-    dump_queue.close()
