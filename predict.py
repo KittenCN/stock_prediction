@@ -393,7 +393,7 @@ if __name__=="__main__":
     print("Clean the data...")
     if symbol == 'Generic.Data':
         # ts_codes = get_stock_list()
-        csv_files = glob.glob("./stock_daily/*.csv")
+        csv_files = glob.glob(daily_path+"/*.csv")
         ts_codes =[]
         for csv_file in csv_files:
             ts_codes.append(os.path.basename(csv_file).rsplit(".", 1)[0])
@@ -426,6 +426,8 @@ if __name__=="__main__":
             # codes_len = len(data_list)
         #data_thread.join()
         print("total codes: %d, total length: %d"%(codes_len, total_length))
+        batch_none = 0
+        data_none = 0
         scaler = GradScaler()
         pbar = tqdm(total=EPOCH, leave=False, ncols=TQDM_NCOLS)
         for epoch in range(0,EPOCH):
@@ -500,8 +502,6 @@ if __name__=="__main__":
                 stock_train = stock_queue_dataset(mode=0, data_queue=_stock_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_length)
             
             iteration=0
-            batch_none = 0
-            data_none = 0
             loss_list=[]
              #开始训练神经网络
             train_dataloader=DataLoader(dataset=stock_train,batch_size=BATCH_SIZE,shuffle=False,drop_last=False, num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
