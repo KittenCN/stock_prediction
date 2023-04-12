@@ -126,19 +126,27 @@ def test(dataloader):
 
 def predict(test_codes):
     print("test_code=", test_codes)
+    data_queue=multiprocessing.Queue()
     if PKL == 0:
         load_data(test_codes)
-        data = data_queue.get()
+        try:
+            data = data_queue.get(timeout=1)
+        except queue.Empty:
+            print("Error: data_queue is empty")
+            return
     else:
         _data = NoneDataFrame
         with open(train_pkl_path, 'rb') as f:
             data_queue = dill.load(f)
         while data_queue.empty() == False:
-            item = data_queue.get()
-            if item['ts_code'][0] in test_codes:
-                _data = item
+            try:
+                item = data_queue.get(timeout=1)
+                if item['ts_code'][0] in test_codes:
+                    _data = item
+                    break
+            except queue.Empty:
                 break
-        data_queue = queue.Queue()
+        data_queue = multiprocessing.Queue()
         data = copy.deepcopy(_data)
 
     if data.empty or data["ts_code"][0] == "None":
@@ -206,7 +214,11 @@ def predict(test_codes):
             inplace=True)
         predict_data.to_csv(test_path,sep=',',index=False,header=True)
         load_data([test_codes[0]],None,test_path)
-        predict_data = data_queue.get()
+        try:
+            predict_data = data_queue.get(timeout=1)
+        except queue.Empty:
+            print("Error: data_queue is empty")
+            return
 
         predict_days -= 1
         pbar.update(1)
@@ -251,12 +263,19 @@ def contrast_lines(test_codes):
     data = NoneDataFrame
     if PKL is False:
         load_data(test_codes)
-        data = data_queue.get()
+        try:
+            data = data_queue.get(timeout=1)
+        except queue.Empty:
+            print("Error: data_queue is empty")
+            return
     else:
         with open(train_pkl_path, 'rb') as f:
             data_queue = dill.load(f)
         while data_queue.empty() == False:
-            item = data_queue.get()
+            try:
+                item = data_queue.get(timeout=1)
+            except queue.Empty:
+                break
             if item['ts_code'][0] in test_codes:
                 data = copy.deepcopy(item)
                 break
@@ -414,7 +433,10 @@ if __name__=="__main__":
                 # data_queue = dill.load(f)
                 _data_queue = dill.load(f)
                 while _data_queue.empty() == False:
-                    _data = _data_queue.get()
+                    try:
+                        _data = _data_queue.get(timeout=1)
+                    except queue.Empty:
+                        break
                     _data = _data.dropna()
                     data_queue.put(_data)
                     total_length += len(_data) - SEQ_LEN
@@ -443,12 +465,18 @@ if __name__=="__main__":
                     try:
                         if PKL is False:
                             while data_queue.empty() == False:
-                                data_list += [data_queue.get()]
+                                try:
+                                    data_list += [data_queue.get(timeout=1)]
+                                except queue.Empty:
+                                    break
                                 data_len = max(data_len, data_queue.qsize())
                             Err_nums = 5
                             while index >= len(data_list):
                                 if data_queue.empty() == False:
-                                    data_list += [data_queue.get()]
+                                    try:
+                                        data_list += [data_queue.get(timeout=1)]
+                                    except queue.Empty:
+                                        break
                                 time.sleep(5)
                                 Err_nums -= 1
                                 if Err_nums == 0:

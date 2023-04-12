@@ -109,7 +109,10 @@ class stock_queue_dataset(Dataset):
         if self.data_queue.empty():
             return None
         else:
-            dataFrame = self.data_queue.get()
+            try:
+                dataFrame = self.data_queue.get(timeout=1)
+            except queue.Empty:
+                return None
             dataFrame.drop(['ts_code', 'Date'], axis=1, inplace=True)
             dataFrame = dataFrame.dropna()
             data = dataFrame.values[:, 0:INPUT_DIMENSION]
@@ -347,7 +350,7 @@ def import_csv(stock_code, dataFrame=None, csv_file=None):
             # csv_queue.put(NoneDataFrame)
             return None
         add_target(df)
-        df = df_queue.get()
+        df = df_queue.get(timeout=1)
         # data_wash(df, keepTime=False)
         # df = df_queue.get()
         df.rename(
@@ -522,7 +525,10 @@ def load_data(ts_codes, pbar=False, csv_file=None):
         
         if ans is None:
             continue
-        data = csv_queue.get()
+        try:
+            data = csv_queue.get(timeout=1)
+        except queue.Empty:
+            continue
         data_queue.put(data)
         if pbar:
             pbar.update(1)

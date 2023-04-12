@@ -19,7 +19,7 @@ if __name__ == ("__main__"):
     pbar = tqdm(total=len(ts_codes), leave=False)
     while data_queue.empty() == False:
         try:
-            data = data_queue.get()
+            data = data_queue.get(timeout=1)
             # data = data.dropna()
             # data.fillna(0, inplace=True)
             if data.empty or data["ts_code"][0] == "None":
