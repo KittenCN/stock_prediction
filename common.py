@@ -555,7 +555,7 @@ def deep_copy_queue(q):
     temp_q = []
     while not q.empty():
         try:
-            item = q.get()
+            item = q.get(timeout=1)
             temp_q.append(item)
         except queue.Empty:
             break
