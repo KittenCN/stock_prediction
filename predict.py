@@ -430,6 +430,7 @@ if __name__=="__main__":
         data_none = 0
         scaler = GradScaler()
         pbar = tqdm(total=EPOCH, leave=False, ncols=TQDM_NCOLS)
+        last_epoch = 0
         for epoch in range(0,EPOCH):
             if len(lo_list) == 0:
                     m_loss = 0
@@ -518,6 +519,7 @@ if __name__=="__main__":
             if args.pkl_queue == 0:
                 code_bar.close()
             pbar.update(1)
+            last_epoch = epoch
         pbar.close()
         print("Training finished!")
         if len(lo_list) > 0:
@@ -529,6 +531,7 @@ if __name__=="__main__":
         while contrast_lines(test_code) == -1:
             test_index = random.randint(0, len(ts_codes) - 1)
             test_code = [ts_codes[test_index]]
+        print("train epoch: %d" % (last_epoch))
     elif mode == "test":
         if args.test_code != "" or args.test_code == "all":
             test_code = [args.test_code]
