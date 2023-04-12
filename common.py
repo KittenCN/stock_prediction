@@ -552,7 +552,14 @@ def thread_save_model(model, optimizer, save_path):
 
 def deep_copy_queue(q):
     new_q = multiprocessing.Queue()
+    temp_q = []
     while not q.empty():
-        item = q.get()
-        new_q.put(copy.deepcopy(item))
+        try:
+            item = q.get()
+            temp_q.append(item)
+        except queue.Empty:
+            break
+    for item in temp_q:
+        new_q.put(item)
+        q.put(item)
     return new_q
