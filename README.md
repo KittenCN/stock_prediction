@@ -68,6 +68,9 @@
 The basic idea and creativity come from: https://github.com/MiaoChenglin125/stock_prediction-based-on-lstm-and-transformer. As the original author seems to have abandoned the updates, I will continue to iterate this program based on the new models and technologies that I have mastered.
 
 ## New
+* 20230412
+* 1. 修复重大bug：计算输入维度时，少计算了初始的8个维度，更新了这个版本后，之前训练的模型将不能使用，需要重新训练；如果还需要使用之前的模型，请手工修改init.py中的INPUT_DIMENSION为20（最小为4，且不能小于输出维度OUTPUT_DIMENSION），并检查common.py中的add_target函数中的相关内容.
+*   Fix major bug: when calculating the input dimension, 8 dimensions were less calculated. After updating this version, the previously trained models will no longer be available and need to be retrained. If you still need to use the previous model, please manually modify INPUT_DIMENSION in init.py to 20 (minimum 4, and cannot be less than OUTPUT_DIMENSION), and check the related content in the add_target function in common.py.
 * 20230402
 * 1. 修改dataset读取方式，使用data queue以及buffer，减少IO次数，提高训练速度
 *   Modify the dataset reading method to use data queue and buffer to reduce the number of IO operations and improve training speed.
