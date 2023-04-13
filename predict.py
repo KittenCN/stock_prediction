@@ -535,10 +535,10 @@ if __name__=="__main__":
                 tqdm.write("pkl_queue is enabled")
                 ts_code = "data_queue"
                 index = len(ts_codes) - 1
-                tqdm.write("data_queue size before deep copy: %d" % data_queue.qsize())
+                tqdm.write("epoch: %d, data_queue size before deep copy: %d" % (epoch, data_queue.qsize()))
                 _stock_data_queue = deep_copy_queue(data_queue)
-                tqdm.write("data_queue size after deep copy: %d" % data_queue.qsize())
-                tqdm.write("_stock_data_queue size: %d" % _stock_data_queue.qsize())
+                tqdm.write("epoch: %d, data_queue size after deep copy: %d" % (epoch, data_queue.qsize()))
+                tqdm.write("epoch: %d, _stock_data_queue size: %d" % (epoch, _stock_data_queue.qsize()))
                 stock_train = stock_queue_dataset(mode=0, data_queue=_stock_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_length)
             
             iteration=0
