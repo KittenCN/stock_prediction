@@ -1,5 +1,57 @@
 # 基于神经网络的通用股票预测模型 A general stock prediction model based on neural networks
 
+## New
+* 20230413
+* 目前发现的bug:  Bugs found so far:
+* 1. predict模式会倒是load data失败 
+*    predict mode will fail to load data 
+* 2. 长时间训练，有概率导致multiprocess.queue异常
+*    long training time may cause multiprocess.queue exception
+* 20230412
+* 1. 修复重大bug：计算输入维度时，少计算了初始的8个维度，更新了这个版本后，之前训练的模型将不能使用，需要重新训练；如果还需要使用之前的模型，请手工修改init.py中的INPUT_DIMENSION为20（最小为4，且不能小于输出维度OUTPUT_DIMENSION），并检查common.py中的add_target函数中的相关内容.
+*   Fix major bug: when calculating the input dimension, 8 dimensions were less calculated. After updating this version, the previously trained models will no longer be available and need to be retrained. If you still need to use the previous model, please manually modify INPUT_DIMENSION in init.py to 20 (minimum 4, and cannot be less than OUTPUT_DIMENSION), and check the related content in the add_target function in common.py.
+* 20230402
+* 1. 修改dataset读取方式，使用data queue以及buffer，减少IO次数，提高训练速度
+*   Modify the dataset reading method to use data queue and buffer to reduce the number of IO operations and improve training speed.
+* 2. 将全局变量移动到init.py中，方便修改
+*   Move global variables to init.py for easy modification.
+* 20230328
+* 1. 修改预处理数据文件格式，增加ts_code和date两个字段，方便后续使用
+*    Modify the format of the preprocessed data file, add two fields ts_code and date, for future use.
+* 2. 修改lstm和transformer模型，以支持混合长度输入
+*    Modify the lstm and transformer models to support mixed length input.
+* 3. 在transformer模型，增加了 decoder层，期望增加预测精度
+*    Added a decoder layer in the transformer model, hoping to increase the prediction accuracy.
+* 20230327
+* 1. 修改了部分运行逻辑，配合load pkl预处理文件，极大的提高了训练速度
+*    Modified some running logic and used preprocessed pkl files to greatly improve training speed.
+* 2. 修正了一个影响极大的关于数据流方向的bug
+*    Corrected a bug that had a great impact on the direction of data flow.
+* 3. 尝试使用新的模型
+*    Tried a new model.
+* 4. 增加了一个新的指标，用于评估模型的好坏
+*    Added a new index to evaluate the quality of the model.
+* 20230325
+* 1. 增加数据预处理功能，并能将预处理好的queue保存为pkl文件，减少IO损耗
+*    Add data preprocessing function and save the preprocessed queue as a pkl file to reduce IO loss.
+* 2. 修改不必要的代码
+*    Modify unnecessary code.
+* 3. 简化逻辑，减少时间负责度，方向是以空间换时间
+*    Simplify the logic and reduce the time burden. The direction is to trade space for time.
+* 4. 增加常见的指标，增加预测精度
+*    Add common indicators to increase prediction accuracy.
+* 20230322
+* 1. 增加输出内容控制，可以自行定义输出的内容和数量
+*    Add output content control, you can define the content and quantity of the output yourself.
+* 2. 修改读取数据源为本地csv文件
+*    Modify the data source to local csv files.
+* 3. 修改IO逻辑，使用多线程读取指定文件夹下的csv文件，并存储到内存中，反复训练，减少IO次数
+*    Modify the IO logic to use multiple threads to read the csv files in the specified folder and store them in memory, repeatedly train, and reduce the number of IO operations.
+* 4. 修改lstm, transformer模型
+*    Modify the lstm and transformer models.
+* 5. 增加下载数据功能，请使用自己的api token
+*    Add download data function, please use your own api token.
+
 ## 0 使用方法 How to use
 * 1. 使用getdata.py下载数据，或者使用自己的数据源，将数据放在stock_daily目录下
 *    Use getdata.py to download data, or use your own data source, and put the data in the stock_daily directory.
@@ -66,52 +118,6 @@
 由于原作者貌似已经放弃更新，我将继续按照现有掌握的新的模型和技术，继续迭代这个程序
 
 The basic idea and creativity come from: https://github.com/MiaoChenglin125/stock_prediction-based-on-lstm-and-transformer. As the original author seems to have abandoned the updates, I will continue to iterate this program based on the new models and technologies that I have mastered.
-
-## New
-* 20230412
-* 1. 修复重大bug：计算输入维度时，少计算了初始的8个维度，更新了这个版本后，之前训练的模型将不能使用，需要重新训练；如果还需要使用之前的模型，请手工修改init.py中的INPUT_DIMENSION为20（最小为4，且不能小于输出维度OUTPUT_DIMENSION），并检查common.py中的add_target函数中的相关内容.
-*   Fix major bug: when calculating the input dimension, 8 dimensions were less calculated. After updating this version, the previously trained models will no longer be available and need to be retrained. If you still need to use the previous model, please manually modify INPUT_DIMENSION in init.py to 20 (minimum 4, and cannot be less than OUTPUT_DIMENSION), and check the related content in the add_target function in common.py.
-* 20230402
-* 1. 修改dataset读取方式，使用data queue以及buffer，减少IO次数，提高训练速度
-*   Modify the dataset reading method to use data queue and buffer to reduce the number of IO operations and improve training speed.
-* 2. 将全局变量移动到init.py中，方便修改
-*   Move global variables to init.py for easy modification.
-* 20230328
-* 1. 修改预处理数据文件格式，增加ts_code和date两个字段，方便后续使用
-*    Modify the format of the preprocessed data file, add two fields ts_code and date, for future use.
-* 2. 修改lstm和transformer模型，以支持混合长度输入
-*    Modify the lstm and transformer models to support mixed length input.
-* 3. 在transformer模型，增加了 decoder层，期望增加预测精度
-*    Added a decoder layer in the transformer model, hoping to increase the prediction accuracy.
-* 20230327
-* 1. 修改了部分运行逻辑，配合load pkl预处理文件，极大的提高了训练速度
-*    Modified some running logic and used preprocessed pkl files to greatly improve training speed.
-* 2. 修正了一个影响极大的关于数据流方向的bug
-*    Corrected a bug that had a great impact on the direction of data flow.
-* 3. 尝试使用新的模型
-*    Tried a new model.
-* 4. 增加了一个新的指标，用于评估模型的好坏
-*    Added a new index to evaluate the quality of the model.
-* 20230325
-* 1. 增加数据预处理功能，并能将预处理好的queue保存为pkl文件，减少IO损耗
-*    Add data preprocessing function and save the preprocessed queue as a pkl file to reduce IO loss.
-* 2. 修改不必要的代码
-*    Modify unnecessary code.
-* 3. 简化逻辑，减少时间负责度，方向是以空间换时间
-*    Simplify the logic and reduce the time burden. The direction is to trade space for time.
-* 4. 增加常见的指标，增加预测精度
-*    Add common indicators to increase prediction accuracy.
-* 20230322
-* 1. 增加输出内容控制，可以自行定义输出的内容和数量
-*    Add output content control, you can define the content and quantity of the output yourself.
-* 2. 修改读取数据源为本地csv文件
-*    Modify the data source to local csv files.
-* 3. 修改IO逻辑，使用多线程读取指定文件夹下的csv文件，并存储到内存中，反复训练，减少IO次数
-*    Modify the IO logic to use multiple threads to read the csv files in the specified folder and store them in memory, repeatedly train, and reduce the number of IO operations.
-* 4. 修改lstm, transformer模型
-*    Modify the lstm and transformer models.
-* 5. 增加下载数据功能，请使用自己的api token
-*    Add download data function, please use your own api token.
 
 ## 获取下载数据的api token: Get the api token to download data:
 * 1. 在https://tushare.pro/ 网站注册，并按要求获取足够的积分（到2023年3月为止，只需要修改下用户信息，就足够积分了，以后不能确定）
