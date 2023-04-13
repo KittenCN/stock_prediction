@@ -3,7 +3,6 @@
 import random
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
-from init import *
 from common import *
 
 parser = argparse.ArgumentParser()
@@ -126,9 +125,8 @@ def test(dataloader):
 
 def predict(test_codes):
     print("test_code=", test_codes)
-    data_queue=multiprocessing.Queue()
     if PKL == 0:
-        load_data(test_codes)
+        load_data(test_codes,data_queue=data_queue)
         try:
             data = data_queue.get(timeout=1)
         except queue.Empty:
@@ -146,7 +144,7 @@ def predict(test_codes):
                     break
             except queue.Empty:
                 break
-        data_queue = multiprocessing.Queue()
+        data_queue = queue.Queue()
         data = copy.deepcopy(_data)
 
     if data.empty or data["ts_code"][0] == "None":
@@ -213,12 +211,13 @@ def predict(test_codes):
                 'Close': 'close', 'Volume': 'vol'},
             inplace=True)
         predict_data.to_csv(test_path,sep=',',index=False,header=True)
-        load_data([test_codes[0]],None,test_path)
-        try:
-            predict_data = data_queue.get(timeout=1)
-        except queue.Empty:
-            print("Error: data_queue is empty")
-            return
+        load_data([test_codes[0]],None,test_path,data_queue=data_queue)
+        while data_queue.empty() == False:
+            try: 
+                predict_data = data_queue.get(timeout=1)
+                break
+            except queue.Empty:
+                break
 
         predict_days -= 1
         pbar.update(1)
@@ -262,7 +261,7 @@ def loss_curve(loss_list):
 def contrast_lines(test_codes):
     data = NoneDataFrame
     if PKL is False:
-        load_data(test_codes)
+        load_data(test_codes,data_queue=data_queue)
         try:
             data = data_queue.get(timeout=1)
         except queue.Empty:
@@ -367,6 +366,12 @@ def contrast_lines(test_codes):
     plt.close()
 
 if __name__=="__main__":
+    # data_queue=multiprocessing.Queue()
+    # stock_data_queue=multiprocessing.Queue()
+    # stock_list_queue = multiprocessing.Queue()
+    # csv_queue=multiprocessing.Queue()
+    # df_queue=multiprocessing.Queue()
+
     mode = args.mode
     model_mode = args.model.upper()
     PKL = False if args.pkl <= 0 else True

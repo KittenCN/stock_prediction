@@ -517,7 +517,7 @@ def add_target(df):
     return df
 
 
-def load_data(ts_codes, pbar=False, csv_file=None):
+def load_data(ts_codes, pbar=False, csv_file=None, data_queue=data_queue):
     if pbar: 
         pbar = tqdm(total=len(ts_codes))
     for ts_code in ts_codes:
