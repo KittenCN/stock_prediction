@@ -3,8 +3,8 @@
 ## New
 * 20230413
 * 目前发现的bug:  Bugs found so far:
-* 1. predict模式会倒是load data失败 
-*    predict mode will fail to load data 
+* 1. predict模式会倒是load data失败 (尝试修复)
+*    predict mode will fail to load data (try to fix)
 * 2. 长时间训练，有概率导致multiprocess.queue异常
 *    long training time may cause multiprocess.queue exception
 * 20230412
