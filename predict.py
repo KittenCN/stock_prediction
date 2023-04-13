@@ -429,6 +429,7 @@ if __name__=="__main__":
         data_len=0
         total_length = 0
         if PKL is False:
+            print("Load data from csv using thread ...")
             data_thread = threading.Thread(target=load_data, args=(ts_codes,))
             data_thread.start()
             codes_len = len(ts_codes)
@@ -465,6 +466,7 @@ if __name__=="__main__":
                 m_loss = np.mean(lo_list)
             pbar.set_description("%d, %e"%(epoch+1,m_loss))
             if args.pkl_queue == 0:
+                tqdm.write("pkl_queue is disabled")
                 code_bar = tqdm(total=codes_len, ncols=TQDM_NCOLS)
                 for index in range (codes_len):
                     try:
@@ -530,9 +532,13 @@ if __name__=="__main__":
                         code_bar.update(1)
                         continue
             else:
+                tqdm.write("pkl_queue is enabled")
                 ts_code = "data_queue"
                 index = len(ts_codes) - 1
+                tqdm.write("data_queue size before deep copy: %d" % data_queue.qsize())
                 _stock_data_queue = deep_copy_queue(data_queue)
+                tqdm.write("data_queue size after deep copy: %d" % data_queue.qsize())
+                tqdm.write("_stock_data_queue size: %d" % _stock_data_queue.qsize())
                 stock_train = stock_queue_dataset(mode=0, data_queue=_stock_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_length)
             
             iteration=0
