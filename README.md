@@ -5,8 +5,8 @@
 * 目前发现的bug:  Bugs found so far:
 * 1. predict模式会倒是load data失败 (尝试修复)
 *    predict mode will fail to load data (try to fix)
-* 2. 长时间训练，有概率导致multiprocess.queue异常
-*    long training time may cause multiprocess.queue exception
+* 2. 长时间训练，有概率导致multiprocess.queue异常 (原因未知，请有能力的朋友帮我一起debug)
+*    long training time may cause multiprocess.queue exception (cause unknown, please help me debug if you are capable)
 * 20230412
 * 1. 修复重大bug：计算输入维度时，少计算了初始的8个维度，更新了这个版本后，之前训练的模型将不能使用，需要重新训练；如果还需要使用之前的模型，请手工修改init.py中的INPUT_DIMENSION为20（最小为4，且不能小于输出维度OUTPUT_DIMENSION），并检查common.py中的add_target函数中的相关内容.
 *   Fix major bug: when calculating the input dimension, 8 dimensions were less calculated. After updating this version, the previously trained models will no longer be available and need to be retrained. If you still need to use the previous model, please manually modify INPUT_DIMENSION in init.py to 20 (minimum 4, and cannot be less than OUTPUT_DIMENSION), and check the related content in the add_target function in common.py.
