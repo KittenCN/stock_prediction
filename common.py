@@ -110,7 +110,7 @@ class stock_queue_dataset(Dataset):
             return None
         else:
             try:
-                dataFrame = self.data_queue.get(timeout=1)
+                dataFrame = self.data_queue.get(timeout=30)
             except queue.Empty:
                 return None
             dataFrame.drop(['ts_code', 'Date'], axis=1, inplace=True)
@@ -213,6 +213,7 @@ class stock_queue_dataset(Dataset):
         # else:
         #     return self.total_length
         return self.total_length
+
 #LSTM模型
 class LSTM(nn.Module):
     def __init__(self,dimension):
@@ -350,7 +351,7 @@ def import_csv(stock_code, dataFrame=None, csv_file=None):
             # csv_queue.put(NoneDataFrame)
             return None
         add_target(df)
-        df = df_queue.get(timeout=1)
+        df = df_queue.get(timeout=30)
         # data_wash(df, keepTime=False)
         # df = df_queue.get()
         df.rename(
@@ -526,7 +527,7 @@ def load_data(ts_codes, pbar=False, csv_file=None, data_queue=data_queue):
         if ans is None:
             continue
         try:
-            data = csv_queue.get(timeout=1)
+            data = csv_queue.get(timeout=30)
         except queue.Empty:
             continue
         data_queue.put(data)
@@ -561,7 +562,7 @@ def deep_copy_queue(q):
     temp_q = []
     while not q.empty():
         try:
-            item = q.get(timeout=1)
+            item = q.get_nowait()
             temp_q.append(item)
         except queue.Empty:
             break

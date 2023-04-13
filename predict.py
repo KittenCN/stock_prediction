@@ -25,7 +25,7 @@ def train(epoch, dataloader, scaler, ts_code=""):
     model.train()
     subbar = tqdm(total=len(dataloader), leave=False, ncols=TQDM_NCOLS)
     
-    for i, batch in enumerate(dataloader):
+    for batch in dataloader:
         try:
             safe_save = False
             iteration += 1
@@ -128,7 +128,7 @@ def predict(test_codes):
     if PKL == 0:
         load_data(test_codes,data_queue=data_queue)
         try:
-            data = data_queue.get(timeout=1)
+            data = data_queue.get(timeout=30)
         except queue.Empty:
             print("Error: data_queue is empty")
             return
@@ -138,7 +138,7 @@ def predict(test_codes):
             data_queue = dill.load(f)
         while data_queue.empty() == False:
             try:
-                item = data_queue.get(timeout=1)
+                item = data_queue.get(timeout=30)
                 if item['ts_code'][0] in test_codes:
                     _data = item
                     break
@@ -214,7 +214,7 @@ def predict(test_codes):
         load_data([test_codes[0]],None,test_path,data_queue=data_queue)
         while data_queue.empty() == False:
             try: 
-                predict_data = data_queue.get(timeout=1)
+                predict_data = data_queue.get(timeout=30)
                 break
             except queue.Empty:
                 break
@@ -263,7 +263,7 @@ def contrast_lines(test_codes):
     if PKL is False:
         load_data(test_codes,data_queue=data_queue)
         try:
-            data = data_queue.get(timeout=1)
+            data = data_queue.get(timeout=30)
         except queue.Empty:
             print("Error: data_queue is empty")
             return
@@ -272,7 +272,7 @@ def contrast_lines(test_codes):
             data_queue = dill.load(f)
         while data_queue.empty() == False:
             try:
-                item = data_queue.get(timeout=1)
+                item = data_queue.get(timeout=30)
             except queue.Empty:
                 break
             if item['ts_code'][0] in test_codes:
@@ -366,12 +366,6 @@ def contrast_lines(test_codes):
     plt.close()
 
 if __name__=="__main__":
-    # data_queue=multiprocessing.Queue()
-    # stock_data_queue=multiprocessing.Queue()
-    # stock_list_queue = multiprocessing.Queue()
-    # csv_queue=multiprocessing.Queue()
-    # df_queue=multiprocessing.Queue()
-
     mode = args.mode
     model_mode = args.model.upper()
     PKL = False if args.pkl <= 0 else True
@@ -434,13 +428,13 @@ if __name__=="__main__":
             data_thread.start()
             codes_len = len(ts_codes)
         else:
-            data_queue=multiprocessing.Queue()
+            # data_queue=multiprocessing.Queue()
             with open(train_pkl_path, 'rb') as f:
                 # data_queue = dill.load(f)
                 _data_queue = dill.load(f)
                 while _data_queue.empty() == False:
                     try:
-                        _data = _data_queue.get(timeout=1)
+                        _data = _data_queue.get(timeout=30)
                     except queue.Empty:
                         break
                     _data = _data.dropna()
@@ -473,7 +467,7 @@ if __name__=="__main__":
                         if PKL is False:
                             while data_queue.empty() == False:
                                 try:
-                                    data_list += [data_queue.get(timeout=1)]
+                                    data_list += [data_queue.get(timeout=30)]
                                 except queue.Empty:
                                     break
                                 data_len = max(data_len, data_queue.qsize())
@@ -481,7 +475,7 @@ if __name__=="__main__":
                             while index >= len(data_list):
                                 if data_queue.empty() == False:
                                     try:
-                                        data_list += [data_queue.get(timeout=1)]
+                                        data_list += [data_queue.get(timeout=30)]
                                     except queue.Empty:
                                         break
                                 time.sleep(5)
@@ -537,6 +531,7 @@ if __name__=="__main__":
                 index = len(ts_codes) - 1
                 tqdm.write("epoch: %d, data_queue size before deep copy: %d" % (epoch, data_queue.qsize()))
                 _stock_data_queue = deep_copy_queue(data_queue)
+
                 tqdm.write("epoch: %d, data_queue size after deep copy: %d" % (epoch, data_queue.qsize()))
                 tqdm.write("epoch: %d, _stock_data_queue size: %d" % (epoch, _stock_data_queue.qsize()))
                 stock_train = stock_queue_dataset(mode=0, data_queue=_stock_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_length)
