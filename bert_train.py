@@ -46,8 +46,9 @@ def train(epoch,model,trainloader,testloader,optimizer,opt):
         optimizer.step()
         pbar.update(1)
         pbar.set_description("loss:%.2e" % loss.mean())
-        if batch_idx % print_step == 0:
+        if (batch_idx % print_step == 0 and time.time() - last_save_time >= SAVE_INTERVAL):
             # print("Epoch:%d [%d|%d] loss:%f" %(epoch+1,batch_idx,len(trainloader),loss.mean()))
+            last_save_time = time.time()
             torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
     pbar.close()
     # print("time:%.3f" % (time.time() - start_time))
@@ -80,6 +81,7 @@ def test(epoch,model,trainloader,testloader,opt):
 
 
 if __name__=='__main__':
+        last_save_time = 0
         opt = get_train_args()
         model = get_model(opt)
         trainloader,testloader = get_data(opt)
