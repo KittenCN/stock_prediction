@@ -28,7 +28,6 @@ def get_data(opt):
 
 def train(epoch,model,trainloader,testloader,optimizer,opt):
     # print('\ntrain-Epoch: %d' % (epoch+1))
-    global total_loss
     model.train()
     start_time = time.time()
     print_step = int(len(trainloader)/10)
@@ -43,7 +42,6 @@ def train(epoch,model,trainloader,testloader,optimizer,opt):
         outputs = model(sue, position_ids=posi,labels = label)
 
         loss, logits = outputs[0],outputs[1]
-        total_loss.append(loss.item())
         loss.backward()
         optimizer.step()
         pbar.update(1)
@@ -82,7 +80,6 @@ def test(epoch,model,trainloader,testloader,opt):
 
 
 if __name__=='__main__':
-        total_loss = []
         opt = get_train_args()
         model = get_model(opt)
         trainloader,testloader = get_data(opt)
@@ -99,7 +96,6 @@ if __name__=='__main__':
         for epoch in range(opt.nepoch):
             train(epoch,model,trainloader,testloader,optimizer,opt)
             epoch_bar.update(1)
-            epoch_bar.set_description("train loss:%.2e" % sum(total_loss)/len(total_loss))
         epoch_bar.close()
         torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
         test(epoch,model,trainloader,testloader,opt)
