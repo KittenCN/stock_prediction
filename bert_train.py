@@ -31,7 +31,7 @@ def train(epoch,model,trainloader,testloader,optimizer,opt):
     model.train()
     start_time = time.time()
     print_step = int(len(trainloader)/10)
-    pbar = tqdm(total=len(trainloader),ncols=TQDM_NCOLS,leave=True)
+    pbar = tqdm(total=len(trainloader),ncols=TQDM_NCOLS,leave=False)
     for batch_idx,(sue,label,posi) in enumerate(trainloader):
         if device != 'cpu':
             sue = sue.cuda()
