@@ -45,7 +45,7 @@ def train(epoch,model,trainloader,testloader,optimizer,opt):
         loss.backward()
         optimizer.step()
         pbar.update(1)
-        pbar.set_description("loss:%.3f" % loss.mean())
+        pbar.set_description("loss:%.2e" % loss.mean())
         if batch_idx % print_step == 0:
             # print("Epoch:%d [%d|%d] loss:%f" %(epoch+1,batch_idx,len(trainloader),loss.mean()))
             torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
