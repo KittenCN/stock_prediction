@@ -15,6 +15,7 @@ import dill
 from torch.cuda.amp import autocast, GradScaler
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
+from transformers import BertModel,BertPreTrainedModel,BertForSequenceClassification,BertTokenizer,AutoTokenizer,AutoModelForSequenceClassification
 
 TRAIN_WEIGHT=0.9
 SEQ_LEN=30
@@ -34,6 +35,8 @@ NUM_WORKERS = 1
 PKL = True
 BUFFER_SIZE = 10
 
+# checkpoint = "bert-base-uncased"
+checkpoint = 'bert-base-chinese'
 symbol = 'Generic.Data'
 # symbol = '000001.SZ'
 
@@ -73,6 +76,7 @@ png_path=root_path+"/png"
 daily_path=root_path+"/stock_daily"
 handle_path=root_path+"/stock_handle"
 pkl_path=root_path+"/pkl_handle"
+bert_data_path=root_path+"/bert_data"
 
 cnname = ""
 for item in symbol.split("."):
@@ -89,3 +93,6 @@ check_exist(png_path)
 check_exist(png_path+"/train_loss/")
 check_exist(png_path+"/predict/")
 check_exist(png_path+"/test/")
+check_exist(bert_data_path)
+check_exist(bert_data_path+'/model/')
+check_exist(bert_data_path+'/data/')
