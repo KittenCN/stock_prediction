@@ -27,7 +27,7 @@ def get_data(opt):
     return trainloader,testloader
 
 def train(epoch,model,trainloader,testloader,optimizer,opt):
-    print('\ntrain-Epoch: %d' % (epoch+1))
+    # print('\ntrain-Epoch: %d' % (epoch+1))
     model.train()
     start_time = time.time()
     print_step = int(len(trainloader)/10)
@@ -50,11 +50,11 @@ def train(epoch,model,trainloader,testloader,optimizer,opt):
             # print("Epoch:%d [%d|%d] loss:%f" %(epoch+1,batch_idx,len(trainloader),loss.mean()))
             torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
     pbar.close()
-    print("time:%.3f" % (time.time() - start_time))
+    # print("time:%.3f" % (time.time() - start_time))
 
 
 def test(epoch,model,trainloader,testloader,opt):
-    print('\ntest-Epoch: %d' % (epoch+1))
+    # print('\ntest-Epoch: %d' % (epoch+1))
     model.eval()
     total=0
     correct=0
@@ -92,7 +92,10 @@ if __name__=='__main__':
         
         if os.path.exists(bert_data_path+'/model/bert_model.pth'):
             model.load_state_dict(torch.load(bert_data_path+'/model/bert_model.pth'))
+        epoch_bar = tqdm(total=opt.nepoch,ncols=TQDM_NCOLS)
         for epoch in range(opt.nepoch):
             train(epoch,model,trainloader,testloader,optimizer,opt)
+            epoch_bar.update(1)
+        epoch_bar.close()
         torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
         test(epoch,model,trainloader,testloader,opt)
