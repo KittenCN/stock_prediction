@@ -28,6 +28,7 @@ def get_data(opt):
 
 def train(epoch,model,trainloader,testloader,optimizer,opt):
     # print('\ntrain-Epoch: %d' % (epoch+1))
+    global last_save_time
     model.train()
     start_time = time.time()
     print_step = int(len(trainloader)/10)
@@ -81,23 +82,24 @@ def test(epoch,model,trainloader,testloader,opt):
 
 
 if __name__=='__main__':
-        last_save_time = 0
-        opt = get_train_args()
-        model = get_model(opt)
-        trainloader,testloader = get_data(opt)
-        
-        if device != 'cpu':
-            model.cuda()
-        
-        # optimizer=torch.optim.SGD(model.parameters(),lr=opt.lr,momentum=0.9)
-        optimizer=torch.optim.AdamW(model.parameters(),lr=opt.lr)
-        
-        if os.path.exists(bert_data_path+'/model/bert_model.pth'):
-            model.load_state_dict(torch.load(bert_data_path+'/model/bert_model.pth'))
-        epoch_bar = tqdm(total=opt.nepoch,ncols=TQDM_NCOLS)
-        for epoch in range(opt.nepoch):
-            train(epoch,model,trainloader,testloader,optimizer,opt)
-            epoch_bar.update(1)
-        epoch_bar.close()
-        torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
-        test(epoch,model,trainloader,testloader,opt)
+    global last_save_time
+    last_save_time = 0
+    opt = get_train_args()
+    model = get_model(opt)
+    trainloader,testloader = get_data(opt)
+    
+    if device != 'cpu':
+        model.cuda()
+    
+    # optimizer=torch.optim.SGD(model.parameters(),lr=opt.lr,momentum=0.9)
+    optimizer=torch.optim.AdamW(model.parameters(),lr=opt.lr)
+    
+    if os.path.exists(bert_data_path+'/model/bert_model.pth'):
+        model.load_state_dict(torch.load(bert_data_path+'/model/bert_model.pth'))
+    epoch_bar = tqdm(total=opt.nepoch,ncols=TQDM_NCOLS)
+    for epoch in range(opt.nepoch):
+        train(epoch,model,trainloader,testloader,optimizer,opt)
+        epoch_bar.update(1)
+    epoch_bar.close()
+    torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
+    test(epoch,model,trainloader,testloader,opt)
