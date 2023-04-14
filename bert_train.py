@@ -31,6 +31,7 @@ def train(epoch,model,trainloader,testloader,optimizer,opt):
     model.train()
     start_time = time.time()
     print_step = int(len(trainloader)/10)
+    pbar = tqdm(total=len(trainloader),ncols=TQDM_NCOLS)
     for batch_idx,(sue,label,posi) in enumerate(trainloader):
         if device != 'cpu':
             sue = sue.cuda()
@@ -43,10 +44,12 @@ def train(epoch,model,trainloader,testloader,optimizer,opt):
         loss, logits = outputs[0],outputs[1]
         loss.backward()
         optimizer.step()
-        
+        pbar.update(1)
+        pbar.set_description("loss:%.3f" % loss.mean())
         if batch_idx % print_step == 0:
-            print("Epoch:%d [%d|%d] loss:%f" %(epoch+1,batch_idx,len(trainloader),loss.mean()))
+            # print("Epoch:%d [%d|%d] loss:%f" %(epoch+1,batch_idx,len(trainloader),loss.mean()))
             torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
+    pbar.close()
     print("time:%.3f" % (time.time() - start_time))
 
 
