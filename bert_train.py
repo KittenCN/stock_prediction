@@ -2,7 +2,7 @@ from common import *
 
 def get_train_args():
     parser=argparse.ArgumentParser()
-    parser.add_argument('--batch_size',type=int,default=2,help = '每批数据的数量')
+    parser.add_argument('--batch_size',type=int,default=1,help = '每批数据的数量')
     parser.add_argument('--nepoch',type=int,default=3,help = '训练的轮次')
     parser.add_argument('--lr',type=float,default=LEARNING_RATE,help = '学习率')
     # parser.add_argument('--gpu',type=bool,default=True,help = '是否使用gpu')
@@ -46,7 +46,7 @@ def train(epoch,model,trainloader,testloader,optimizer,opt):
         
         if batch_idx % print_step == 0:
             print("Epoch:%d [%d|%d] loss:%f" %(epoch+1,batch_idx,len(trainloader),loss.mean()))
-            torch.save(model.state_dict(),bert_data_path+'/model/model.pth')
+            torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
     print("time:%.3f" % (time.time() - start_time))
 
 
@@ -87,9 +87,9 @@ if __name__=='__main__':
         # optimizer=torch.optim.SGD(model.parameters(),lr=opt.lr,momentum=0.9)
         optimizer=torch.optim.AdamW(model.parameters(),lr=opt.lr)
         
-        if os.path.exists(bert_data_path+'/model/model.pth'):
-            model.load_state_dict(torch.load(bert_data_path+'/model/model.pth'))
+        if os.path.exists(bert_data_path+'/model/bert_model.pth'):
+            model.load_state_dict(torch.load(bert_data_path+'/model/bert_model.pth'))
         for epoch in range(opt.nepoch):
             train(epoch,model,trainloader,testloader,optimizer,opt)
-        torch.save(model.state_dict(),bert_data_path+'/model/model.pth')
+        torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
         test(epoch,model,trainloader,testloader,opt)
