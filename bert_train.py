@@ -5,6 +5,8 @@ from datasets import load_from_disk
 from transformers import BertTokenizer
 from transformers import AdamW
 from init import *
+import os
+os.environ['NO_PROXY'] = 'huggingface.co'
 
 def get_train_args():
     parser=argparse.ArgumentParser()
