@@ -715,3 +715,47 @@ class BertDataSet(torch.utils.data.Dataset):
             
     def __len__(self):
         return self.len
+    
+class Bert_Model(torch.nn.Module):
+    def __init__(self, pretrained_model, opt):
+        super().__init__()
+        self.pretrain_model = pretrained_model
+        self.fc = torch.nn.Linear(768, opt.num_labels)
+
+    def forward(self, input_ids, attention_mask, token_type_ids):
+        with torch.no_grad():  
+            output = self.pretrain_model(input_ids=input_ids,  
+                                         attention_mask=attention_mask,  
+                                         token_type_ids=token_type_ids)
+        output = self.fc(output[0][:, 0])  
+        output = output.softmax(dim=1)  
+        return output
+
+def read_csv_file(file_path):
+    df = pd.read_csv(file_path, delimiter=',')
+    return df
+
+def tokenize_data(df, tokenizer=None, max_length=None):
+    # encodings = tokenizer(df['text'].tolist(), 
+    #                        max_length=max_length,
+    #                        padding=True,
+    #                        truncation=True,
+    #                        return_tensors='pt')
+    # labels = torch.tensor(df['label'].tolist())
+    encodings = df['text'].tolist()
+    labels = df['label'].tolist()
+    return encodings, labels
+
+class TextDataset(Dataset):
+    def __init__(self, encodings, labels):
+        self.encodings = encodings
+        self.labels = labels
+
+    def __getitem__(self, idx):
+        item = {key: val[idx] for key, val in self.encodings.items()}
+        item['label'] = self.labels[idx]
+        return item
+
+    def __len__(self):
+        return len(self.labels)
+    

@@ -4,7 +4,7 @@ from transformers import BertModel
 from datasets import load_from_disk
 from transformers import BertTokenizer
 from transformers import AdamW
-from init import *
+from common import *
 import os
 os.environ['NO_PROXY'] = 'huggingface.co'
 
@@ -22,14 +22,24 @@ def get_train_args():
 def main(opt):
     global train_acc
     pretrained_model = BertModel.from_pretrained('bert-base-chinese', cache_dir=bert_data_path+'/model/')  # 加载预训练模型
-    model = Model(pretrained_model, opt)  # 构建自己的模型
+    model = Bert_Model(pretrained_model, opt)  # 构建自己的模型
     if os.path.exists(bert_data_path+'/model/bert_model.pth'):
         model.load_state_dict(torch.load(bert_data_path+'/model/bert_model.pth'))
     # 如果有 gpu, 就用 gpu
     if torch.cuda.is_available():
         model.to(device)
-    train_data = load_from_disk(bert_data_path+'/data/ChnSentiCorp/')['train']  # 加载训练数据
-    test_data = load_from_disk(bert_data_path+'/data/ChnSentiCorp/')['test']  # 加载测试数据
+    # train_data = load_from_disk(bert_data_path+'/data/ChnSentiCorp/')['train']  # 加载训练数据
+    # test_data = load_from_disk(bert_data_path+'/data/ChnSentiCorp/')['test']  # 加载测试数据
+
+    csv_file_path = r'D:\\workstation\\GitHub\\stock_prediction\\bert_data\data\\train.csv'
+    df = read_csv_file(csv_file_path)
+    encodings, labels = tokenize_data(df)
+    dataset = TextDataset({'text': encodings}, labels)
+    # tokenizer = AutoTokenizer.from_pretrained('bert-base-chinese')
+    # encodings, labels = tokenize_data(df, tokenizer, max_length)
+    # dataset = TextDataset(encodings, labels)
+    # dataloader = DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)
+
     optimizer = AdamW(model.parameters(), lr=opt.lr)  # 优化器
     criterion = torch.nn.CrossEntropyLoss()  # 损失函数
     epochs = opt.nepoch  # 训练次数
@@ -37,31 +47,12 @@ def main(opt):
     epoch_bar = tqdm(total=epochs, ncols=TQDM_NCOLS, leave=False)
     for i in range(epochs):
         # print("--------------- >>>> epoch : {} <<<< -----------------".format(i))
-        train(model, train_data, criterion, optimizer, opt)
-        test(model, test_data, opt)
+        train(model, dataset, criterion, optimizer, opt)
+        # test(model, test_data, opt)
         torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
         epoch_bar.update(1)
         epoch_bar.set_description("train acc: %.2e test acc: %.2e" % (train_acc, test_acc))
     epoch_bar.close()
-
-
-# 定义下游任务模型
-class Model(torch.nn.Module):
-    def __init__(self, pretrained_model, opt):
-        super().__init__()
-        self.pretrain_model = pretrained_model
-        self.fc = torch.nn.Linear(768, opt.num_labels)
-
-    def forward(self, input_ids, attention_mask, token_type_ids):
-        with torch.no_grad():  # 上游的模型不进行梯度更新
-            output = self.pretrain_model(input_ids=input_ids,  # input_ids: 编码之后的数字(即token)
-                                         attention_mask=attention_mask,  # attention_mask: 其中 pad 的位置是 0 , 其他位置是 1
-                                         # token_type_ids: 第一个句子和特殊符号的位置是 0 , 第二个句子的位置是 1
-                                         token_type_ids=token_type_ids)
-        output = self.fc(output[0][:, 0])  # 取出每个 batch 的第一列作为 CLS, 即 (16, 786)
-        output = output.softmax(dim=1)  # 通过 softmax 函数, 并使其在 1 的维度上进行缩放，使元素位于[0,1] 范围内，总和为 1
-        return output
-
 
 def train(model, dataset, criterion, optimizer, opt):
     global test_acc, last_save_time, train_acc
@@ -125,23 +116,20 @@ def test(model, dataset, opt):
 
 
 def collate_fn(data):
-    # 将数据中的文本和标签分别提取出来
     sentences = [tuple_x['text'] for tuple_x in data]
     labels = [tuple_x['label'] for tuple_x in data]
-    # 加载字典和分词工具
     token = BertTokenizer.from_pretrained('bert-base-chinese', cache_dir='./my_vocab')
-    # 对数据进行编码
     data = token.batch_encode_plus(batch_text_or_text_pairs=sentences,
                                    truncation=True,
-                                   max_length=500,
+                                   max_length=max_length,
                                    padding='max_length',
                                    return_tensors='pt',
                                    return_length=True)
-    input_ids = data['input_ids']  # input_ids: 编码之后的数字(即token)
-    attention_mask = data['attention_mask']  # attention_mask: 其中 pad 的位置是 0 , 其他位置是 1
-    token_type_ids = data['token_type_ids']  # token_type_ids: 第一个句子和特殊符号的位置是 0 , 第二个句子的位置是 1
+    input_ids = data['input_ids'] 
+    attention_mask = data['attention_mask'] 
+    token_type_ids = data['token_type_ids'] 
     labels = torch.LongTensor(labels)
-    if torch.cuda.is_available():  # 如果有 gpu, 就用 gpu
+    if torch.cuda.is_available(): 
         input_ids = input_ids.to(device)
         attention_mask = attention_mask.to(device)
         token_type_ids = token_type_ids.to(device)
@@ -151,6 +139,7 @@ def collate_fn(data):
 
 if __name__ == '__main__':
     global test_acc, last_save_time, train_acc
+    max_length = 500
     last_save_time = 0
     test_acc = 0
     train_acc = 0
