@@ -41,7 +41,7 @@ def main(opt):
         test(model, test_data, opt)
         torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
         epoch_bar.update(1)
-        epoch_bar.write("train acc: %.2e test acc: %.2e" % (train_acc, test_acc))
+        epoch_bar.set_description("train acc: %.2e test acc: %.2e" % (train_acc, test_acc))
     epoch_bar.close()
 
 
