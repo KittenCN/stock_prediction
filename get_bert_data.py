@@ -5,3 +5,6 @@ my_dataset_all = datasets.load_dataset(path='seamew/ChnSentiCorp', cache_dir=ber
 my_dataset_train = my_dataset_all['train']
 my_dataset_validation = my_dataset_all['validation']
 my_dataset_test = my_dataset_all['test']
+
+my_dataset_all_git = datasets.load_from_disk(bert_data_path+'/data/'+'ChnSentiCorp')
+print(my_dataset_all_git)
