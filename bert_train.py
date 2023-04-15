@@ -3,7 +3,8 @@ import torch.utils.data as Data
 from transformers import BertModel
 from datasets import load_from_disk
 from transformers import BertTokenizer
-from transformers import AdamW
+# from transformers import AdamW
+from torch.optim import AdamW
 from common import *
 import os
 os.environ['NO_PROXY'] = 'huggingface.co'
