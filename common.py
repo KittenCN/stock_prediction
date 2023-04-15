@@ -84,7 +84,7 @@ class BertForSequenceClassification(BertPreTrainedModel):
     
 class BertDataSet(torch.utils.data.Dataset):
     def __init__(self,root,is_train = 1):
-        self.tokenizer = BertTokenizer.from_pretrained('bert-base-chinese')
+        self.tokenizer = BertTokenizer.from_pretrained(bert_data_path+'/base_model/bert-base-chinese', cache_dir=bert_data_path+'/model/')
         self.data_num = 7346
         self.x_list = []
         self.y_list = []

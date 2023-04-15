@@ -22,7 +22,7 @@ def get_train_args():
 
 def main(opt):
     global train_acc
-    pretrained_model = BertModel.from_pretrained('bert-base-chinese', cache_dir=bert_data_path+'/model/')  # 加载预训练模型
+    pretrained_model = BertModel.from_pretrained(bert_data_path+'/base_model/bert-base-chinese', cache_dir=bert_data_path+'/model/')  # 加载预训练模型
     model = Bert_Model(pretrained_model, opt)  # 构建自己的模型
     if os.path.exists(bert_data_path+'/model/bert_model.pth'):
         model.load_state_dict(torch.load(bert_data_path+'/model/bert_model.pth'))
@@ -113,7 +113,7 @@ def test(model, dataset, opt):
 def collate_fn(data):
     sentences = [tuple_x['text'] for tuple_x in data]
     labels = [int(tuple_x['label']) for tuple_x in data]
-    token = BertTokenizer.from_pretrained('bert-base-chinese', cache_dir='./my_vocab')
+    token = BertTokenizer.from_pretrained(bert_data_path+'/base_model/bert-base-chinese', cache_dir=bert_data_path+'/model/')
     data = token.batch_encode_plus(batch_text_or_text_pairs=sentences,
                                    truncation=True,
                                    max_length=max_length,
