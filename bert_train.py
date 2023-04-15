@@ -31,7 +31,7 @@ def main(opt):
     criterion = torch.nn.CrossEntropyLoss()  # 损失函数
     epochs = opt.nepoch  # 训练次数
     # 训练模型
-    epoch_bar = tqdm(range(epochs), ncols=TQDM_NCOLS, leave=False)
+    epoch_bar = tqdm(total=epochs, ncols=TQDM_NCOLS, leave=False)
     for i in range(epochs):
         # print("--------------- >>>> epoch : {} <<<< -----------------".format(i))
         train(model, train_data, criterion, optimizer, opt)
@@ -69,7 +69,7 @@ def train(model, dataset, criterion, optimizer, opt):
     model.train()
     total_acc_num = 0
     train_num = 0
-    iter_bar = tqdm(len(loader_train), ncols=TQDM_NCOLS, leave=False)
+    iter_bar = tqdm(total=len(loader_train), ncols=TQDM_NCOLS, leave=False)
     for i, (input_ids, attention_mask, token_type_ids, labels) in enumerate(loader_train):
         output = model(input_ids=input_ids,  # input_ids: 编码之后的数字(即token)
                        attention_mask=attention_mask,  # attention_mask: 其中 pad 的位置是 0 , 其他位置是 1
