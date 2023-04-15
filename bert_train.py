@@ -31,14 +31,10 @@ def main(opt):
     # train_data = load_from_disk(bert_data_path+'/data/ChnSentiCorp/')['train']  # 加载训练数据
     # test_data = load_from_disk(bert_data_path+'/data/ChnSentiCorp/')['test']  # 加载测试数据
 
-    csv_file_path = r'D:\\workstation\\GitHub\\stock_prediction\\bert_data\data\\train.csv'
-    df = read_csv_file(csv_file_path)
-    encodings, labels = tokenize_data(df)
-    dataset = TextDataset({'text': encodings}, labels)
-    # tokenizer = AutoTokenizer.from_pretrained('bert-base-chinese')
-    # encodings, labels = tokenize_data(df, tokenizer, max_length)
-    # dataset = TextDataset(encodings, labels)
-    # dataloader = DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)
+    csv_file_path = bert_data_path+'/data/train'
+    train_dataset = csvToDataset(csv_file_path)
+    csv_file_path = bert_data_path+'/data/test'
+    test_dataset = csvToDataset(csv_file_path)
 
     optimizer = AdamW(model.parameters(), lr=opt.lr)  # 优化器
     criterion = torch.nn.CrossEntropyLoss()  # 损失函数
@@ -47,8 +43,8 @@ def main(opt):
     epoch_bar = tqdm(total=epochs, ncols=TQDM_NCOLS, leave=False)
     for i in range(epochs):
         # print("--------------- >>>> epoch : {} <<<< -----------------".format(i))
-        train(model, dataset, criterion, optimizer, opt)
-        # test(model, test_data, opt)
+        train(model, train_dataset, criterion, optimizer, opt)
+        test(model, test_dataset, opt)
         torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
         epoch_bar.update(1)
         epoch_bar.set_description("train acc: %.2e test acc: %.2e" % (train_acc, test_acc))
@@ -59,23 +55,21 @@ def train(model, dataset, criterion, optimizer, opt):
     loader_train = Data.DataLoader(dataset=dataset,
                                    batch_size=opt.batch_size,
                                    collate_fn=collate_fn,
-                                   shuffle=True,  # 顺序打乱
-                                   drop_last=True)  # 设置为'True'时，如果数据集大小不能被批处理大小整除，则删除最后一个不完整的批次
+                                   shuffle=True,  
+                                   drop_last=True)  
     model.train()
     total_acc_num = 0
     train_num = 0
     iter_bar = tqdm(total=len(loader_train), ncols=TQDM_NCOLS, leave=False)
     for i, (input_ids, attention_mask, token_type_ids, labels) in enumerate(loader_train):
-        output = model(input_ids=input_ids,  # input_ids: 编码之后的数字(即token)
-                       attention_mask=attention_mask,  # attention_mask: 其中 pad 的位置是 0 , 其他位置是 1
-                       token_type_ids=token_type_ids)  # token_type_ids: 第一个句子和特殊符号的位置是 0 , 第二个句子
-        # 计算 loss, 反向传播, 梯度清零
+        output = model(input_ids=input_ids, 
+                       attention_mask=attention_mask, 
+                       token_type_ids=token_type_ids)  
         loss = criterion(output, labels)
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
-        # 算 acc
-        output = output.argmax(dim=1)  # 取出所有在维度 1 上的最大值的下标
+        output = output.argmax(dim=1)  
         accuracy_num = (output == labels).sum().item()
         total_acc_num += accuracy_num
         train_num += loader_train.batch_size
@@ -103,9 +97,9 @@ def test(model, dataset, opt):
     model.eval()
     for t, (input_ids, attention_mask, token_type_ids, labels) in enumerate(loader_test):
         with torch.no_grad():
-            output = model(input_ids=input_ids,  # input_ids: 编码之后的数字(即token)
-                           attention_mask=attention_mask,  # attention_mask: 其中 pad 的位置是 0 , 其他位置是 1
-                           token_type_ids=token_type_ids)  # token_type_ids: 第一个句子和特殊符号的位置是 0 , 第二个句子
+            output = model(input_ids=input_ids,  
+                           attention_mask=attention_mask,  
+                           token_type_ids=token_type_ids)  
         output = output.argmax(dim=1)
         correct_num += (output == labels).sum().item()
         test_num += loader_test.batch_size
