@@ -18,6 +18,7 @@ def get_train_args():
     return opt
 
 def main(opt):
+    global train_acc
     pretrained_model = BertModel.from_pretrained('bert-base-chinese', cache_dir=bert_data_path+'/model/')  # 加载预训练模型
     model = Model(pretrained_model, opt)  # 构建自己的模型
     if os.path.exists(bert_data_path+'/model/bert_model.pth'):
@@ -38,6 +39,7 @@ def main(opt):
         test(model, test_data, opt)
         torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
         epoch_bar.update(1)
+        epoch_bar.write("train acc: %.2e test acc: %.2e" % (train_acc, test_acc))
     epoch_bar.close()
 
 
@@ -60,7 +62,7 @@ class Model(torch.nn.Module):
 
 
 def train(model, dataset, criterion, optimizer, opt):
-    global test_acc, last_save_time
+    global test_acc, last_save_time, train_acc
     loader_train = Data.DataLoader(dataset=dataset,
                                    batch_size=opt.batch_size,
                                    collate_fn=collate_fn,
@@ -85,14 +87,15 @@ def train(model, dataset, criterion, optimizer, opt):
         total_acc_num += accuracy_num
         train_num += loader_train.batch_size
         iter_bar.update(1)
-        iter_bar.set_description("loss: %.2e acc: %.2e test: %.2e" % (loss.item(), total_acc_num / train_num, test_acc))
+        iter_bar.set_description("loss: %.2e acc: %.2e" % (loss.item(), total_acc_num / train_num))
         if i % (len(loader_train) / 10) == 0 and time.time() - last_save_time > SAVE_INTERVAL:
             torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
             last_save_time = time.time()
             # print("train_schedule: [{}/{}] train_loss: {} train_acc: {}".format(i, len(loader_train),
             #                                                                     loss.item(), total_acc_num / train_num))
     iter_bar.close()
-    print("total train_acc: {}".format(total_acc_num / train_num))
+    train_acc = total_acc_num / train_num
+    # print("total train_acc: {}".format(total_acc_num / train_num))
 
 
 def test(model, dataset, opt):
@@ -145,9 +148,10 @@ def collate_fn(data):
 
 
 if __name__ == '__main__':
-    global test_acc, last_save_time
+    global test_acc, last_save_time, train_acc
     last_save_time = 0
     test_acc = 0
+    train_acc = 0
     opt = get_train_args()
     # device = 'cuda' if torch.cuda.is_available() else 'cpu'  # 全局变量
     print('Use: ', device)
