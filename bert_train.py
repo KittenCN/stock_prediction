@@ -112,7 +112,7 @@ def test(model, dataset, opt):
 
 def collate_fn(data):
     sentences = [tuple_x['text'] for tuple_x in data]
-    labels = [tuple_x['label'] for tuple_x in data]
+    labels = [int(tuple_x['label']) for tuple_x in data]
     token = BertTokenizer.from_pretrained('bert-base-chinese', cache_dir='./my_vocab')
     data = token.batch_encode_plus(batch_text_or_text_pairs=sentences,
                                    truncation=True,
