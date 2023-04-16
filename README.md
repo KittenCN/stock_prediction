@@ -1,6 +1,13 @@
 # 基于神经网络的通用股票预测模型 A general stock prediction model based on neural networks
 
 ## New
+* 20230416
+* 1. 已尝试修复之前发现的bug，目前没有复发的问题，如果有问题，请及时反馈
+*    The bug found previously has been tried to be fixed, and there is no problem that has been reoccurred. If there is a problem, please feedback as soon as possible.
+* 2. 增加针对文字进行情感分析的模型，支持中文，目前仅有数据处理及训练的代码，尚未合并到预测功能中，有兴趣的朋友可以自行尝试，欢迎提出建议
+*    Add a model for sentiment analysis of text, supporting Chinese, with only data processing and training code at present, not yet merged into the prediction function. Friends who are interested can try it on their own, welcome to make suggestions.
+* 3. NLP的模型，由于版权和其他问题，我没有提供数据，或数据下载的方式，请自行寻找数据源，或者使用自己的数据源，需要的格式为csv文件，包含label和text两列，label为0或1，text为文本内容，如果有兴趣，可以自行尝试，欢迎提出建议。
+*    Due to copyright and other issues, I did not provide data or data download methods for the NLP model. Please find your own data source, or use your own data source. The required format is a csv file with two columns, label and text. The label is 0 or 1, and the text is the text content. If you are interested, you can try it on your own, welcome to make suggestions.
 * 20230413
 * 目前发现的bug:  Bugs found so far:
 * 1. predict模式会倒是load data失败 (尝试修复)
