@@ -11,18 +11,19 @@ os.environ['NO_PROXY'] = 'huggingface.co'
 
 def get_train_args():
     parser=argparse.ArgumentParser()
-    parser.add_argument('--batch_size',type=int,default=1,help = '每批数据的数量')
-    parser.add_argument('--nepoch',type=int,default=3,help = '训练的轮次')
-    parser.add_argument('--lr',type=float,default=5e-4,help = '学习率')
-    # parser.add_argument('--num_workers',type=int,default=NUM_WORKERS,help='dataloader使用的线程数量')
-    parser.add_argument('--num_labels',type=int,default=2,help='分类类数')
+    parser.add_argument('--batch_size',type=int,default=1,help = 'batch_size')
+    parser.add_argument('--nepoch',type=int,default=3,help = 'nepoch')
+    parser.add_argument('--lr',type=float,default=5e-4,help = 'lr')
+    # parser.add_argument('--num_workers',type=int,default=NUM_WORKERS,help='dnum_workers')
+    parser.add_argument('--num_labels',type=int,default=2,help='num_labels')
+    parser.add_argument('--no_grad',type=int,default=1,help='no_grad')
     opt=parser.parse_args()
     print(opt)
     return opt
 
 def main(opt):
     global train_acc
-    pretrained_model = BertModel.from_pretrained(bert_data_path+'/base_model/bert-base-chinese', cache_dir=bert_data_path+'/model/')  # 加载预训练模型
+    pretrained_model = BertModel.from_pretrained(bert_data_path+'/base_model/bert-base-chinese', cache_dir=bert_data_path+'/model/')  
     model = Bert_Model(pretrained_model, opt)  # 构建自己的模型
     if os.path.exists(bert_data_path+'/model/bert_model.pth'):
         model.load_state_dict(torch.load(bert_data_path+'/model/bert_model.pth'))
@@ -58,6 +59,7 @@ def train(model, dataset, criterion, optimizer, opt, scheduler):
     global test_acc, last_save_time, train_acc
     loader_train = Data.DataLoader(dataset=dataset,
                                    batch_size=opt.batch_size,
+                                #    num_workers=opt.num_workers,
                                    collate_fn=collate_fn,
                                    shuffle=True,  
                                    drop_last=True)  
@@ -96,6 +98,7 @@ def test(model, dataset, opt):
     test_num = 0
     loader_test = Data.DataLoader(dataset=dataset,
                                   batch_size=opt.batch_size,
+                                #   num_workers=opt.num_workers,
                                   collate_fn=collate_fn,
                                   shuffle=True,
                                   drop_last=True)

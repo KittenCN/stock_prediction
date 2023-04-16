@@ -159,12 +159,18 @@ class Bert_Model(torch.nn.Module):
         self.dropout = nn.Dropout(0.1)
         self.layer_norm = nn.LayerNorm(768)
         self.fc = torch.nn.Linear(768, opt.num_labels)
+        self.opt = opt
 
     def forward(self, input_ids, attention_mask, token_type_ids):
-        with torch.no_grad():  
+        if self.opt.no_grad == 1:
+            with torch.no_grad():  
+                output = self.pretrain_model(input_ids=input_ids,  
+                                            attention_mask=attention_mask,  
+                                            token_type_ids=token_type_ids)
+        else:
             output = self.pretrain_model(input_ids=input_ids,  
-                                         attention_mask=attention_mask,  
-                                         token_type_ids=token_type_ids)
+                                        attention_mask=attention_mask,  
+                                        token_type_ids=token_type_ids)
         output = self.dropout(output[0][:, 0])
         output = self.layer_norm(output)
         output = self.fc(output)  
