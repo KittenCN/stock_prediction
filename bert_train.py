@@ -66,6 +66,7 @@ def train(model, dataset, criterion, optimizer, opt, scheduler):
     model.train()
     total_acc_num = 0
     train_num = 0
+    total_loss_num = 0
     iter_bar = tqdm(total=len(loader_train), ncols=TQDM_NCOLS, leave=False)
     for i, (input_ids, attention_mask, token_type_ids, labels) in enumerate(loader_train):
         output = model(input_ids=input_ids, 
@@ -76,11 +77,13 @@ def train(model, dataset, criterion, optimizer, opt, scheduler):
         optimizer.step()
         optimizer.zero_grad()
         output = output.argmax(dim=1)  
-        accuracy_num = (output - labels).sum().item()
+        accuracy_num = (output == labels).sum().item()
+        loss_num = abs((output - labels).sum().item())
+        total_loss_num += loss_num
         total_acc_num += accuracy_num
         train_num += loader_train.batch_size
         iter_bar.update(1)
-        iter_bar.set_description("loss: %.2e acc: %.2e" % (loss.item(), total_acc_num / train_num))
+        iter_bar.set_description("loss: %.2e acc: %.2e mean: %.2e" % (loss.item(), total_acc_num / train_num, total_loss_num / train_num))
         scheduler.step()
         if i % (len(loader_train) / 10) == 0 and time.time() - last_save_time > SAVE_INTERVAL:
             torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
