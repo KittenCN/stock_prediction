@@ -2,7 +2,7 @@ import torch
 import torch.utils.data as Data
 from transformers import BertModel
 from datasets import load_from_disk
-from transformers import BertTokenizer
+from transformers import BertTokenizer,get_linear_schedule_with_warmup
 # from transformers import AdamW
 from torch.optim import AdamW
 from common import *
@@ -37,21 +37,24 @@ def main(opt):
     csv_file_path = bert_data_path+'/data/test'
     test_dataset = csvToDataset(csv_file_path)
 
-    optimizer = AdamW(model.parameters(), lr=opt.lr)  # 优化器
+    total_steps = len(train_dataset) * opt.nepoch  
+    warmup_steps = total_steps * 0.1
+    optimizer = AdamW(model.parameters(), lr=opt.lr)  
+    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
     criterion = torch.nn.CrossEntropyLoss()  # 损失函数
     epochs = opt.nepoch  # 训练次数
     # 训练模型
     epoch_bar = tqdm(total=epochs, ncols=TQDM_NCOLS, leave=False)
     for i in range(epochs):
         # print("--------------- >>>> epoch : {} <<<< -----------------".format(i))
-        train(model, train_dataset, criterion, optimizer, opt)
+        train(model, train_dataset, criterion, optimizer, opt, scheduler)
         test(model, test_dataset, opt)
         torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
         epoch_bar.update(1)
         epoch_bar.set_description("train acc: %.2e test acc: %.2e" % (train_acc, test_acc))
     epoch_bar.close()
 
-def train(model, dataset, criterion, optimizer, opt):
+def train(model, dataset, criterion, optimizer, opt, scheduler):
     global test_acc, last_save_time, train_acc
     loader_train = Data.DataLoader(dataset=dataset,
                                    batch_size=opt.batch_size,
@@ -76,6 +79,7 @@ def train(model, dataset, criterion, optimizer, opt):
         train_num += loader_train.batch_size
         iter_bar.update(1)
         iter_bar.set_description("loss: %.2e acc: %.2e" % (loss.item(), total_acc_num / train_num))
+        scheduler.step()
         if i % (len(loader_train) / 10) == 0 and time.time() - last_save_time > SAVE_INTERVAL:
             torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
             last_save_time = time.time()

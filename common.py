@@ -93,13 +93,10 @@ class BertDataSet(torch.utils.data.Dataset):
         with open(bert_data_path+'/data'+'/Train_DataSet.csv',encoding='UTF-8') as f:
             for i in range(self.data_num+1):
                 line = f.readline()[:-1] + '这是一个中性的数据'
-
-                
+              
                 data_one_str = line.split(',')[len(line.split(','))-2]
                 data_two_str = line.split(',')[len(line.split(','))-1]
                 
-
-            
                 if len(data_one_str) < 6:
                     z = len(data_one_str)
                     data_one_str = data_one_str + '，' + data_two_str[0:min(200,len(data_two_str))]
@@ -108,7 +105,6 @@ class BertDataSet(torch.utils.data.Dataset):
                 if i==0:
                     continue
                 
-
                 word_l = self.tokenizer.encode(data_one_str, add_special_tokens=False)
                 if len(word_l)<100:
                     while(len(word_l)!=100):
@@ -120,7 +116,6 @@ class BertDataSet(torch.utils.data.Dataset):
                 l = word_l
                 word_l = [101]
                 word_l.extend(l)
-                
                 
                 self.x_list.append(torch.tensor(word_l))
 
@@ -161,6 +156,8 @@ class Bert_Model(torch.nn.Module):
     def __init__(self, pretrained_model, opt):
         super().__init__()
         self.pretrain_model = pretrained_model
+        self.dropout = nn.Dropout(0.1)
+        self.layer_norm = nn.LayerNorm(768)
         self.fc = torch.nn.Linear(768, opt.num_labels)
 
     def forward(self, input_ids, attention_mask, token_type_ids):
@@ -168,7 +165,9 @@ class Bert_Model(torch.nn.Module):
             output = self.pretrain_model(input_ids=input_ids,  
                                          attention_mask=attention_mask,  
                                          token_type_ids=token_type_ids)
-        output = self.fc(output[0][:, 0])  
+        output = self.dropout(output[0][:, 0])
+        output = self.layer_norm(output)
+        output = self.fc(output)  
         output = output.softmax(dim=1)  
         return output
     
