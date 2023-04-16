@@ -76,7 +76,7 @@ def train(model, dataset, criterion, optimizer, opt, scheduler):
         optimizer.step()
         optimizer.zero_grad()
         output = output.argmax(dim=1)  
-        accuracy_num = (output == labels).sum().item()
+        accuracy_num = (output - labels).sum().item()
         total_acc_num += accuracy_num
         train_num += loader_train.batch_size
         iter_bar.update(1)
