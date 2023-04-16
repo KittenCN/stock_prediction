@@ -47,12 +47,11 @@ def main(opt):
     # 训练模型
     epoch_bar = tqdm(total=epochs, ncols=TQDM_NCOLS, leave=False)
     for i in range(epochs):
-        # print("--------------- >>>> epoch : {} <<<< -----------------".format(i))
+        epoch_bar.set_description("train acc: %.2f%% test acc: %.2f%%" % (train_acc * 100, test_acc * 100))
         train(model, train_dataset, criterion, optimizer, opt, scheduler)
         test(model, test_dataset, opt)
         torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
         epoch_bar.update(1)
-        epoch_bar.set_description("train acc: %.2e test acc: %.2e" % (train_acc, test_acc))
     epoch_bar.close()
 
 def train(model, dataset, criterion, optimizer, opt, scheduler):
@@ -69,6 +68,7 @@ def train(model, dataset, criterion, optimizer, opt, scheduler):
     total_loss_num = 0
     iter_bar = tqdm(total=len(loader_train), ncols=TQDM_NCOLS, leave=False)
     for i, (input_ids, attention_mask, token_type_ids, labels) in enumerate(loader_train):
+        iter_bar.set_description("loss: %.2e mean: %.2f acc: %.2f%%" % (loss.item(), total_loss_num / train_num, total_acc_num / train_num * 100))
         output = model(input_ids=input_ids, 
                        attention_mask=attention_mask, 
                        token_type_ids=token_type_ids)  
@@ -83,7 +83,6 @@ def train(model, dataset, criterion, optimizer, opt, scheduler):
         total_acc_num += accuracy_num
         train_num += loader_train.batch_size
         iter_bar.update(1)
-        iter_bar.set_description("loss: %.2e mean: %.2f acc: %.2f%%" % (loss.item(), total_loss_num / train_num, total_acc_num / train_num * 100))
         scheduler.step()
         if i % (len(loader_train) / 10) == 0 and time.time() - last_save_time > SAVE_INTERVAL:
             torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
