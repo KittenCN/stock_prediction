@@ -74,13 +74,13 @@ def train(epoch, dataloader, scaler, ts_code=""):
         if (iteration % SAVE_NUM_ITER == 0 and time.time() - last_save_time >= SAVE_INTERVAL)  and safe_save == True:
             # torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_Model.pkl")
             # torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_Optimizer.pkl")
-            thread_save_model(model, optimizer, save_path)
+            thread_save_model(model, optimizer, save_path, loss.item())
             last_save_time = time.time()
 
     if (epoch % SAVE_NUM_EPOCH == 0 or epoch == EPOCH) and time.time() - last_save_time >= SAVE_INTERVAL and safe_save == True:
         # torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Model.pkl")
         # torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Optimizer.pkl")
-        thread_save_model(model, optimizer, save_path)
+        thread_save_model(model, optimizer, save_path, loss.item())
         last_save_time = time.time()
 
     subbar.close()
@@ -548,7 +548,7 @@ if __name__=="__main__":
             if (time.time() - last_save_time >= SAVE_INTERVAL or index == len(ts_codes) - 1) and safe_save == True:
                 # torch.save(model.state_dict(),save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Model.pkl")
                 # torch.save(optimizer.state_dict(),save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Optimizer.pkl")
-                thread_save_model(model, optimizer, save_path)
+                thread_save_model(model, optimizer, save_path, None)
                 last_save_time = time.time()
             if args.pkl_queue == 0:
                 code_bar.close()

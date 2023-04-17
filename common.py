@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 from prefetch_generator import BackgroundGenerator
 from init import *
 
+last_loss = 0
+
 class DataLoaderX(DataLoader):
     def __iter__(self):
         return BackgroundGenerator(super().__iter__())
@@ -725,14 +727,19 @@ def custom_collate(batch):
     else:
         return None
 
-def save_model(model, optimizer, save_path):
+def save_model(model, optimizer, save_path, loss=None):
     torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl")
     torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl")
+    if loss is not None:
+        if loss < last_loss:
+            torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model_best.pkl")
+            torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer_best.pkl")
+            last_loss = loss
 
-def thread_save_model(model, optimizer, save_path):
+def thread_save_model(model, optimizer, save_path, loss=None):
     _model = copy.deepcopy(model)
     _optimizer = copy.deepcopy(optimizer)
-    data_thread = threading.Thread(target=save_model, args=(_model, _optimizer, save_path,))
+    data_thread = threading.Thread(target=save_model, args=(_model, _optimizer, save_path, loss, ))
     data_thread.start()
 
 def deep_copy_queue(q):
