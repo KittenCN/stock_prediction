@@ -205,7 +205,7 @@ def json2file(save_path, record):
 def main():
 	if not os.path.exists(stock_data_path+'/comment/'):
 		os.makedirs(stock_data_path+'/comment/')
-	get_data('600691')
+	get_data('6005811')
 
 if __name__ == '__main__':
 	main()

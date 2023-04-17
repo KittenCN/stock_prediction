@@ -51,11 +51,14 @@ def main(opt):
         train(model, train_dataset, criterion, optimizer, opt, scheduler)
         test(model, test_dataset, opt)
         torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
+        if train_acc > train_best_acc:
+            train_best_acc = train_acc
+            torch.save(model.state_dict(),bert_data_path+'/model/bert_model_train_best.pth')
         epoch_bar.update(1)
     epoch_bar.close()
 
 def train(model, dataset, criterion, optimizer, opt, scheduler):
-    global test_acc, last_save_time, train_acc
+    global test_acc, last_save_time, train_acc, train_best_acc, test_best_acc
     loader_train = Data.DataLoader(dataset=dataset,
                                    batch_size=opt.batch_size,
                                 #    num_workers=opt.num_workers,
@@ -86,6 +89,9 @@ def train(model, dataset, criterion, optimizer, opt, scheduler):
         scheduler.step()
         if i % (len(loader_train) / 10) == 0 and time.time() - last_save_time > SAVE_INTERVAL:
             torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
+            if total_acc_num / train_num > train_best_acc:
+                train_best_acc = total_acc_num / train_num
+                torch.save(model.state_dict(),bert_data_path+'/model/bert_model_train_best.pth')
             last_save_time = time.time()
             # print("train_schedule: [{}/{}] train_loss: {} train_acc: {}".format(i, len(loader_train),
             #                                                                     loss.item(), total_acc_num / train_num))
@@ -95,7 +101,7 @@ def train(model, dataset, criterion, optimizer, opt, scheduler):
 
 
 def test(model, dataset, opt):
-    global test_acc
+    global test_acc, train_best_acc, test_best_acc
     correct_num = 0
     test_num = 0
     loader_test = Data.DataLoader(dataset=dataset,
@@ -116,6 +122,9 @@ def test(model, dataset, opt):
         # if t % 10 == 0:
         #     print("schedule: [{}/{}] acc: {}".format(t, len(loader_test), correct_num / test_num))
     test_acc = correct_num / test_num
+    if test_acc > test_best_acc:
+        test_best_acc = test_acc
+        torch.save(model.state_dict(),bert_data_path+'/model/bert_model_test_best.pth')
     # print("total test_acc: {}".format(correct_num / test_num))
 
 
@@ -142,11 +151,13 @@ def collate_fn(data):
 
 
 if __name__ == '__main__':
-    global test_acc, last_save_time, train_acc
+    global test_acc, last_save_time, train_acc, train_best_acc, test_best_acc
     max_length = 500
     last_save_time = 0
     test_acc = 0
     train_acc = 0
+    train_best_acc = 0
+    test_best_acc = 0
     opt = get_train_args()
     # device = 'cuda' if torch.cuda.is_available() else 'cpu'  # 全局变量
     print('Use: ', device)
