@@ -9,6 +9,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
 parser.add_argument('--model', default="transformer", type=str, help="lstm or transformer")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
+parser.add_argument('--cpu', default=0, type=int, help="only use cpu")
 parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of csv file")
 parser.add_argument('--pkl_queue', default=1, type=int, help="use pkl queue instead of csv file")
 parser.add_argument('--test_code', default="", type=str, help="test code")
@@ -21,7 +22,7 @@ if device.type == "cuda":
     torch.backends.cudnn.benchmark = True
 
 def train(epoch, dataloader, scaler, ts_code=""):
-    global loss, last_save_time, loss_list, iteration, lo_list, batch_none, data_none
+    global loss, last_save_time, loss_list, iteration, lo_list, batch_none, data_none, last_loss
     model.train()
     subbar = tqdm(total=len(dataloader), leave=False, ncols=TQDM_NCOLS)
     
@@ -55,9 +56,13 @@ def train(epoch, dataloader, scaler, ts_code=""):
                         continue
                 
             optimizer.zero_grad()
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
+            if device.type == "cuda":
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                loss.backward()
+                optimizer.step()
             if is_number(str(loss.item())):
                 loss_list.append(loss.item())
                 lo_list.append(loss.item())
@@ -74,13 +79,19 @@ def train(epoch, dataloader, scaler, ts_code=""):
         if (iteration % SAVE_NUM_ITER == 0 and time.time() - last_save_time >= SAVE_INTERVAL)  and safe_save == True:
             # torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_Model.pkl")
             # torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_Optimizer.pkl")
-            thread_save_model(model, optimizer, save_path, loss.item())
+            thread_save_model(model, optimizer, save_path)
+            if last_loss > loss.item():
+                last_loss = loss.item()
+                thread_save_model(model, optimizer, save_path, True)
             last_save_time = time.time()
 
     if (epoch % SAVE_NUM_EPOCH == 0 or epoch == EPOCH) and time.time() - last_save_time >= SAVE_INTERVAL and safe_save == True:
         # torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Model.pkl")
         # torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Optimizer.pkl")
-        thread_save_model(model, optimizer, save_path, loss.item())
+        thread_save_model(model, optimizer, save_path)
+        if last_loss > loss.item():
+                last_loss = loss.item()
+                thread_save_model(model, optimizer, save_path, True)
         last_save_time = time.time()
 
     subbar.close()
@@ -366,9 +377,14 @@ def contrast_lines(test_codes):
     plt.close()
 
 if __name__=="__main__":
+    global last_loss
+
+    last_loss = 1e10
     mode = args.mode
     model_mode = args.model.upper()
     PKL = False if args.pkl <= 0 else True
+    if args.cpu == 1:
+        device = torch.device("cpu")
 
     if model_mode=="LSTM":
         model=LSTM(dimension=INPUT_DIMENSION)
@@ -548,7 +564,7 @@ if __name__=="__main__":
             if (time.time() - last_save_time >= SAVE_INTERVAL or index == len(ts_codes) - 1) and safe_save == True:
                 # torch.save(model.state_dict(),save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Model.pkl")
                 # torch.save(optimizer.state_dict(),save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Optimizer.pkl")
-                thread_save_model(model, optimizer, save_path, None)
+                thread_save_model(model, optimizer, save_path, False)
                 last_save_time = time.time()
             if args.pkl_queue == 0:
                 code_bar.close()
