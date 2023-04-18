@@ -22,7 +22,7 @@ def get_train_args():
     return opt
 
 def main(opt):
-    global train_acc
+    global train_acc, train_best_acc, test_best_acc
     pretrained_model = BertModel.from_pretrained(bert_data_path+'/base_model/bert-base-chinese', cache_dir=bert_data_path+'/model/')  
     model = Bert_Model(pretrained_model, opt)  # 构建自己的模型
     if os.path.exists(bert_data_path+'/model/bert_model.pth'):
@@ -54,6 +54,9 @@ def main(opt):
         if train_acc > train_best_acc:
             train_best_acc = train_acc
             torch.save(model.state_dict(),bert_data_path+'/model/bert_model_train_best.pth')
+        if test_acc > test_best_acc:
+            test_best_acc = test_acc
+            torch.save(model.state_dict(),bert_data_path+'/model/bert_model_test_best.pth')
         epoch_bar.update(1)
     epoch_bar.close()
 
