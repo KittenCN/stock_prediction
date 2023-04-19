@@ -90,7 +90,7 @@ def train(model, dataset, criterion, optimizer, opt, scheduler):
         iter_bar.update(1)
         iter_bar.set_description("loss: %.2e mean: %.2f acc: %.2f%%" % (loss.item(), total_loss_num / train_num, total_acc_num / train_num * 100))
         scheduler.step()
-        if i % (len(loader_train) / 10) == 0 and time.time() - last_save_time > SAVE_INTERVAL:
+        if i % (len(loader_train) / 10) == 0 and abs(time.time() - last_save_time) >= SAVE_INTERVAL:
             torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
             if total_acc_num / train_num > train_best_acc:
                 train_best_acc = total_acc_num / train_num
