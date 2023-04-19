@@ -61,7 +61,7 @@ def main(opt):
     epoch_bar.close()
 
 def train(model, dataset, criterion, optimizer, opt, scheduler):
-    global test_acc, last_save_time, train_acc, train_best_acc, test_best_acc
+    global test_acc, train_acc, train_best_acc, test_best_acc
     loader_train = Data.DataLoader(dataset=dataset,
                                    batch_size=opt.batch_size,
                                 #    num_workers=opt.num_workers,
@@ -90,12 +90,11 @@ def train(model, dataset, criterion, optimizer, opt, scheduler):
         iter_bar.update(1)
         iter_bar.set_description("loss: %.2e mean: %.2f acc: %.2f%%" % (loss.item(), total_loss_num / train_num, total_acc_num / train_num * 100))
         scheduler.step()
-        if i % (len(loader_train) / 10) == 0 and abs(time.time() - last_save_time) >= SAVE_INTERVAL:
+        if i % (len(loader_train) / 10) == 0 :
             torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
-            if total_acc_num / train_num > train_best_acc:
-                train_best_acc = total_acc_num / train_num
-                torch.save(model.state_dict(),bert_data_path+'/model/bert_model_train_best.pth')
-            last_save_time = time.time()
+        if total_acc_num / train_num > train_best_acc:
+            train_best_acc = total_acc_num / train_num
+            torch.save(model.state_dict(),bert_data_path+'/model/bert_model_train_best.pth')
             # print("train_schedule: [{}/{}] train_loss: {} train_acc: {}".format(i, len(loader_train),
             #                                                                     loss.item(), total_acc_num / train_num))
     iter_bar.close()
@@ -154,9 +153,8 @@ def collate_fn(data):
 
 
 if __name__ == '__main__':
-    global test_acc, last_save_time, train_acc, train_best_acc, test_best_acc
+    global test_acc, train_acc, train_best_acc, test_best_acc
     max_length = 500
-    last_save_time = 0
     test_acc = 0
     train_acc = 0
     train_best_acc = 0
