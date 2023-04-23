@@ -80,19 +80,19 @@ def train(epoch, dataloader, scaler, ts_code=""):
             # torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_Model.pkl")
             # torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_Optimizer.pkl")
             thread_save_model(model, optimizer, save_path)
-            if last_loss > loss.item():
-                last_loss = loss.item()
-                thread_save_model(model, optimizer, save_path, True)
             last_save_time = time.time()
+        if last_loss > loss.item():
+            last_loss = loss.item()
+            thread_save_model(model, optimizer, save_path, True)
 
     if (epoch % SAVE_NUM_EPOCH == 0 or epoch == EPOCH) and time.time() - last_save_time >= SAVE_INTERVAL and safe_save == True:
         # torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Model.pkl")
         # torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Optimizer.pkl")
         thread_save_model(model, optimizer, save_path)
-        if last_loss > loss.item():
-                last_loss = loss.item()
-                thread_save_model(model, optimizer, save_path, True)
         last_save_time = time.time()
+    if last_loss > loss.item():
+        last_loss = loss.item()
+        thread_save_model(model, optimizer, save_path, True)
 
     subbar.close()
 
