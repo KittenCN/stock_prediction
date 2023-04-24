@@ -18,7 +18,7 @@ from tqdm import tqdm
 from transformers import BertModel,BertPreTrainedModel,BertForSequenceClassification,BertTokenizer,AutoTokenizer,AutoModelForSequenceClassification
 
 TRAIN_WEIGHT=0.9
-SEQ_LEN=5
+SEQ_LEN=30
 LEARNING_RATE=0.00001   # 0.00001
 WEIGHT_DECAY=0.05   # 0.05
 BATCH_SIZE=4
