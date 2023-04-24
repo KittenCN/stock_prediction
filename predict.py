@@ -14,7 +14,7 @@ parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of 
 parser.add_argument('--pkl_queue', default=1, type=int, help="use pkl queue instead of csv file")
 parser.add_argument('--test_code', default="", type=str, help="test code")
 parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu or not")
-parser.add_argument('--predict_days', default=15, type=int, help="number of the predict days")
+parser.add_argument('--predict_days', default=5, type=int, help="number of the predict days")
 args = parser.parse_args()
 last_save_time = 0
 
@@ -186,16 +186,24 @@ def predict(test_codes):
         predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
         predict_data = predict_data.dropna()
         stock_predict = Stock_Data(mode=2, dataFrame=predict_data, label_num=OUTPUT_DIMENSION)
-        dataloader = DataLoader(dataset=stock_predict, batch_size=1, shuffle=False, drop_last=True, num_workers=NUM_WORKERS, pin_memory=True)
+        dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False, drop_last=False, num_workers=NUM_WORKERS, pin_memory=True)
         accuracy_list, predict_list = [], []
         test_loss, predict_list = test(dataloader)
         if test_loss == -1 and predict_list == -1:
             return
         _tmp = []
         prediction_list = []
-        for index in range(OUTPUT_DIMENSION):
-            if use_list[index] == 1:
-                _tmp.append((predict_list[0][0][index]*std_list[index]+mean_list[index]).cpu().item())
+        # for index in range(OUTPUT_DIMENSION):
+        #     if use_list[index] == 1:
+        #         _tmp.append((predict_list[0][0][index]*std_list[index]+mean_list[index]).cpu().item())
+        for items in predict_list:
+            items=items.to("cpu", non_blocking=True)
+            for idxs in items:
+                _tmp = []
+                for index, item in enumerate(idxs):
+                    if use_list[index] == 1:
+                        # prediction_list.append(np.array((item[idx]*std_list[0]+mean_list[0])))
+                        _tmp.append((item*std_list[index]+mean_list[index]).detach().numpy())
         date_str = lastdate
         date_obj = datetime.strptime(date_str, "%Y%m%d")
         new_date_obj = date_obj + timedelta(days=1)
@@ -234,18 +242,20 @@ def predict(test_codes):
         pbar.update(1)
     pbar.close()
 
+    show_days = 7
     datalist = predict_data.iloc[:, 2:2+OUTPUT_DIMENSION].values.tolist()[::-1]
-    real_list = datalist[:len(datalist)-int(args.predict_days)]
+    real_list = datalist[len(datalist)-int(args.predict_days)-show_days:len(datalist)-int(args.predict_days)]
     prediction_list = datalist[len(datalist)-int(args.predict_days)-1:]
     pbar = tqdm(total=OUTPUT_DIMENSION, leave=False, ncols=TQDM_NCOLS)
     for i in range(OUTPUT_DIMENSION):
         _real_list = np.transpose(real_list)[i]
         _prediction_list = np.transpose(prediction_list)[i]
         plt.figure()
-        x1 = np.linspace(0, len(_real_list), len(_real_list))
+        # x1 = np.linspace(len(_real_list), len(_real_list), len(_real_list))
+        x1 = np.linspace(len(_real_list) - show_days, len(_real_list), show_days)
         x2 = np.linspace(len(_real_list), len(_real_list) + len(_prediction_list), len(_prediction_list))
         plt.plot(x1, np.array(_real_list), label="real_"+name_list[i])
-        plt.plot(x2, np.array(_prediction_list), label="prediction_"+name_list[i])
+        plt.plot(x2, np.array(_prediction_list), label="prediction_"+name_list[i], linewidth=0.75, linestyle='--')
         plt.legend()
         now = datetime.now()
         date_string = now.strftime("%Y%m%d%H%M%S")
@@ -321,7 +331,7 @@ def contrast_lines(test_codes):
     stock_train = Stock_Data(mode=0, dataFrame=Train_data, label_num=OUTPUT_DIMENSION)
     stock_test = Stock_Data(mode=1, dataFrame=Test_data, label_num=OUTPUT_DIMENSION)
 
-    dataloader = DataLoader(dataset=stock_test, batch_size=BATCH_SIZE, shuffle=False, drop_last=True, num_workers=NUM_WORKERS, pin_memory=True)
+    dataloader = DataLoader(dataset=stock_test, batch_size=BATCH_SIZE, shuffle=False, drop_last=False, num_workers=NUM_WORKERS, pin_memory=True)
     accuracy_list, predict_list = [], []
     test_loss, predict_list = test(dataloader)
     if test_loss == -1 and predict_list == -1:
@@ -332,7 +342,7 @@ def contrast_lines(test_codes):
     real_list = []
     prediction_list = []
     for i,(_,label) in enumerate(dataloader):
-        for idx in range(BATCH_SIZE):
+        for idx in range(label.shape[0]):
             _tmp = []
             for index in range(OUTPUT_DIMENSION):
                 if use_list[index] == 1:
@@ -363,7 +373,7 @@ def contrast_lines(test_codes):
             x1 = np.linspace(0, len(_real_list), len(_real_list))
             x2 = np.linspace(0, len(_prediction_list), len(_prediction_list))
             plt.plot(x1, np.array(_real_list), label="real_"+name_list[i])
-            plt.plot(x2, np.array(_prediction_list), label="prediction_"+name_list[i])
+            plt.plot(x2, np.array(_prediction_list), label="prediction_"+name_list[i], linewidth=0.75, linestyle='--')
             plt.legend()
             now = datetime.now()
             date_string = now.strftime("%Y%m%d%H%M%S")

@@ -245,9 +245,22 @@ class Stock_Data(Dataset):
         elif self.mode == 2:
             value = torch.rand(1, SEQ_LEN, self.data.shape[1])
             label = torch.rand(1, label_num)
-            for i in range(0, SEQ_LEN):
-                _i = SEQ_LEN - i - 1
-                value[0, i, :] = torch.from_numpy(self.data[_i, :].reshape(1, self.data.shape[1]))
+            # for i in range(0, SEQ_LEN):
+            #     _i = SEQ_LEN - i - 1
+            #     value[0, i, :] = torch.from_numpy(self.data[_i, :].reshape(1, self.data.shape[1]))
+            _value_tmp = np.copy(np.flip(self.data[0:SEQ_LEN, :].reshape(SEQ_LEN, self.data.shape[1]), 0))
+            value[0, :, :] = torch.from_numpy(_value_tmp)
+            # value = torch.rand(self.data.shape[0] - SEQ_LEN + 1, SEQ_LEN, self.data.shape[1])
+            # label = torch.rand(self.data.shape[0] - SEQ_LEN + 1, label_num)
+
+            # for i in range(self.data.shape[0] - SEQ_LEN + 1):
+            #     _value_tmp = np.copy(np.flip(self.data[i:i + SEQ_LEN, :].reshape(SEQ_LEN, self.data.shape[1]), 0))
+            #     value[i, :, :] = torch.from_numpy(_value_tmp)
+
+            #     _tmp = []
+            #     for index in range(label_num):
+            #         if use_list[index] == 1:
+            #             _tmp.append(self.data[i, index])
                 
         _value = value.flip(0)
         _label = label.flip(0)
