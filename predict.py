@@ -25,7 +25,8 @@ def train(epoch, dataloader, scaler, ts_code="", test_dataloader=None):
     global loss, last_save_time, loss_list, iteration, lo_list, batch_none, data_none, last_loss
     model.train()
     subbar = tqdm(total=len(dataloader), leave=False, ncols=TQDM_NCOLS)
-    test_iner = len(dataloader) // 100
+    test_iner = len(dataloader) // TEST_INTERVAL
+    safe_save = False
     for batch in dataloader:
         try:
             safe_save = False
@@ -75,12 +76,12 @@ def train(epoch, dataloader, scaler, ts_code="", test_dataloader=None):
             safe_save = False
             subbar.update(1)
             continue
-        if (iteration % test_iner == 0):
-            testmodel = copy.deepcopy(model)
-            test_loss, predict_list = test(test_dataloader, testmodel)
-            if last_loss > test_loss:
-                last_loss = test_loss
-                thread_save_model(model, optimizer, save_path, True)
+        # if (iteration % test_iner == 0):
+        #     testmodel = copy.deepcopy(model)
+        #     test_loss, predict_list = test(test_dataloader, testmodel)
+        #     if last_loss > test_loss:
+        #         last_loss = test_loss
+        #         thread_save_model(model, optimizer, save_path, True)
 
         if (iteration % SAVE_NUM_ITER == 0 and time.time() - last_save_time >= SAVE_INTERVAL)  and safe_save == True:
             # torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_Model.pkl")
@@ -94,11 +95,11 @@ def train(epoch, dataloader, scaler, ts_code="", test_dataloader=None):
         # torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Optimizer.pkl")
         thread_save_model(model, optimizer, save_path)
         last_save_time = time.time()
-    testmodel = copy.deepcopy(model)
-    test_loss, predict_list = test(test_dataloader, testmodel)
-    if last_loss > test_loss:
-        last_loss = test_loss
-        thread_save_model(model, optimizer, save_path, True)
+    # testmodel = copy.deepcopy(model)
+    # test_loss, predict_list = test(test_dataloader, testmodel)
+    # if last_loss > test_loss:
+    #     last_loss = test_loss
+    #     thread_save_model(model, optimizer, save_path, True)
 
     subbar.close()
 
@@ -482,10 +483,12 @@ if __name__=="__main__":
                     except queue.Empty:
                         break
                     _data = _data.dropna()
+                    if _data.empty:
+                        continue
                     if _data['ts_code'][0] in train_codes:
                         data_queue.put(_data)
                         total_length += len(_data) - SEQ_LEN
-                    else:
+                    if _data['ts_code'][0] in test_codes:
                         test_queue.put(_data)
                         total_test_length += len(_data) - SEQ_LEN
             codes_len = data_queue.qsize()

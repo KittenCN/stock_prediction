@@ -342,7 +342,7 @@ class stock_queue_dataset(Dataset):
             test_mean_list.clear()
             test_std_list.clear()
             for i in range(len(data[0])):
-                if self.mode in [0, 2]:
+                if self.mode not in [0, 2]:
                     test_mean_list.append(np.mean(data[:, i]))
                     test_std_list.append(np.std(data[:, i]))
 
