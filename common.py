@@ -427,11 +427,11 @@ class stock_queue_dataset(Dataset):
         return value, label
 
     def __len__(self):
-        # if self.data_queue is None:
-        #     return len(self.value_buffer)
-        # else:
-        #     return self.total_length
-        return self.total_length
+        if self.data_queue is None:
+            return len(self.value_buffer)
+        else:
+            return self.total_length
+        # return self.total_length
 
 #LSTM模型
 class LSTM(nn.Module):

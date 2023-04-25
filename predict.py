@@ -121,19 +121,24 @@ def test(dataloader, testmodel=None):
     pbar = tqdm(total=len(dataloader), leave=False, ncols=TQDM_NCOLS)
     with torch.no_grad():
         for data, label in dataloader:
-            if args.test_gpu == 1:
-                data, label = data.to(device, non_blocking=True), label.to(device, non_blocking=True)
-            else:
-                data, label = data.to("cpu", non_blocking=True), label.to("cpu", non_blocking=True)
-            # test_optimizer.zero_grad()
-            predict = test_model.forward(data, label)
-            predict_list.append(predict)
-            if(predict.shape == label.shape):
-                accuracy = accuracy_fn(predict, label)
-                accuracy_list.append(accuracy.item())
-                pbar.update(1)
-            else:
-                tqdm.write(f"test error: predict.shape != label.shape")
+            try:
+                if args.test_gpu == 1:
+                    data, label = data.to(device, non_blocking=True), label.to(device, non_blocking=True)
+                else:
+                    data, label = data.to("cpu", non_blocking=True), label.to("cpu", non_blocking=True)
+                # test_optimizer.zero_grad()
+                predict = test_model.forward(data, label)
+                predict_list.append(predict)
+                if(predict.shape == label.shape):
+                    accuracy = accuracy_fn(predict, label)
+                    accuracy_list.append(accuracy.item())
+                    pbar.update(1)
+                else:
+                    tqdm.write(f"test error: predict.shape != label.shape")
+                    pbar.update(1)
+                    continue
+            except Exception as e:
+                print(f"test error: {e}")
                 pbar.update(1)
                 continue
     pbar.close()
@@ -487,10 +492,10 @@ if __name__=="__main__":
                         continue
                     if _data['ts_code'][0] in train_codes:
                         data_queue.put(_data)
-                        total_length += len(_data) - SEQ_LEN
+                        total_length += _data.shape[0] - SEQ_LEN
                     if _data['ts_code'][0] in test_codes:
                         test_queue.put(_data)
-                        total_test_length += len(_data) - SEQ_LEN
+                        total_test_length += _data.shape[0] - SEQ_LEN
             codes_len = data_queue.qsize()
             # while data_queue.empty() == False:
             #     data_list += [data_queue.get()]

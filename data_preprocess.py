@@ -16,7 +16,7 @@ if __name__ == ("__main__"):
     # data_thread = threading.Thread(target=load_data, args=(ts_codes,))
     # data_thread.start()
     load_data(ts_codes, True)
-    pbar = tqdm(total=len(ts_codes), leave=False)
+    pbar = tqdm(total=len(ts_codes), leave=False, ncols=TQDM_NCOLS)
     while data_queue.empty() == False:
         try:
             data = data_queue.get(timeout=1)
