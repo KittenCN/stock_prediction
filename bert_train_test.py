@@ -15,8 +15,6 @@ def get_train_args():
 
 def get_model(opt):
     model = BertForSequenceClassification.from_pretrained(checkpoint,num_labels=opt.num_labels)
-    # tokenizer = AutoTokenizer.from_pretrained(checkpoint)
-    # model = AutoModelForSequenceClassification.from_pretrained(checkpoint)
     return model
 
 def get_data(opt):
@@ -27,7 +25,6 @@ def get_data(opt):
     return trainloader,testloader
 
 def train(epoch,model,trainloader,testloader,optimizer,opt):
-    # print('\ntrain-Epoch: %d' % (epoch+1))
     global last_save_time
     model.train()
     start_time = time.time()
@@ -48,15 +45,12 @@ def train(epoch,model,trainloader,testloader,optimizer,opt):
         pbar.update(1)
         pbar.set_description("loss:%.2e" % loss.mean())
         if (batch_idx % print_step == 0 and time.time() - last_save_time >= SAVE_INTERVAL):
-            # print("Epoch:%d [%d|%d] loss:%f" %(epoch+1,batch_idx,len(trainloader),loss.mean()))
             last_save_time = time.time()
             torch.save(model.state_dict(),bert_data_path+'/model/bert_model.pth')
     pbar.close()
-    # print("time:%.3f" % (time.time() - start_time))
 
 
 def test(epoch,model,trainloader,testloader,opt):
-    # print('\ntest-Epoch: %d' % (epoch+1))
     model.eval()
     total=0
     correct=0
@@ -91,7 +85,6 @@ if __name__=='__main__':
     if device != 'cpu':
         model.cuda()
     
-    # optimizer=torch.optim.SGD(model.parameters(),lr=opt.lr,momentum=0.9)
     optimizer=torch.optim.AdamW(model.parameters(),lr=opt.lr)
     
     if os.path.exists(bert_data_path+'/model/bert_model.pth'):

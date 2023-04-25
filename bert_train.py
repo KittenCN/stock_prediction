@@ -30,8 +30,6 @@ def main(opt):
     # 如果有 gpu, 就用 gpu
     if torch.cuda.is_available():
         model.to(device)
-    # train_data = load_from_disk(bert_data_path+'/data/ChnSentiCorp/')['train']  # 加载训练数据
-    # test_data = load_from_disk(bert_data_path+'/data/ChnSentiCorp/')['test']  # 加载测试数据
 
     csv_file_path = bert_data_path+'/data/train'
     train_dataset = csvToDataset(csv_file_path)
@@ -95,12 +93,8 @@ def train(model, dataset, criterion, optimizer, opt, scheduler):
         if total_acc_num / train_num > train_best_acc:
             train_best_acc = total_acc_num / train_num
             torch.save(model.state_dict(),bert_data_path+'/model/bert_model_train_best.pth')
-            # print("train_schedule: [{}/{}] train_loss: {} train_acc: {}".format(i, len(loader_train),
-            #                                                                     loss.item(), total_acc_num / train_num))
     iter_bar.close()
     train_acc = total_acc_num / train_num
-    # print("total train_acc: {}".format(total_acc_num / train_num))
-
 
 def test(model, dataset, opt):
     global test_acc, train_best_acc, test_best_acc
@@ -121,14 +115,10 @@ def test(model, dataset, opt):
         output = output.argmax(dim=1)
         correct_num += (output == labels).sum().item()
         test_num += loader_test.batch_size
-        # if t % 10 == 0:
-        #     print("schedule: [{}/{}] acc: {}".format(t, len(loader_test), correct_num / test_num))
     test_acc = correct_num / test_num
     if test_acc > test_best_acc:
         test_best_acc = test_acc
         torch.save(model.state_dict(),bert_data_path+'/model/bert_model_test_best.pth')
-    # print("total test_acc: {}".format(correct_num / test_num))
-
 
 def collate_fn(data):
     sentences = [tuple_x['text'] for tuple_x in data]
@@ -160,7 +150,6 @@ if __name__ == '__main__':
     train_best_acc = 0
     test_best_acc = 0
     opt = get_train_args()
-    # device = 'cuda' if torch.cuda.is_available() else 'cpu'  # 全局变量
     print('Use: ', device)
     main(opt)
 
