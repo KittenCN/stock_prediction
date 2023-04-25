@@ -21,11 +21,11 @@ last_save_time = 0
 if device.type == "cuda":
     torch.backends.cudnn.benchmark = True
 
-def train(epoch, dataloader, scaler, ts_code=""):
+def train(epoch, dataloader, scaler, ts_code="", test_dataloader=None):
     global loss, last_save_time, loss_list, iteration, lo_list, batch_none, data_none, last_loss
     model.train()
     subbar = tqdm(total=len(dataloader), leave=False, ncols=TQDM_NCOLS)
-    
+    test_iner = len(dataloader) // 100
     for batch in dataloader:
         try:
             safe_save = False
@@ -75,37 +75,46 @@ def train(epoch, dataloader, scaler, ts_code=""):
             safe_save = False
             subbar.update(1)
             continue
+        if (iteration % test_iner == 0):
+            testmodel = copy.deepcopy(model)
+            test_loss, predict_list = test(test_dataloader, testmodel)
+            if last_loss > test_loss:
+                last_loss = test_loss
+                thread_save_model(model, optimizer, save_path, True)
 
         if (iteration % SAVE_NUM_ITER == 0 and time.time() - last_save_time >= SAVE_INTERVAL)  and safe_save == True:
             # torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_Model.pkl")
             # torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_Optimizer.pkl")
             thread_save_model(model, optimizer, save_path)
             last_save_time = time.time()
-        if last_loss > loss.item():
-            last_loss = loss.item()
-            thread_save_model(model, optimizer, save_path, True)
+        
 
     if (epoch % SAVE_NUM_EPOCH == 0 or epoch == EPOCH) and time.time() - last_save_time >= SAVE_INTERVAL and safe_save == True:
         # torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Model.pkl")
         # torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) +  "_Optimizer.pkl")
         thread_save_model(model, optimizer, save_path)
         last_save_time = time.time()
-    if last_loss > loss.item():
-        last_loss = loss.item()
+    testmodel = copy.deepcopy(model)
+    test_loss, predict_list = test(test_dataloader, testmodel)
+    if last_loss > test_loss:
+        last_loss = test_loss
         thread_save_model(model, optimizer, save_path, True)
 
     subbar.close()
 
 
-def test(dataloader):
+def test(dataloader, testmodel=None):
+    global test_model
     predict_list = []
     accuracy_list = []
-    if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"):
-        test_model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl"))
+    if testmodel is None:
+        if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"):
+            test_model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl"))
+        else:
+            tqdm.write("No model found")
+            return -1, -1
     else:
-        tqdm.write("No model found")
-        return -1, -1
-
+        test_model = test_model
     test_model.eval()
     accuracy_fn = nn.MSELoss()
     pbar = tqdm(total=len(dataloader), leave=False, ncols=TQDM_NCOLS)
@@ -328,7 +337,7 @@ def contrast_lines(test_codes):
         print("Error: Train_data or Test_data is None")
         return -1
 
-    stock_train = Stock_Data(mode=0, dataFrame=Train_data, label_num=OUTPUT_DIMENSION)
+    # stock_train = Stock_Data(mode=0, dataFrame=Train_data, label_num=OUTPUT_DIMENSION)
     stock_test = Stock_Data(mode=1, dataFrame=Test_data, label_num=OUTPUT_DIMENSION)
 
     dataloader = DataLoader(dataset=stock_test, batch_size=BATCH_SIZE, shuffle=False, drop_last=False, num_workers=NUM_WORKERS, pin_memory=True)
@@ -347,7 +356,7 @@ def contrast_lines(test_codes):
             for index in range(OUTPUT_DIMENSION):
                 if use_list[index] == 1:
                     # real_list.append(np.array(label[idx]*std_list[0]+mean_list[0]))
-                    _tmp.append(label[idx][index]*std_list[index]+mean_list[index])
+                    _tmp.append(label[idx][index]*test_std_list[index]+test_mean_list[index])
             real_list.append(np.array(_tmp))
     # real_list = copy.deepcopy(stock_test.label.numpy())
     # for i in range(len(real_list[0])):
@@ -360,7 +369,7 @@ def contrast_lines(test_codes):
             for index, item in enumerate(idxs):
                 if use_list[index] == 1:
                     # prediction_list.append(np.array((item[idx]*std_list[0]+mean_list[0])))
-                    _tmp.append(item*std_list[index]+mean_list[index])
+                    _tmp.append(item*test_std_list[index]+test_mean_list[index])
             prediction_list.append(np.array(_tmp))
     # real_list = real_list[abs(len(real_list)-len(prediction_list)):]
     pbar = tqdm(total=OUTPUT_DIMENSION, ncols=TQDM_NCOLS)
@@ -387,7 +396,7 @@ def contrast_lines(test_codes):
     plt.close()
 
 if __name__=="__main__":
-    global last_loss
+    global last_loss,test_model,model
 
     last_loss = 1e10
     mode = args.mode
@@ -434,6 +443,8 @@ if __name__=="__main__":
         print("No model and optimizer file, train from scratch")
 
     period = 100
+    train_codes = []
+    test_codes = []
     print("Clean the data...")
     if symbol == 'Generic.Data':
         # ts_codes = get_stock_list()
@@ -443,11 +454,18 @@ if __name__=="__main__":
             ts_codes.append(os.path.basename(csv_file).rsplit(".", 1)[0])
     else:
         ts_codes = [symbol]
-    random.shuffle(ts_codes)
     if mode == 'train':
+        if len(ts_codes) > 1:
+            train_codes = ts_codes[:int(TRAIN_WEIGHT*len(ts_codes))]
+            test_codes = ts_codes[int(TRAIN_WEIGHT*len(ts_codes)):]
+        else:
+            train_codes = ts_codes
+            test_codes = ts_codes
+        random.shuffle(ts_codes)
         lo_list=[]
         data_len=0
         total_length = 0
+        total_test_length = 0
         if PKL is False:
             print("Load data from csv using thread ...")
             data_thread = threading.Thread(target=load_data, args=(ts_codes,))
@@ -464,8 +482,12 @@ if __name__=="__main__":
                     except queue.Empty:
                         break
                     _data = _data.dropna()
-                    data_queue.put(_data)
-                    total_length += len(_data) - SEQ_LEN
+                    if _data['ts_code'][0] in train_codes:
+                        data_queue.put(_data)
+                        total_length += len(_data) - SEQ_LEN
+                    else:
+                        test_queue.put(_data)
+                        total_test_length += len(_data) - SEQ_LEN
             codes_len = data_queue.qsize()
             # while data_queue.empty() == False:
             #     data_list += [data_queue.get()]
@@ -557,18 +579,21 @@ if __name__=="__main__":
                 index = len(ts_codes) - 1
                 tqdm.write("epoch: %d, data_queue size before deep copy: %d" % (epoch, data_queue.qsize()))
                 _stock_data_queue = deep_copy_queue(data_queue)
+                _stock_test_data_queue = deep_copy_queue(test_queue)
 
                 tqdm.write("epoch: %d, data_queue size after deep copy: %d" % (epoch, data_queue.qsize()))
                 tqdm.write("epoch: %d, _stock_data_queue size: %d" % (epoch, _stock_data_queue.qsize()))
+                
                 stock_train = stock_queue_dataset(mode=0, data_queue=_stock_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_length)
-            
+                stock_test = stock_queue_dataset(mode=1, data_queue=_stock_test_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_test_length)
             iteration=0
             loss_list=[]
              #开始训练神经网络
             train_dataloader=DataLoader(dataset=stock_train,batch_size=BATCH_SIZE,shuffle=False,drop_last=False, num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
+            test_dataloader=DataLoader(dataset=stock_test,batch_size=BATCH_SIZE,shuffle=False,drop_last=False, num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
             predict_list=[]
             accuracy_list=[]
-            train(epoch+1, train_dataloader, scaler, ts_code)
+            train(epoch+1, train_dataloader, scaler, ts_code, test_dataloader)
             if args.pkl_queue == 0:
                 code_bar.update(1)
             if (time.time() - last_save_time >= SAVE_INTERVAL or index == len(ts_codes) - 1) and safe_save == True:

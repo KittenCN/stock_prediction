@@ -18,7 +18,7 @@ from tqdm import tqdm
 from transformers import BertModel,BertPreTrainedModel,BertForSequenceClassification,BertTokenizer,AutoTokenizer,AutoModelForSequenceClassification
 
 TRAIN_WEIGHT=0.9
-SEQ_LEN=30
+SEQ_LEN=5
 LEARNING_RATE=0.00001   # 0.00001
 WEIGHT_DECAY=0.05   # 0.05
 BATCH_SIZE=4
@@ -44,9 +44,12 @@ loss_list=[]
 data_list=[]
 mean_list=[]
 std_list=[]
+test_mean_list = []
+test_std_list = []
 safe_save = False
 # data_queue=multiprocessing.Queue()
 data_queue=queue.Queue()
+test_queue=queue.Queue()
 stock_data_queue=queue.Queue()
 stock_list_queue = queue.Queue()
 csv_queue=queue.Queue()

@@ -220,12 +220,31 @@ class Stock_Data(Dataset):
         return data[:, 0:INPUT_DIMENSION]
 
     def normalize_data(self):
-        for i in range(len(self.data[0])):
-            if self.mode in [0, 2]:
-                mean_list.append(np.mean(self.data[:, i]))
-                std_list.append(np.std(self.data[:, i]))
+        # for i in range(len(self.data[0])):
+        #     if self.mode in [0, 2]:
+        #         mean_list.append(np.mean(self.data[:, i]))
+        #         std_list.append(np.std(self.data[:, i]))
 
-            self.data[:, i] = (self.data[:, i] - mean_list[i]) / (std_list[i] + 1e-8)
+        #     self.data[:, i] = (self.data[:, i] - mean_list[i]) / (std_list[i] + 1e-8)
+        if self.mode in [0, 2]:
+            mean_list.clear()
+            std_list.clear()
+            for i in range(len(self.data[0])):
+                if self.mode in [0, 2]:
+                    mean_list.append(np.mean(self.data[:, i]))
+                    std_list.append(np.std(self.data[:, i]))
+
+                self.data[:, i] = (self.data[:, i] - mean_list[i]) / (std_list[i] + 1e-8)
+        else:
+            test_mean_list.clear()
+            test_std_list.clear()
+            for i in range(len(self.data[0])):
+                if self.mode not in [0, 2]:
+                    test_mean_list.append(np.mean(self.data[:, i]))
+                    test_std_list.append(np.std(self.data[:, i]))
+
+                self.data[:, i] = (self.data[:, i] - test_mean_list[i]) / (test_std_list[i] + 1e-8)
+        return self.data
 
     def generate_value_label_tensors(self, label_num):
         if self.mode in [0, 1]:
@@ -313,12 +332,21 @@ class stock_queue_dataset(Dataset):
         if self.mode in [0, 2]:
             mean_list.clear()
             std_list.clear()
-        for i in range(len(data[0])):
-            if self.mode in [0, 2]:
-                mean_list.append(np.mean(data[:, i]))
-                std_list.append(np.std(data[:, i]))
+            for i in range(len(data[0])):
+                if self.mode in [0, 2]:
+                    mean_list.append(np.mean(data[:, i]))
+                    std_list.append(np.std(data[:, i]))
 
-            data[:, i] = (data[:, i] - mean_list[i]) / (std_list[i] + 1e-8)
+                data[:, i] = (data[:, i] - mean_list[i]) / (std_list[i] + 1e-8)
+        else:
+            test_mean_list.clear()
+            test_std_list.clear()
+            for i in range(len(data[0])):
+                if self.mode in [0, 2]:
+                    test_mean_list.append(np.mean(data[:, i]))
+                    test_std_list.append(np.std(data[:, i]))
+
+                data[:, i] = (data[:, i] - test_mean_list[i]) / (test_std_list[i] + 1e-8)
         return data
 
     def generate_value_label_tensors(self, data, label_num):
