@@ -81,6 +81,8 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
             if last_loss > test_loss:
                 last_loss = test_loss
                 thread_save_model(model, optimizer, save_path, True)
+                with open('loss.txt', 'w') as file:
+                    file.write(str(last_loss))
 
         if (iteration % SAVE_NUM_ITER == 0 and time.time() - last_save_time >= SAVE_INTERVAL)  and safe_save == True:
             thread_save_model(model, optimizer, save_path)
@@ -95,6 +97,8 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
     if last_loss > test_loss:
         last_loss = test_loss
         thread_save_model(model, optimizer, save_path, True)
+        with open('loss.txt', 'w') as file:
+            file.write(str(last_loss))
 
     subbar.close()
 
@@ -398,6 +402,11 @@ if __name__=="__main__":
     global last_loss,test_model,model,total_test_length
 
     last_loss = 1e10
+    if os.path.exists('loss.txt'):
+        with open('loss.txt', 'r') as file:
+            last_loss = float(file.read())
+    print("last_loss=", last_loss)
+
     mode = args.mode
     model_mode = args.model.upper()
     PKL = False if args.pkl <= 0 else True

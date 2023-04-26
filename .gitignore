@@ -148,6 +148,7 @@ Meteorological forecast/data/TXT
 !/readme/*
 
 api.txt
+loss.txt
 .vs/
 bert_data/
 my_vocab/
