@@ -151,7 +151,8 @@ def test(dataset, testmodel=None, dataloader_mode=0):
                 if(predict.shape == label.shape):
                     accuracy = accuracy_fn(predict, label)
                     accuracy_list.append(accuracy.item())
-                    pbar.set_description(f"test accuracy: {np.mean(accuracy_list):.2e}")
+                    if dataloader_mode not in [2]:
+                        pbar.set_description(f"test accuracy: {np.mean(accuracy_list):.2e}")
                     pbar.update(1)
                 else:
                     tqdm.write(f"test error: predict.shape != label.shape")
@@ -161,7 +162,8 @@ def test(dataset, testmodel=None, dataloader_mode=0):
                 tqdm.write(f"test error: {e}")
                 pbar.update(1)
                 continue
-    tqdm.write(f"test accuracy: {np.mean(accuracy_list)}")
+    if dataloader_mode not in [2]:
+        tqdm.write(f"test accuracy: {np.mean(accuracy_list)}")
     pbar.close()
     if not accuracy_list:
         accuracy_list = [0]
