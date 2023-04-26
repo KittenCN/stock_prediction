@@ -413,18 +413,22 @@ class stock_queue_dataset(Dataset):
             return None
 
     def __getitem__(self, index):
-        while self.buffer_index >= len(self.value_buffer):
-            self.value_buffer.clear()
-            self.label_buffer.clear()
-            self.buffer_index = 0
-            ans = self.process_data()
-            if ans is None:
-                break
-        if self.buffer_index >= len(self.value_buffer):
+        try:
+            while self.buffer_index >= len(self.value_buffer):
+                self.value_buffer.clear()
+                self.label_buffer.clear()
+                self.buffer_index = 0
+                ans = self.process_data()
+                if ans is None:
+                    break
+            if self.buffer_index >= len(self.value_buffer):
+                return None, None
+            value, label = self.value_buffer[self.buffer_index], self.label_buffer[self.buffer_index]
+            self.buffer_index += 1
+            return value, label
+        except Exception as e:
+            print(e)
             return None, None
-        value, label = self.value_buffer[self.buffer_index], self.label_buffer[self.buffer_index]
-        self.buffer_index += 1
-        return value, label
 
     def __len__(self):
         if self.data_queue is None:
@@ -781,7 +785,8 @@ def thread_save_model(model, optimizer, save_path, best_model=False):
     data_thread.start()
 
 def deep_copy_queue(q):
-    new_q = multiprocessing.Queue()
+    # new_q = multiprocessing.Queue()
+    new_q = queue.Queue()
     temp_q = []
     while not q.empty():
         try:

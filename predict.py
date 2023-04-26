@@ -121,7 +121,7 @@ def test(dataset, testmodel=None, dataloader_mode=0):
             tqdm.write("No model found")
             return -1, -1
     else:
-        test_model = test_model
+        test_model = testmodel
     test_model.eval()
     accuracy_fn = nn.MSELoss()
     pbar = tqdm(total=len(dataloader), leave=False, ncols=TQDM_NCOLS)
@@ -147,6 +147,7 @@ def test(dataset, testmodel=None, dataloader_mode=0):
                 if(predict.shape == label.shape):
                     accuracy = accuracy_fn(predict, label)
                     accuracy_list.append(accuracy.item())
+                    pbar.set_description(f"test accuracy: {np.mean(accuracy_list):.2e}")
                     pbar.update(1)
                 else:
                     tqdm.write(f"test error: predict.shape != label.shape")
@@ -156,6 +157,7 @@ def test(dataset, testmodel=None, dataloader_mode=0):
                 tqdm.write(f"test error: {e}")
                 pbar.update(1)
                 continue
+    tqdm.write(f"test accuracy: {np.mean(accuracy_list)}")
     pbar.close()
     if not accuracy_list:
         accuracy_list = [0]
