@@ -579,7 +579,7 @@ if __name__=="__main__":
             train_dataloader=DataLoader(dataset=stock_train,batch_size=BATCH_SIZE,shuffle=False,drop_last=False, num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
             predict_list=[]
             accuracy_list=[]
-            train(epoch+1, train_dataloader, scaler, ts_code, data_queue)
+            train(epoch+1, train_dataloader, scaler, ts_code, test_queue)
             if args.pkl_queue == 0:
                 code_bar.update(1)
             if (time.time() - last_save_time >= SAVE_INTERVAL or index == len(ts_codes) - 1) and safe_save == True:
