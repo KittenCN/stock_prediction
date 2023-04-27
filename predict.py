@@ -466,8 +466,18 @@ if __name__=="__main__":
         ts_codes = [symbol]
     if mode == 'train':
         if len(ts_codes) > 1:
-            train_codes = ts_codes[:int(TRAIN_WEIGHT*len(ts_codes))]
-            test_codes = ts_codes[int(TRAIN_WEIGHT*len(ts_codes)):]
+            # train_codes = ts_codes[:int(TRAIN_WEIGHT*len(ts_codes))]
+            # test_codes = ts_codes[int(TRAIN_WEIGHT*len(ts_codes)):]
+            if os.path.exists("test_codes.txt"):
+                with open("test_codes.txt", 'r') as f:
+                    test_codes = f.read().splitlines()
+                train_codes = list(set(ts_codes) - set(test_codes))
+            else:
+                train_codes = random.sample(ts_codes, int(TRAIN_WEIGHT*len(ts_codes)))
+                test_codes = list(set(ts_codes) - set(train_codes))
+                with open("test_codes.txt", 'w') as f:
+                    for test_code in test_codes:
+                        f.write(test_code + "\n")
         else:
             train_codes = ts_codes
             test_codes = ts_codes
@@ -606,21 +616,21 @@ if __name__=="__main__":
             print("Start create image for loss")
             loss_curve(lo_list)
         print("Start create image for pred-real")
-        test_index = random.randint(0, len(ts_codes) - 1)
-        test_code = [ts_codes[test_index]]
+        test_index = random.randint(0, len(test_codes) - 1)
+        test_code = [test_codes[test_index]]
         while contrast_lines(test_code) == -1:
-            test_index = random.randint(0, len(ts_codes) - 1)
-            test_code = [ts_codes[test_index]]
+            test_index = random.randint(0, len(test_codes) - 1)
+            test_code = [test_codes[test_index]]
         print("train epoch: %d" % (last_epoch))
     elif mode == "test":
         if args.test_code != "" or args.test_code == "all":
             test_code = [args.test_code]
         else:
-            test_index = random.randint(0, len(ts_codes) - 1)
-            test_code = [ts_codes[test_index]]
+            test_index = random.randint(0, len(test_codes) - 1)
+            test_code = [test_codes[test_index]]
         while contrast_lines(test_code) == -1:
-            test_index = random.randint(0, len(ts_codes) - 1)
-            test_code = [ts_codes[test_index]]
+            test_index = random.randint(0, len(test_codes) - 1)
+            test_code = [test_codes[test_index]]
     elif mode == "predict":
         if args.test_code == "":
             print("Error: test_code is empty")

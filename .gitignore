@@ -149,6 +149,7 @@ Meteorological forecast/data/TXT
 
 api.txt
 loss.txt
+test_codes.txt
 .vs/
 bert_data/
 my_vocab/
