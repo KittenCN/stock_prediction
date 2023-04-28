@@ -502,12 +502,15 @@ if __name__=="__main__":
                     _data = _data.dropna()
                     if _data.empty:
                         continue
-                    if str(_data['ts_code'][0]) in train_codes:
+                    if str(_data['ts_code'][0]).zfill(6) in train_codes:
                         data_queue.put(_data)
                         total_length += _data.shape[0] - SEQ_LEN
-                    if str(_data['ts_code'][0]) in test_codes:
+                    if str(_data['ts_code'][0]).zfill(6) in test_codes:
                         test_queue.put(_data)
                         total_test_length += _data.shape[0] - SEQ_LEN
+                    if str(_data['ts_code'][0]).zfill(6) not in train_codes and str(_data['ts_code'][0]).zfill(6) not in test_codes:
+                        print("Error: %s not in train or test"%str(_data['ts_code'][0]).zfill(6))
+                        continue
             codes_len = data_queue.qsize()
         print("total codes: %d, total length: %d"%(codes_len, total_length))
         batch_none = 0
