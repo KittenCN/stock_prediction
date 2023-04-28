@@ -59,10 +59,10 @@ df_queue=queue.Queue()
 NoneDataFrame = pd.DataFrame(columns=["ts_code"])
 NoneDataFrame["ts_code"] = ["None"]
 
-# name_list = ["open", "high", "low", "close", "change", "pct_chg", "vol", "amount"]
-# use_list = [1,1,1,1,1,1,1,1]
-name_list = ["open","close","high","low","vol","amount","amplitude","pct_change","change","exchange_rate"]
-use_list = [1,1,1,1,1,1,1,1,1,1]
+name_list = ["open", "high", "low", "close", "change", "pct_chg", "vol", "amount"]
+use_list = [1,1,1,1,1,1,1,1]
+# name_list = ["open","close","high","low","vol","amount","amplitude","pct_change","change","exchange_rate"]
+# use_list = [1,1,1,1,1,1,1,1,1,1]
 OUTPUT_DIMENSION = sum(use_list)
 INPUT_DIMENSION = 20+OUTPUT_DIMENSION
 
