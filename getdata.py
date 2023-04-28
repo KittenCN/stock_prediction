@@ -90,7 +90,7 @@ def get_stock_data(ts_code="", save=True, start_code=""):
                         "close",
                         "pre_close",
                         "change",
-                        "pct_change",
+                        "pct_chg",
                         "vol",
                         "amount"
                     ])
