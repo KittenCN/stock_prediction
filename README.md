@@ -1,6 +1,13 @@
 # 基于神经网络的通用股票预测模型 A general stock prediction model based on neural networks
 
 ## New
+* 20230428
+* 1. 增加新的数据接口，解决原接口速度慢，很多数据还需要付费的问题
+*    Add a new data interface to solve the problem of slow speed of the original interface and many data still need to be paid for.
+* 2. 增加了对于复权数据的支持，注意在tushare数据源中，复权数据是需要更高的权限的（付费）
+*    Added support for adjusted data. Note that in the tushare data source, adjusted data requires higher permissions (paid).
+* 3. 复权数据有其自身的优点和缺点，请自行选择不复权，前复权，后复权
+*    Adjusted data has its own advantages and disadvantages. Please choose unadjusted, pre-adjusted, and post-adjusted.
 * 20230416
 * 1. 已尝试修复之前发现的bug，目前没有复发的问题，如果有问题，请及时反馈
 *    The bug found previously has been tried to be fixed, and there is no problem that has been reoccurred. If there is a problem, please feedback as soon as possible.
