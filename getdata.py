@@ -1,85 +1,190 @@
 import threading
+import datetime
 import tushare as ts
-import common
-from init import *
+import akshare as ak
+from common import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--code', default="", type=str, help="code")
+parser.add_argument('--api', default="akshare", type=str, help="api-interface, tushare or akshare")
+parser.add_argument('--adjust', default="qfq", type=str, help="adjust: none or qfq or hfq, Note if you have permission")
 args = parser.parse_args()
 
-api_token = ""
-with open('api.txt', 'r') as file:
-    api_token = file.read()
-pro = ts.pro_api(api_token)
+if args.api == "tushare":
+    api_token = ""
+    with open('api.txt', 'r') as file:
+        api_token = file.read()
+    pro = ts.pro_api(api_token)
 
 def get_stock_list():
-    # Get stock list
-    df = pro.stock_basic(fields=["ts_code"])
-    stock_list = df["ts_code"].tolist()
-    
-    # Put stock_list into the queue
-    common.stock_list_queue.put(stock_list)
+    if args.api == "tushare":
+        # Get stock list
+        df = pro.stock_basic(fields=["ts_code"])
+        stock_list = df["ts_code"].tolist()
+        
+        # Put stock_list into the queue
+        stock_list_queue.put(stock_list)
 
-    return stock_list
+        return stock_list
+    elif args.api == "akshare":
+        stock_list = ak.stock_zh_a_spot_em()
+        stock_list = stock_list["代码"].tolist()
+        stock_list_queue.put(stock_list)
+        return stock_list
 
 def get_stock_data(ts_code="", save=True, start_code=""):
-    if ts_code == "":
-        stock_list = get_stock_list()
-    else:
-        stock_list = [ts_code]
+    if args.api == "tushare":
+        if ts_code == "":
+            stock_list = get_stock_list()
+        else:
+            stock_list = [ts_code]
 
-    if start_code != "":
-        stock_list = stock_list[stock_list.index(start_code):]
+        if start_code != "":
+            stock_list = stock_list[stock_list.index(start_code):]
 
-    if save:
-        pbar = tqdm(total=len(stock_list), leave=False)
+        if save:
+            pbar = tqdm(total=len(stock_list), leave=False)
 
-    lock = threading.Lock()
+        lock = threading.Lock()
 
-    with lock:
-        for code in stock_list:
-            df = pro.daily(ts_code=code, fields=[
-                "ts_code",
-                "trade_date",
-                "open",
-                "high",
-                "low",
-                "close",
-                "pre_close",
-                "change",
-                "pct_chg",
-                "vol",
-                "amount"
-            ])
-            
-            df = df.reindex(columns=[
-                    "ts_code",
-                    "trade_date",
-                    "open",
-                    "high",
-                    "low",
-                    "close",
-                    "change",
-                    "pct_chg",
-                    "vol",
-                    "amount",
-                    "pre_close"
-                ])
-
-            time.sleep(0.1)
-
-            if save:
-                df.to_csv(daily_path+f"/{code}.csv", index=False)
-                pbar.update(1)
-
-            else:
-                if not df.empty:
-                    common.stock_data_queue.put(df)
-                    return df
+        with lock:
+            adjust = ""
+            if args.adjust != "":
+                adjust = "_" + args.adjust
+            for code in stock_list:
+                if args.adjust != "":
+                    df = pro.stk_factor(ts_code=code, fields=[
+                        "ts_code",
+                        "trade_date",
+                        "open"+adjust,
+                        "high"+adjust,
+                        "low"+adjust,
+                        "close"+adjust,
+                        "pre_close"+adjust,
+                        "change",
+                        "pct_change",
+                        "vol",
+                        "amount"
+                    ])
+                    
+                    df.columns = [
+                        "ts_code",
+                        "trade_date",
+                        "open",
+                        "high",
+                        "low",
+                        "close",
+                        "pre_close",
+                        "change",
+                        "pct_change",
+                        "vol",
+                        "amount"
+                    ]
                 else:
-                    common.stock_data_queue.put(common.NoneDataFrame)
-                    return None
+                    df = pro.daily(ts_code=code, fields=[
+                        "ts_code",
+                        "trade_date",
+                        "open",
+                        "high",
+                        "low",
+                        "close",
+                        "pre_close",
+                        "change",
+                        "pct_change",
+                        "vol",
+                        "amount"
+                    ])
+                df = df.reindex(columns=[
+                        "ts_code",
+                        "trade_date",
+                        "open",
+                        "high",
+                        "low",
+                        "close",
+                        "change",
+                        "pct_chg",
+                        "vol",
+                        "amount",
+                        "pre_close"
+                    ])
 
+                time.sleep(0.1)
+
+                if save:
+                    df.to_csv(daily_path+f"/{code}.csv", index=False)
+                    pbar.update(1)
+
+                else:
+                    if not df.empty:
+                        stock_data_queue.put(df)
+                        return df
+                    else:
+                        stock_data_queue.put(NoneDataFrame)
+                        return None
+    elif args.api == "akshare":
+        if ts_code == "":
+            stock_list = get_stock_list()
+        else:
+            stock_list = [ts_code]
+
+        if start_code != "":
+            stock_list = stock_list[stock_list.index(start_code):]
+
+        if save:
+            pbar = tqdm(total=len(stock_list), leave=False)
+
+        lock = threading.Lock()
+
+        with lock:
+            now_time = datetime.datetime.now()
+            end_time = now_time + datetime.timedelta(days = -1)
+            enddate = end_time.strftime('%Y%m%d')
+            for code in stock_list:
+                df = ak.stock_zh_a_hist(symbol=code, period="daily", end_date=enddate, adjust=args.adjust)
+                df.insert(0, "ts_code", code)
+                df.columns = [
+                        "ts_code",
+                        "trade_date",
+                        "open",
+                        "close",
+                        "high",
+                        "low",
+                        "vol",
+                        "amount",
+                        "amplitude",
+                        "pct_change",
+                        "change",
+                        "exchange_rate"
+                ]
+                df["trade_date"] = pd.to_datetime(df['trade_date']).dt.strftime("%Y%m%d")
+                df = df.reindex(columns=[
+                        "ts_code",
+                        "trade_date",
+                        "open",
+                        "high",
+                        "low",
+                        "close",
+                        "change",
+                        "pct_change",
+                        "vol",
+                        "amount",
+                        "amplitude",
+                        "exchange_rate"
+                    ])
+
+                time.sleep(0.1)
+
+                if save:
+                    df.to_csv(daily_path+f"/{code}.csv", index=False)
+                    pbar.update(1)
+
+                else:
+                    if not df.empty:
+                        stock_data_queue.put(df)
+                        return df
+                    else:
+                        stock_data_queue.put(NoneDataFrame)
+                        return None
     if save:
         pbar.close()
 
