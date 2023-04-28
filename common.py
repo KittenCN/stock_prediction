@@ -573,7 +573,9 @@ def import_csv(stock_code, dataFrame=None, csv_file=None):
         else:
             # csv_queue.put(NoneDataFrame)
             return None
-        add_target(df)
+        result = add_target(df)
+        if result is None:
+            return None
         df = df_queue.get(timeout=30)
         # data_wash(df, keepTime=False)
         # df = df_queue.get()
@@ -675,106 +677,111 @@ def add_target(df):
     lpri = lpri[::-1]
     vol = vol[::-1]
 
-    macd_dif, macd_dea, macd_bar = target.MACD(close)
-    df["macd_dif"] = cmp_append(macd_dif[::-1], df)
-    df["macd_dea"] = cmp_append(macd_dea[::-1], df)
-    df["macd_bar"] = cmp_append(macd_bar[::-1], df)
-    k, d, j = target.KDJ(close, hpri, lpri)
-    df['k'] = cmp_append(k[::-1], df)
-    df['d'] = cmp_append(d[::-1], df)
-    df['j'] = cmp_append(j[::-1], df)
-    boll_upper, boll_mid, boll_lower = target.BOLL(close)
-    df['boll_upper'] = cmp_append(boll_upper[::-1], df)
-    df['boll_mid'] = cmp_append(boll_mid[::-1], df)
-    df['boll_lower'] = cmp_append(boll_lower[::-1], df)
-    cci = target.CCI(close, hpri, lpri)
-    df['cci'] = cmp_append(cci[::-1], df)
-    pdi, mdi, adx, adxr = target.DMI(close, hpri, lpri)
-    df['pdi'] = cmp_append(pdi[::-1], df)
-    df['mdi'] = cmp_append(mdi[::-1], df)
-    df['adx'] = cmp_append(adx[::-1], df)
-    df['adxr'] = cmp_append(adxr[::-1], df)
-    taq_up, taq_mid, taq_down = target.TAQ(hpri, lpri, 5)
-    df['taq_up'] = cmp_append(taq_up[::-1], df)
-    df['taq_mid'] = cmp_append(taq_mid[::-1], df)
-    df['taq_down'] = cmp_append(taq_down[::-1], df)
-    trix, trma = target.TRIX(close)
-    df['trix'] = cmp_append(trix[::-1], df)
-    df['trma'] = cmp_append(trma[::-1], df)
-    atr = target.ATR(close, hpri, lpri)
-    df['atr'] = cmp_append(atr[::-1], df)
-    if 'amplitude' not in df.columns and 'exchange_rate' not in df.columns and 'pre_close' in df.columns:
-        df = df.reindex(columns=[
-            "ts_code",
-            "trade_date",
-            "open",
-            "high",
-            "low",
-            "close",
-            "change",
-            "pct_chg",
-            "vol",
-            "amount",
-            "macd_dif",
-            "macd_dea",
-            "macd_bar",
-            "k",
-            "d",
-            "j",
-            "boll_upper",
-            "boll_mid",
-            "boll_lower",
-            "cci",
-            "pdi",
-            "mdi",
-            "adx",
-            "adxr",
-            "taq_up",
-            "taq_mid",
-            "taq_down",
-            "trix",
-            "trma",
-            "atr",
-            "pre_close"
-        ])
-    elif 'amplitude' in df.columns and 'exchange_rate' in df.columns and 'pre_close' not in df.columns:
-        df = df.reindex(columns=[
-            "ts_code",
-            "trade_date",
-            "open",
-            "high",
-            "low",
-            "close",
-            "change",
-            "pct_change",
-            "vol",
-            "amount",
-            "amplitude",
-            "exchange_rate",
-            "macd_dif",
-            "macd_dea",
-            "macd_bar",
-            "k",
-            "d",
-            "j",
-            "boll_upper",
-            "boll_mid",
-            "boll_lower",
-            "cci",
-            "pdi",
-            "mdi",
-            "adx",
-            "adxr",
-            "taq_up",
-            "taq_mid",
-            "taq_down",
-            "trix",
-            "trma",
-            "atr"
-        ])
-    times = times[::-1]
-    df_queue.put(df)
-    return df
+    try:
+        macd_dif, macd_dea, macd_bar = target.MACD(close)
+        df["macd_dif"] = cmp_append(macd_dif[::-1], df)
+        df["macd_dea"] = cmp_append(macd_dea[::-1], df)
+        df["macd_bar"] = cmp_append(macd_bar[::-1], df)
+        k, d, j = target.KDJ(close, hpri, lpri)
+        df['k'] = cmp_append(k[::-1], df)
+        df['d'] = cmp_append(d[::-1], df)
+        df['j'] = cmp_append(j[::-1], df)
+        boll_upper, boll_mid, boll_lower = target.BOLL(close)
+        df['boll_upper'] = cmp_append(boll_upper[::-1], df)
+        df['boll_mid'] = cmp_append(boll_mid[::-1], df)
+        df['boll_lower'] = cmp_append(boll_lower[::-1], df)
+        cci = target.CCI(close, hpri, lpri)
+        df['cci'] = cmp_append(cci[::-1], df)
+        pdi, mdi, adx, adxr = target.DMI(close, hpri, lpri)
+        df['pdi'] = cmp_append(pdi[::-1], df)
+        df['mdi'] = cmp_append(mdi[::-1], df)
+        df['adx'] = cmp_append(adx[::-1], df)
+        df['adxr'] = cmp_append(adxr[::-1], df)
+        taq_up, taq_mid, taq_down = target.TAQ(hpri, lpri, 5)
+        df['taq_up'] = cmp_append(taq_up[::-1], df)
+        df['taq_mid'] = cmp_append(taq_mid[::-1], df)
+        df['taq_down'] = cmp_append(taq_down[::-1], df)
+        trix, trma = target.TRIX(close)
+        df['trix'] = cmp_append(trix[::-1], df)
+        df['trma'] = cmp_append(trma[::-1], df)
+        atr = target.ATR(close, hpri, lpri)
+        df['atr'] = cmp_append(atr[::-1], df)
+        if 'amplitude' not in df.columns and 'exchange_rate' not in df.columns and 'pre_close' in df.columns:
+            df = df.reindex(columns=[
+                "ts_code",
+                "trade_date",
+                "open",
+                "high",
+                "low",
+                "close",
+                "change",
+                "pct_chg",
+                "vol",
+                "amount",
+                "macd_dif",
+                "macd_dea",
+                "macd_bar",
+                "k",
+                "d",
+                "j",
+                "boll_upper",
+                "boll_mid",
+                "boll_lower",
+                "cci",
+                "pdi",
+                "mdi",
+                "adx",
+                "adxr",
+                "taq_up",
+                "taq_mid",
+                "taq_down",
+                "trix",
+                "trma",
+                "atr",
+                "pre_close"
+            ])
+        elif 'amplitude' in df.columns and 'exchange_rate' in df.columns and 'pre_close' not in df.columns:
+            df = df.reindex(columns=[
+                "ts_code",
+                "trade_date",
+                "open",
+                "high",
+                "low",
+                "close",
+                "change",
+                "pct_change",
+                "vol",
+                "amount",
+                "amplitude",
+                "exchange_rate",
+                "macd_dif",
+                "macd_dea",
+                "macd_bar",
+                "k",
+                "d",
+                "j",
+                "boll_upper",
+                "boll_mid",
+                "boll_lower",
+                "cci",
+                "pdi",
+                "mdi",
+                "adx",
+                "adxr",
+                "taq_up",
+                "taq_mid",
+                "taq_down",
+                "trix",
+                "trma",
+                "atr"
+            ])
+        times = times[::-1]
+        df_queue.put(df)
+        return df
+    except Exception as e:
+        df_queue = queue.Queue()
+        print(f"{df['ts_code']} {e}")
+        return None
 
 
 def load_data(ts_codes, pbar=False, csv_file=None, data_queue=data_queue):
