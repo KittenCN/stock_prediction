@@ -779,7 +779,7 @@ def add_target(df):
         df_queue.put(df)
         return df
     except Exception as e:
-        df_queue = queue.Queue()
+        df_queue.queue.clear()
         print(f"{df['ts_code']} {e}")
         return None
 
