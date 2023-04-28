@@ -52,61 +52,69 @@ def get_stock_data(ts_code="", save=True, start_code=""):
             if args.adjust != "":
                 adjust = "_" + args.adjust
             for code in stock_list:
-                if args.adjust != "":
-                    df = pro.stk_factor(ts_code=code, fields=[
-                        "ts_code",
-                        "trade_date",
-                        "open"+adjust,
-                        "high"+adjust,
-                        "low"+adjust,
-                        "close"+adjust,
-                        "pre_close"+adjust,
-                        "change",
-                        "pct_change",
-                        "vol",
-                        "amount"
-                    ])
-                    
-                    df.columns = [
-                        "ts_code",
-                        "trade_date",
-                        "open",
-                        "high",
-                        "low",
-                        "close",
-                        "pre_close",
-                        "change",
-                        "pct_change",
-                        "vol",
-                        "amount"
-                    ]
-                else:
-                    df = pro.daily(ts_code=code, fields=[
-                        "ts_code",
-                        "trade_date",
-                        "open",
-                        "high",
-                        "low",
-                        "close",
-                        "pre_close",
-                        "change",
-                        "pct_chg",
-                        "vol",
-                        "amount"
-                    ])
-                df = df.reindex(columns=[
-                        "ts_code",
-                        "trade_date",
-                        "open",
-                        "high",
-                        "low",
-                        "close",
-                        "change",
-                        "pct_chg",
-                        "vol",
-                        "amount",
-                        "pre_close"
-                    ])
+                try:
+                    if args.adjust != "":
+                        df = pro.stk_factor(ts_code=code, fields=[
+                            "ts_code",
+                            "trade_date",
+                            "open"+adjust,
+                            "high"+adjust,
+                            "low"+adjust,
+                            "close"+adjust,
+                            "pre_close"+adjust,
+                            "change",
+                            "pct_change",
+                            "vol",
+                            "amount"
+                        ])
+                        
+                        df.columns = [
+                            "ts_code",
+                            "trade_date",
+                            "open",
+                            "high",
+                            "low",
+                            "close",
+                            "pre_close",
+                            "change",
+                            "pct_change",
+                            "vol",
+                            "amount"
+                        ]
+                    else:
+                        df = pro.daily(ts_code=code, fields=[
+                            "ts_code",
+                            "trade_date",
+                            "open",
+                            "high",
+                            "low",
+                            "close",
+                            "pre_close",
+                            "change",
+                            "pct_chg",
+                            "vol",
+                            "amount"
+                        ])
+                    df = df.reindex(columns=[
+                            "ts_code",
+                            "trade_date",
+                            "open",
+                            "high",
+                            "low",
+                            "close",
+                            "change",
+                            "pct_chg",
+                            "vol",
+                            "amount",
+                            "pre_close"
+                        ])
+                except Exception as e:
+                    if save:
+                        tqdm.write(f"{code} {e}")
+                        pbar.update(1)
+                    else:
+                        print(f"{code} {e}")
+                    continue
                 
                 time.sleep(0.1)
 
@@ -140,38 +148,46 @@ def get_stock_data(ts_code="", save=True, start_code=""):
             end_time = now_time + datetime.timedelta(days = -1)
             enddate = end_time.strftime('%Y%m%d')
             for code in stock_list:
-                df = ak.stock_zh_a_hist(symbol=code, period="daily", end_date=enddate, adjust=args.adjust)
-                df.insert(0, "ts_code", code)
-                df.columns = [
-                        "ts_code",
-                        "trade_date",
-                        "open",
-                        "close",
-                        "high",
-                        "low",
-                        "vol",
-                        "amount",
-                        "amplitude",
-                        "pct_change",
-                        "change",
-                        "exchange_rate"
-                ]
-                df["trade_date"] = pd.to_datetime(df['trade_date']).dt.strftime("%Y%m%d")
-                df.sort_values(by=['trade_date'], ascending=False, inplace=True)
-                df = df.reindex(columns=[
-                        "ts_code",
-                        "trade_date",
-                        "open",
-                        "high",
-                        "low",
-                        "close",
-                        "change",
-                        "pct_change",
-                        "vol",
-                        "amount",
-                        "amplitude",
-                        "exchange_rate"
-                    ])
+                try:
+                    df = ak.stock_zh_a_hist(symbol=code, period="daily", end_date=enddate, adjust=args.adjust)
+                    df.insert(0, "ts_code", code)
+                    df.columns = [
+                            "ts_code",
+                            "trade_date",
+                            "open",
+                            "close",
+                            "high",
+                            "low",
+                            "vol",
+                            "amount",
+                            "amplitude",
+                            "pct_change",
+                            "change",
+                            "exchange_rate"
+                    ]
+                    df["trade_date"] = pd.to_datetime(df['trade_date']).dt.strftime("%Y%m%d")
+                    df.sort_values(by=['trade_date'], ascending=False, inplace=True)
+                    df = df.reindex(columns=[
+                            "ts_code",
+                            "trade_date",
+                            "open",
+                            "high",
+                            "low",
+                            "close",
+                            "change",
+                            "pct_change",
+                            "vol",
+                            "amount",
+                            "amplitude",
+                            "exchange_rate"
+                        ])
+                except Exception as e:
+                    if save:
+                        tqdm.write(f"{code} {e}")
+                        pbar.update(1)
+                    else:
+                        print(f"{code} {e}")
+                    continue
 
                 time.sleep(0.1)
 
