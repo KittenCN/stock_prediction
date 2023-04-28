@@ -703,39 +703,75 @@ def add_target(df):
     df['trma'] = cmp_append(trma[::-1], df)
     atr = target.ATR(close, hpri, lpri)
     df['atr'] = cmp_append(atr[::-1], df)
-    df = df.reindex(columns=[
-        "ts_code",
-        "trade_date",
-        "open",
-        "high",
-        "low",
-        "close",
-        "change",
-        "pct_chg",
-        "vol",
-        "amount",
-        "macd_dif",
-        "macd_dea",
-        "macd_bar",
-        "k",
-        "d",
-        "j",
-        "boll_upper",
-        "boll_mid",
-        "boll_lower",
-        "cci",
-        "pdi",
-        "mdi",
-        "adx",
-        "adxr",
-        "taq_up",
-        "taq_mid",
-        "taq_down",
-        "trix",
-        "trma",
-        "atr",
-        "pre_close"
-    ])
+    if 'amplitude' not in df.columns and 'exchange_rate' not in df.columns and 'pre_close' in df.columns:
+        df = df.reindex(columns=[
+            "ts_code",
+            "trade_date",
+            "open",
+            "high",
+            "low",
+            "close",
+            "change",
+            "pct_chg",
+            "vol",
+            "amount",
+            "macd_dif",
+            "macd_dea",
+            "macd_bar",
+            "k",
+            "d",
+            "j",
+            "boll_upper",
+            "boll_mid",
+            "boll_lower",
+            "cci",
+            "pdi",
+            "mdi",
+            "adx",
+            "adxr",
+            "taq_up",
+            "taq_mid",
+            "taq_down",
+            "trix",
+            "trma",
+            "atr",
+            "pre_close"
+        ])
+    elif 'amplitude' in df.columns and 'exchange_rate' in df.columns and 'pre_close' not in df.columns:
+        df = df.reindex(columns=[
+            "ts_code",
+            "trade_date",
+            "open",
+            "high",
+            "low",
+            "close",
+            "change",
+            "pct_change",
+            "vol",
+            "amount",
+            "amplitude",
+            "exchange_rate",
+            "macd_dif",
+            "macd_dea",
+            "macd_bar",
+            "k",
+            "d",
+            "j",
+            "boll_upper",
+            "boll_mid",
+            "boll_lower",
+            "cci",
+            "pdi",
+            "mdi",
+            "adx",
+            "adxr",
+            "taq_up",
+            "taq_mid",
+            "taq_down",
+            "trix",
+            "trma",
+            "atr"
+        ])
     times = times[::-1]
     df_queue.put(df)
     return df
@@ -785,8 +821,8 @@ def thread_save_model(model, optimizer, save_path, best_model=False):
     data_thread.start()
 
 def deep_copy_queue(q):
-    # new_q = multiprocessing.Queue()
-    new_q = queue.Queue()
+    new_q = multiprocessing.Queue()
+    # new_q = queue.Queue()
     temp_q = []
     while not q.empty():
         try:
