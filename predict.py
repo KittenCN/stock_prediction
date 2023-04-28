@@ -6,15 +6,15 @@ from datetime import datetime, timedelta
 from common import *
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
+parser.add_argument('--mode', default="predict", type=str, help="select running mode: train, test, predict")
 parser.add_argument('--model', default="transformer", type=str, help="lstm or transformer")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--cpu', default=0, type=int, help="only use cpu")
 parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of csv file")
 parser.add_argument('--pkl_queue', default=1, type=int, help="use pkl queue instead of csv file")
-parser.add_argument('--test_code', default="", type=str, help="test code")
+parser.add_argument('--test_code', default="300027", type=str, help="test code")
 parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu or not")
-parser.add_argument('--predict_days', default=5, type=int, help="number of the predict days")
+parser.add_argument('--predict_days', default=2, type=int, help="number of the predict days")
 args = parser.parse_args()
 last_save_time = 0
 
@@ -188,7 +188,7 @@ def predict(test_codes):
         while data_queue.empty() == False:
             try:
                 item = data_queue.get(timeout=30)
-                if item['ts_code'][0] in test_codes:
+                if str(item['ts_code'][0]) in test_codes:
                     _data = item
                     break
             except queue.Empty:
@@ -200,7 +200,7 @@ def predict(test_codes):
         print("Error: data is empty or ts_code is None")
         return
 
-    if data['ts_code'][0] != test_codes[0]:
+    if str(data['ts_code'][0]) != str(test_codes[0]):
         print("Error: ts_code is not match")
         return
 
@@ -252,7 +252,7 @@ def predict(test_codes):
         predict_data['Date'] = pd.to_datetime(predict_data['Date'])
         predict_data['Date'] = predict_data['Date'].dt.strftime('%Y%m%d')
         # predict_data.drop(["macd_dif","macd_dea","macd_bar","k","d","j","boll_upper","boll_mid","boll_lower","cci","pdi","mdi","adx","adxr","taq_up","taq_mid","taq_down","trix","trma","atr"], axis=1, inplace=True)
-        predict_data = predict_data.loc[:,["ts_code","Date","Open","High","Low","Close","change","pct_chg","Volume","amount","pre_close"]]
+        predict_data = predict_data.loc[:,["ts_code","Date","Open","Close","High","Low","Volume","amount","amplitude","pct_change","change","exchange_rate"]]
         predict_data.rename(
             columns={
                 'Date': 'trade_date', 'Open': 'open',
@@ -288,7 +288,7 @@ def predict(test_codes):
         plt.legend()
         now = datetime.now()
         date_string = now.strftime("%Y%m%d%H%M%S")
-        plt.savefig(png_path + "/predict/" + cnname + "_" + str(test_code[0]).split('.')[0] + str(test_code[0]).split('.')[1] + "_" + model_mode + "_" + name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
+        plt.savefig(png_path + "/predict/" + cnname + "_" + str(test_code[0]).split('.')[0] + "_" + model_mode + "_" + name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
         pbar.update(1)
     pbar.close()
 
@@ -324,7 +324,7 @@ def contrast_lines(test_codes):
                 item = data_queue.get(timeout=30)
             except queue.Empty:
                 break
-            if item['ts_code'][0] in test_codes:
+            if str(item['ts_code'][0]) in test_codes:
                 data = copy.deepcopy(item)
                 break
         if data is NoneDataFrame:
@@ -391,7 +391,7 @@ def contrast_lines(test_codes):
             plt.legend()
             now = datetime.now()
             date_string = now.strftime("%Y%m%d%H%M%S")
-            plt.savefig(png_path + "/test/" + cnname + "_"  + str(test_code[0]).split('.')[0] + str(test_code[0]).split('.')[1] + "_" + model_mode + "_" + name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
+            plt.savefig(png_path + "/test/" + cnname + "_"  + str(test_code[0]).split('.')[0] + "_" + model_mode + "_" + name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
             pbar.update(1)
         except Exception as e:
             print("Error: contrast_lines", e)
@@ -502,10 +502,10 @@ if __name__=="__main__":
                     _data = _data.dropna()
                     if _data.empty:
                         continue
-                    if _data['ts_code'][0] in train_codes:
+                    if str(_data['ts_code'][0]) in train_codes:
                         data_queue.put(_data)
                         total_length += _data.shape[0] - SEQ_LEN
-                    if _data['ts_code'][0] in test_codes:
+                    if str(_data['ts_code'][0]) in test_codes:
                         test_queue.put(_data)
                         total_test_length += _data.shape[0] - SEQ_LEN
             codes_len = data_queue.qsize()
