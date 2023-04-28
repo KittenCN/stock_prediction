@@ -123,7 +123,7 @@ def test(dataset, testmodel=None, dataloader_mode=0):
             test_model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl"))
         else:
             tqdm.write("No model found")
-            return -1, -1
+            return -1, -1, -1
     else:
         test_model = testmodel
     test_model.eval()
