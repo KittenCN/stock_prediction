@@ -133,12 +133,12 @@ def test(dataset, testmodel=None, dataloader_mode=0):
         for batch in dataloader:
             try:
                 if batch is None:
-                    tqdm.write(f"test error: batch is None")
+                    # tqdm.write(f"test error: batch is None")
                     pbar.update(1)
                     continue
                 data, label = batch
                 if data is None or label is None:
-                    tqdm.write(f"test error: data is None or label is None")
+                    # tqdm.write(f"test error: data is None or label is None")
                     pbar.update(1)
                     continue
                 if args.test_gpu == 1:
