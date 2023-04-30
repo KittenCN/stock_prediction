@@ -29,8 +29,8 @@ SAVE_NUM_EPOCH=1
 TEST_NUM=25
 SAVE_INTERVAL=300
 TEST_INTERVAL=100
-OUTPUT_DIMENSION=10
-INPUT_DIMENSION=20+OUTPUT_DIMENSION
+OUTPUT_DIMENSION=4
+INPUT_DIMENSION=30   ## max input dimension
 TQDM_NCOLS = 150
 NUM_WORKERS = 1
 PKL = True
@@ -59,12 +59,12 @@ df_queue=queue.Queue()
 NoneDataFrame = pd.DataFrame(columns=["ts_code"])
 NoneDataFrame["ts_code"] = ["None"]
 
-name_list = ["open", "high", "low", "close", "change", "pct_chg", "vol", "amount"]
-use_list = [1,1,1,1,1,1,1,1]
-# name_list = ["open","close","high","low","vol","amount","amplitude","pct_change","change","exchange_rate"]
-# use_list = [1,1,1,1,1,1,1,1,1,1]
+# name_list = ["open", "high", "low", "close", "change", "pct_chg", "vol", "amount"]
+# use_list = [1,1,1,1,0,0,0,0]
+name_list = ["open","close","high","low","vol","amount","amplitude","pct_change","change","exchange_rate"]
+use_list = [1,1,1,1,0,0,0,0,0,0]
 OUTPUT_DIMENSION = sum(use_list)
-INPUT_DIMENSION = 20+OUTPUT_DIMENSION
+# INPUT_DIMENSION = 20+OUTPUT_DIMENSION
 
 assert OUTPUT_DIMENSION > 0
 

@@ -43,6 +43,7 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
                 continue
             data, label = data.to(device, non_blocking=True), label.to(device, non_blocking=True)
             with autocast():
+                data = pad_input(data)
                 outputs = model.forward(data, label)
                 if outputs.shape == label.shape:
                     loss = criterion(outputs, label)
