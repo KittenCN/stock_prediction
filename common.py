@@ -324,7 +324,8 @@ class stock_queue_dataset(Dataset):
             except queue.Empty:
                 return None
             dataFrame.drop(['ts_code', 'Date'], axis=1, inplace=True)
-            dataFrame = dataFrame.dropna()
+            # dataFrame = dataFrame.dropna()
+            dataFrame = dataFrame.fillna(0)
             data = dataFrame.values[:, 0:INPUT_DIMENSION]
             return data
 

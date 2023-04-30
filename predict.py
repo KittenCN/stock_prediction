@@ -220,7 +220,8 @@ def predict(test_codes):
         lastdate = predict_data["Date"][0].strftime("%Y%m%d")
         lastclose = predict_data["Close"][0]
         predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
-        predict_data = predict_data.dropna()
+        # predict_data = predict_data.dropna()
+        predict_data = predict_data.fillna(0)
         accuracy_list, predict_list = [], []
         test_loss, predict_list, _ = test(predict_data,dataloader_mode=2)
         if test_loss == -1 and predict_list == -1:
@@ -333,7 +334,8 @@ def contrast_lines(test_codes):
         data_queue = queue.Queue()
         data.drop(['ts_code','Date'],axis=1,inplace = True)  
     
-    data = data.dropna()
+    # data = data.dropna()
+    data = data.fillna(0)
     print("test_code=", test_codes)
     if data.empty or (PKL is False and data["ts_code"][0] == "None"):
         print("Error: data is empty or ts_code is None")
@@ -499,7 +501,8 @@ if __name__=="__main__":
                         _data = _data_queue.get(timeout=30)
                     except queue.Empty:
                         break
-                    _data = _data.dropna()
+                    # _data = _data.dropna()
+                    _data = _data.fillna(0)
                     if _data.empty:
                         continue
                     if str(_data['ts_code'][0]).zfill(6) in train_codes:
@@ -553,7 +556,8 @@ if __name__=="__main__":
                             code_bar.close()
                             break
                         data = data_list[index].copy(deep=True)
-                        data = data.dropna()
+                        # data = data.dropna()
+                        data = data.fillna(0)
                         if data.empty or data["ts_code"][0] == "None":
                             tqdm.write("data is empty or data has invalid col")
                             code_bar.update(1)
