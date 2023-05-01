@@ -325,7 +325,7 @@ class stock_queue_dataset(Dataset):
                 return None
             dataFrame.drop(['ts_code', 'Date'], axis=1, inplace=True)
             # dataFrame = dataFrame.dropna()
-            dataFrame = dataFrame.fillna(0)
+            dataFrame = dataFrame.fillna(-0.0)
             data = dataFrame.values[:, 0:INPUT_DIMENSION]
             return data
 
@@ -513,6 +513,7 @@ class TransformerModel(nn.Module):
     def forward(self, src, tgt):
         src = src.permute(1, 0, 2) # (batch_size, seq_len, input_dim) -> (seq_len, batch_size, input_dim)
 
+        attention_mask = generate_attention_mask(src)
         src_embedding = self.embedding(src)
         src_seq_length = src.size(0)
         src_batch_size = src.size(1)
@@ -523,7 +524,7 @@ class TransformerModel(nn.Module):
         src_positions = torch.arange(src_seq_length, device=src.device).unsqueeze(1).expand(src_seq_length, src_batch_size)
         src = src_embedding + self.positional_encoding[src_positions]
 
-        memory = self.transformer_encoder(src)
+        memory = self.transformer_encoder(src, src_key_padding_mask=attention_mask)
 
         tgt = tgt.unsqueeze(1)
         tgt_embedding = self.target_embedding(tgt)
@@ -890,7 +891,13 @@ def csvToDataset(csvfile):
 def pad_input(input_data, max_features=INPUT_DIMENSION):
     padded_data = []
     for data in input_data:
-        padding = torch.zeros(max_features - data.shape[-1]).to(input_data.device)
+        padding = torch.full((data.size(0), max_features - data.shape[-1]), -0.0).to(input_data.device)
         padded_data.append(torch.cat((data, padding), dim=-1))
     return torch.stack(padded_data)
 
+def generate_attention_mask(input_data):
+    mask = (input_data != -0.0).any(dim=-1)  # Find non-padding positions 
+    mask = mask.to(torch.float32)
+    mask = mask.masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
+    mask = mask.T
+    return mask
