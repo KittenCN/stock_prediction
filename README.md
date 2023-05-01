@@ -145,6 +145,8 @@
 The basic idea and creativity come from: https://github.com/MiaoChenglin125/stock_prediction-based-on-lstm-and-transformer. As the original author seems to have abandoned the updates, I will continue to iterate this program based on the new models and technologies that I have mastered.
 
 ## 获取下载数据的api token: Get the api token to download data:
+* 0. 20230501更新后，默认使用akshare获取数据，不再需要tushare的api token及以下流程，如由于特殊要求，必须使用tushare获取数据，请参考以下流程
+*    After the update on 20230501, the data is obtained by default using akshare, and the tushare api token and the following process are no longer required. If you must use tushare to obtain data due to special requirements, please refer to the following process.
 * 1. 在https://tushare.pro/ 网站注册，并按要求获取足够的积分（到2023年3月为止，只需要修改下用户信息，就足够积分了，以后不能确定）
 *    Register on https://tushare.pro/ website and obtain enough points as required (as of March 2023, only modifying user information is sufficient to obtain enough points, but it may not be guaranteed in the future).
 * 2. 在https://tushare.pro/user/token 页面可以查看自己的api token
