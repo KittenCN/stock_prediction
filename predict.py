@@ -218,7 +218,7 @@ def predict(test_codes):
     pbar = tqdm(total=predict_days, leave=False, ncols=TQDM_NCOLS)
     while predict_days > 0:
         lastdate = predict_data["Date"][0].strftime("%Y%m%d")
-        lastclose = predict_data["Close"][0]
+        # lastclose = predict_data["Close"][0]
         predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
         predict_data = predict_data.dropna()
         accuracy_list, predict_list = [], []
@@ -242,9 +242,9 @@ def predict(test_codes):
         _tmpdata = _tmpdata + copy.deepcopy(_tmp)
         _splice_data = copy.deepcopy(spliced_data).drop(['ts_code', 'Date'], axis=1)
         df_mean = _splice_data.mean().tolist()
-        for index in range(len(_tmpdata) - 2, len(df_mean)-1):
+        for index in range(len(_tmpdata) - 2, len(df_mean)):
             _tmpdata.append(df_mean[index])
-        _tmpdata.append(lastclose)
+        # _tmpdata.append(lastclose)
         _tmpdata = pd.DataFrame(_tmpdata).T
         _tmpdata.columns = spliced_data.columns
         predict_data = pd.concat([_tmpdata, spliced_data], axis=0, ignore_index=True)
