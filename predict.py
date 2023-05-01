@@ -6,13 +6,13 @@ from datetime import datetime, timedelta
 from common import *
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
+parser.add_argument('--mode', default="predict", type=str, help="select running mode: train, test, predict")
 parser.add_argument('--model', default="transformer", type=str, help="lstm or transformer")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--cpu', default=0, type=int, help="only use cpu")
 parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of csv file")
 parser.add_argument('--pkl_queue', default=1, type=int, help="use pkl queue instead of csv file")
-parser.add_argument('--test_code', default="", type=str, help="test code")
+parser.add_argument('--test_code', default="600581", type=str, help="test code")
 parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu or not")
 parser.add_argument('--predict_days', default=3, type=int, help="number of the predict days")
 parser.add_argument('--api', default="akshare", type=str, help="api-interface, tushare or akshare")
@@ -264,6 +264,7 @@ def predict(test_codes):
             ## use akshare data
             predict_data[["Open","Close","High","Low"]] = predict_data[["Open","Close","High","Low"]].astype('float64')
             predict_data = predict_data.loc[:,["ts_code","Date","Open","Close","High","Low"]]
+            predict_data.to_csv(test_path,sep=',',index=False,header=True)
         elif args.api == "tushare":
             ## Use tushare data
             predict_data['Date'] = predict_data['Date'].dt.strftime('%Y%m%d')
