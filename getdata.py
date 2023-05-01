@@ -6,8 +6,8 @@ from common import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--code', default="", type=str, help="code")
-parser.add_argument('--api', default="tushare", type=str, help="api-interface, tushare or akshare")
-parser.add_argument('--adjust', default="", type=str, help="adjust: none or qfq or hfq, Note if you have permission")
+parser.add_argument('--api', default="akshare", type=str, help="api-interface, tushare or akshare")
+parser.add_argument('--adjust', default="hfq", type=str, help="adjust: none or qfq or hfq, Note if you have permission")
 args = parser.parse_args()
 
 if args.api == "tushare":
