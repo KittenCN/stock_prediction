@@ -1,6 +1,17 @@
 # 基于神经网络的通用股票预测模型 A general stock prediction model based on neural networks
 
 ## New
+* 20230501
+* 1. 支持可变维度的输入，可变长度的输入，最大输入维度需要在init.py中设置
+*    Support variable dimension input, variable length input, and the maximum input dimension needs to be set in init.py
+* 2. 修改删除nan数据整行的模式为将nan数据替换为-0.0
+*    Modify the mode of deleting the whole row of nan data to replace the nan data with -0.0
+* 3. 增加transformer模型的mask机制，以支持可变长度的输入
+*    Add the mask mechanism of the transformer model to support variable length input
+* 4. 修改很多数据处理及数据接口相关代码，目前默认是akshare接口，如果需要使用tushare，请自行修改代码, 且考虑删除对于tushare的支持，后期如需要使用tushare，请自行回退至上一个版本
+*    Modify a lot of data processing and data interface related code, the default is akshare interface, if you need to use tushare, please modify the code by yourself, and consider deleting the support for tushare. If you need to use tushare later, please roll back to the previous version by yourself.
+* 5. 修正了在akshare接口下，预测数据的bug
+*    Corrected the bug of predicting data under the akshare interface
 * 20230428
 * 1. 增加新的数据接口，解决原接口速度慢，很多数据还需要付费的问题
 *    Add a new data interface to solve the problem of slow speed of the original interface and many data still need to be paid for.

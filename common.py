@@ -324,7 +324,8 @@ class stock_queue_dataset(Dataset):
             except queue.Empty:
                 return None
             dataFrame.drop(['ts_code', 'Date'], axis=1, inplace=True)
-            dataFrame = dataFrame.dropna()
+            # dataFrame = dataFrame.dropna()
+            dataFrame = dataFrame.fillna(-0.0)
             data = dataFrame.values[:, 0:INPUT_DIMENSION]
             return data
 
@@ -475,12 +476,25 @@ class TransformerDecoderLayerWithNorm(nn.TransformerDecoderLayer):
             self.norm2 = norm
             self.norm3 = norm
 
+class MLP(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(MLP, self).__init__()
+        self.layers = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, output_dim)
+        )
+
+    def forward(self, x):
+        return self.layers(x)
+
 class TransformerModel(nn.Module):
     def __init__(self, input_dim, d_model, nhead, num_layers, dim_feedforward, output_dim, max_len=5000):
         super(TransformerModel, self).__init__()
 
-        self.embedding = nn.Linear(input_dim, d_model)
-        self.positional_encoding = nn.Embedding(max_len, d_model)
+        # self.embedding = nn.Linear(input_dim, d_model)
+        self.embedding = MLP(input_dim, d_model//2, d_model)  # Replace this line
+        self.positional_encoding = None
 
         self.transformer_encoder_layer = TransformerEncoderLayerWithNorm(d_model, nhead, dim_feedforward, norm=nn.LayerNorm(d_model))
         self.transformer_encoder = nn.TransformerEncoder(self.transformer_encoder_layer, num_layers)
@@ -488,31 +502,36 @@ class TransformerModel(nn.Module):
         self.transformer_decoder_layer = TransformerDecoderLayerWithNorm(d_model, nhead, dim_feedforward, norm=nn.LayerNorm(d_model))
         self.transformer_decoder = nn.TransformerDecoder(self.transformer_decoder_layer, num_layers)
 
-
         self.target_embedding = nn.Linear(output_dim, d_model)
         self.pooling = nn.AdaptiveAvgPool1d(1)
         self.fc = nn.Linear(d_model, output_dim)
+
+        self.d_model = d_model
 
         self._initialize_weights()
 
     def forward(self, src, tgt):
         src = src.permute(1, 0, 2) # (batch_size, seq_len, input_dim) -> (seq_len, batch_size, input_dim)
 
+        attention_mask = generate_attention_mask(src)
         src_embedding = self.embedding(src)
         src_seq_length = src.size(0)
         src_batch_size = src.size(1)
 
-        src_positions = torch.arange(src_seq_length, device=src.device).unsqueeze(1).expand(src_seq_length, src_batch_size)
-        src = src_embedding + self.positional_encoding(src_positions)
+        if self.positional_encoding is None or self.positional_encoding.size(0) < src_seq_length:
+            self.positional_encoding = self.generate_positional_encoding(src_seq_length, self.d_model).to(src.device)
 
-        memory = self.transformer_encoder(src)
+        src_positions = torch.arange(src_seq_length, device=src.device).unsqueeze(1).expand(src_seq_length, src_batch_size)
+        src = src_embedding + self.positional_encoding[src_positions]
+
+        memory = self.transformer_encoder(src, src_key_padding_mask=attention_mask)
 
         tgt = tgt.unsqueeze(1)
         tgt_embedding = self.target_embedding(tgt)
         tgt_seq_length = tgt.size(1)
 
         tgt_positions = torch.arange(tgt_seq_length, device=tgt.device).unsqueeze(1).expand(tgt_seq_length, src_batch_size)
-        tgt = tgt_embedding + self.positional_encoding(tgt_positions)
+        tgt = tgt_embedding + self.positional_encoding[tgt_positions]
 
         output = self.transformer_decoder(tgt.transpose(0, 1), memory)
 
@@ -522,13 +541,13 @@ class TransformerModel(nn.Module):
 
         return output
 
-    def generate_positional_encoding(self, d_model, max_len=5000):
+    def generate_positional_encoding(self, max_len, d_model):
         pe = torch.zeros(max_len, d_model)
         position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
         div_term = torch.exp(torch.arange(0, d_model, 2).float() * -(torch.log(torch.tensor(10000.0)) / d_model))
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(1)
+        # pe = pe.unsqueeze(1)
         return pe
 
     def _initialize_weights(self):
@@ -868,3 +887,17 @@ def csvToDataset(csvfile):
     encodings, labels = tokenize_data(df)
     dataset = TextDataset({'text': encodings}, labels)
     return dataset
+
+def pad_input(input_data, max_features=INPUT_DIMENSION):
+    padded_data = []
+    for data in input_data:
+        padding = torch.full((data.size(0), max_features - data.shape[-1]), -0.0).to(input_data.device)
+        padded_data.append(torch.cat((data, padding), dim=-1))
+    return torch.stack(padded_data)
+
+def generate_attention_mask(input_data):
+    mask = (input_data != -0.0).any(dim=-1)  # Find non-padding positions 
+    mask = mask.to(torch.float32)
+    mask = mask.masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
+    mask = mask.T
+    return mask

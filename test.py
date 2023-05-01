@@ -1,4 +1,2 @@
-import akshare as ak
-
-stock_comment_detail_scrd_focus_em_df = ak.stock_comment_detail_scrd_focus_em(symbol="600000")
-print(stock_comment_detail_scrd_focus_em_df)
+li = [1,2,3,4,5,6,7,8,9,10]
+print(li[1:99])
