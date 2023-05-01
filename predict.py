@@ -15,6 +15,7 @@ parser.add_argument('--pkl_queue', default=1, type=int, help="use pkl queue inst
 parser.add_argument('--test_code', default="", type=str, help="test code")
 parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu or not")
 parser.add_argument('--predict_days', default=3, type=int, help="number of the predict days")
+parser.add_argument('--api', default="akshare", type=str, help="api-interface, tushare or akshare")
 args = parser.parse_args()
 last_save_time = 0
 
@@ -220,7 +221,8 @@ def predict(test_codes):
     pbar = tqdm(total=predict_days, leave=False, ncols=TQDM_NCOLS)
     while predict_days > 0:
         lastdate = predict_data["Date"][0].strftime("%Y%m%d")
-        # lastclose = predict_data["Close"][0]
+        if args.api == "tushare":
+            lastclose = predict_data["Close"][0]
         predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
         # predict_data = predict_data.dropna()
         predict_data = predict_data.fillna(-0.0)
@@ -245,37 +247,42 @@ def predict(test_codes):
         _tmpdata = _tmpdata + copy.deepcopy(_tmp)
         _splice_data = copy.deepcopy(spliced_data).drop(['ts_code', 'Date'], axis=1)
         df_mean = _splice_data.mean().tolist()
-        for index in range(len(_tmpdata) - 2, len(df_mean)):
-            # _tmpdata.append(df_mean[index])
-            _tmpdata.append(-0.0)
-        # _tmpdata.append(lastclose)
+        if args.api == "tushare":
+            for index in range(len(_tmpdata) - 2, len(df_mean)-1):
+                _tmpdata.append(df_mean[index])
+            _tmpdata.append(lastclose)
+        elif args.api == "akshare":
+            for index in range(len(_tmpdata) - 2, len(df_mean)):
+                _tmpdata.append(-0.0)
         _tmpdata = pd.DataFrame(_tmpdata).T
         _tmpdata.columns = spliced_data.columns
         predict_data = pd.concat([_tmpdata, spliced_data], axis=0, ignore_index=True)
         spliced_data = copy.deepcopy(predict_data)
         predict_data['Date'] = pd.to_datetime(predict_data['Date'])
-        predict_data[["Open","Close","High","Low"]] = predict_data[["Open","Close","High","Low"]].astype('float64')
-        predict_data = predict_data.loc[:,["ts_code","Date","Open","Close","High","Low"]]
 
-        ## Use variable length data instead of target prediction 
-        # predict_data['Date'] = predict_data['Date'].dt.strftime('%Y%m%d')
-        # predict_data.drop(["macd_dif","macd_dea","macd_bar","k","d","j","boll_upper","boll_mid","boll_lower","cci","pdi","mdi","adx","adxr","taq_up","taq_mid","taq_down","trix","trma","atr"], axis=1, inplace=True)
-        # predict_data = predict_data.loc[:,["ts_code","Date","Open","Close","High","Low","Volume","amount","amplitude","pct_change","change","exchange_rate"]]
-        # predict_data.rename(
-        #     columns={
-        #         'Date': 'trade_date', 'Open': 'open',
-        #         'High': 'high', 'Low': 'low',
-        #         'Close': 'close', 'Volume': 'vol'},
-        #     inplace=True)
+        if args.api == "akshare":
+            ## use akshare data
+            predict_data[["Open","Close","High","Low"]] = predict_data[["Open","Close","High","Low"]].astype('float64')
+            predict_data = predict_data.loc[:,["ts_code","Date","Open","Close","High","Low"]]
+        elif args.api == "tushare":
+            ## Use tushare data
+            predict_data['Date'] = predict_data['Date'].dt.strftime('%Y%m%d')
+            predict_data = predict_data.loc[:,["ts_code","Date","Open","Close","High","Low","Volume","amount","amplitude","pct_change","change","exchange_rate"]]
+            predict_data.rename(
+                columns={
+                    'Date': 'trade_date', 'Open': 'open',
+                    'High': 'high', 'Low': 'low',
+                    'Close': 'close', 'Volume': 'vol'},
+                inplace=True)
 
-        # predict_data.to_csv(test_path,sep=',',index=False,header=True)
-        # load_data([test_codes[0]],None,test_path,data_queue=data_queue)
-        # while data_queue.empty() == False:
-        #     try: 
-        #         predict_data = data_queue.get(timeout=30)
-        #         break
-        #     except queue.Empty:
-        #         break
+            predict_data.to_csv(test_path,sep=',',index=False,header=True)
+            load_data([test_codes[0]],None,test_path,data_queue=data_queue)
+            while data_queue.empty() == False:
+                try: 
+                    predict_data = data_queue.get(timeout=30)
+                    break
+                except queue.Empty:
+                    break
 
         predict_days -= 1
         pbar.update(1)
