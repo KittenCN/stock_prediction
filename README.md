@@ -1,6 +1,9 @@
 # 基于神经网络的通用股票预测模型 A general stock prediction model based on neural networks
 
 ## New
+* 20230502
+* 1. 增加使用yfinance接口下载数据，如果是中国大陆用户，需要使用代理，或者使用其他接口
+*    Add the use of yfinance interface to download data. If you are a user in mainland China, you need to use a proxy or other interface.
 * 20230501
 * 1. 支持可变维度的输入，可变长度的输入，最大输入维度需要在init.py中设置
 *    Support variable dimension input, variable length input, and the maximum input dimension needs to be set in init.py
