@@ -15,7 +15,7 @@ parser.add_argument('--pkl_queue', default=1, type=int, help="use pkl queue inst
 parser.add_argument('--test_code', default="", type=str, help="test code")
 parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu or not")
 parser.add_argument('--predict_days', default=3, type=int, help="number of the predict days")
-parser.add_argument('--api', default="akshare", type=str, help="api-interface, tushare or akshare")
+parser.add_argument('--api', default="akshare", type=str, help="api-interface, tushare, akshare or yfinance")
 args = parser.parse_args()
 last_save_time = 0
 
@@ -260,8 +260,8 @@ def predict(test_codes):
         spliced_data = copy.deepcopy(predict_data)
         predict_data['Date'] = pd.to_datetime(predict_data['Date'])
 
-        if args.api == "akshare":
-            ## use akshare data
+        if args.api == "akshare" or args.api == "yfinance":
+            ## use akshare data or yfinance data
             predict_data[["Open","Close","High","Low"]] = predict_data[["Open","Close","High","Low"]].astype('float64')
             predict_data = predict_data.loc[:,["ts_code","Date","Open","Close","High","Low"]]
             predict_data.to_csv(test_path,sep=',',index=False,header=True)
