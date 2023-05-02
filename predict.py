@@ -251,7 +251,7 @@ def predict(test_codes):
             for index in range(len(_tmpdata) - 2, len(df_mean)-1):
                 _tmpdata.append(df_mean[index])
             _tmpdata.append(lastclose)
-        elif args.api == "akshare":
+        elif args.api == "akshare" or args.api == "yfinance":
             for index in range(len(_tmpdata) - 2, len(df_mean)):
                 _tmpdata.append(-0.0)
         _tmpdata = pd.DataFrame(_tmpdata).T
