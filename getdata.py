@@ -2,11 +2,12 @@ import threading
 import datetime
 import tushare as ts
 import akshare as ak
+import yfinance as yf
 from common import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--code', default="", type=str, help="code")
-parser.add_argument('--api', default="akshare", type=str, help="api-interface, tushare or akshare")
+parser.add_argument('--api', default="akshare", type=str, help="api-interface, tushare, akshare or yfinance")
 parser.add_argument('--adjust', default="hfq", type=str, help="adjust: none or qfq or hfq, Note if you have permission")
 args = parser.parse_args()
 
@@ -202,13 +203,78 @@ def get_stock_data(ts_code="", save=True, start_code=""):
                     else:
                         stock_data_queue.put(NoneDataFrame)
                         return None
+    elif args.api == "yfinance":
+        auto_adjust = False
+        back_adjust = False
+        if args.adjust == "":
+            auto_adjust = False
+            back_adjust = False
+        elif args.adjust == "qfq":
+            auto_adjust = True
+            back_adjust = False
+        elif args.adjust == "hfq":
+            auto_adjust = True
+            back_adjust = True
+        stock_list = ts_code
+        if save:
+            pbar = tqdm(total=len(stock_list), leave=False)
+        lock = threading.Lock()
+        with lock:
+            for code in stock_list:
+                try:
+                    df = yf.download(code, auto_adjust=auto_adjust, back_adjust=back_adjust)
+                    df.reset_index(inplace=True)
+                    df.insert(0, "ts_code", code)
+                    df.columns = [
+                                    "ts_code",
+                                    "trade_date",
+                                    "open",
+                                    "high",
+                                    "low",
+                                    "close",
+                                    "vol"
+                                ]
+                    df["trade_date"] = pd.to_datetime(df['trade_date']).dt.strftime("%Y%m%d")
+                    df.sort_values(by=['trade_date'], ascending=False, inplace=True)
+                    df = df.reindex(columns=[
+                                        "ts_code",
+                                        "trade_date",
+                                        "open",
+                                        "high",
+                                        "low",
+                                        "close",
+                                        "vol"
+                                    ])
+                except Exception as e:
+                    if save:
+                        tqdm.write(f"{code} {e}")
+                        pbar.update(1)
+                    else:
+                        print(f"{code} {e}")
+                    continue
+                if save:
+                    df.to_csv(daily_path+f"/{code}.csv", index=False)
+                    pbar.update(1)
+
+                else:
+                    if not df.empty:
+                        stock_data_queue.put(df)
+                        return df
+                    else:
+                        stock_data_queue.put(NoneDataFrame)
+                        return None
     if save:
         pbar.close()
 
 if __name__ == "__main__":
     # if os.path.exists(daily_path) == False:
     #     os.mkdir(daily_path)
-    if args.code != "":
-        get_stock_data(args.code, save=True)
+    yfi_ticker = ['DAX', 'IBM']
+    if args.api == "yfinance":
+        assert len(yfi_ticker) > 0, "Please input ticker"
+        get_stock_data(yfi_ticker, save=True)
     else:
-        get_stock_data("", save=True) 
+        if args.code != "":
+            get_stock_data(args.code, save=True)
+        else:
+            get_stock_data("", save=True) 
