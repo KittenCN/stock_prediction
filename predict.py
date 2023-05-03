@@ -521,14 +521,17 @@ if __name__=="__main__":
                     _data = _data.fillna(-0.0)
                     if _data.empty:
                         continue
-                    if str(_data['ts_code'][0]).zfill(6) in train_codes:
+                    _ts_code = str(_data['ts_code'][0])
+                    if args.api == "ashare":
+                        _ts_code = _ts_code.zfill(6)
+                    if _ts_code in train_codes:
                         data_queue.put(_data)
                         total_length += _data.shape[0] - SEQ_LEN
-                    if str(_data['ts_code'][0]).zfill(6) in test_codes:
+                    if _ts_code in test_codes:
                         test_queue.put(_data)
                         total_test_length += _data.shape[0] - SEQ_LEN
-                    if str(_data['ts_code'][0]).zfill(6) not in train_codes and str(_data['ts_code'][0]).zfill(6) not in test_codes:
-                        print("Error: %s not in train or test"%str(_data['ts_code'][0]).zfill(6))
+                    if _ts_code not in train_codes and _ts_code not in test_codes:
+                        print("Error: %s not in train or test"%_ts_code)
                         continue
             codes_len = data_queue.qsize()
         print("total codes: %d, total length: %d"%(codes_len, total_length))
