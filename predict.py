@@ -522,7 +522,7 @@ if __name__=="__main__":
                     if _data.empty:
                         continue
                     _ts_code = str(_data['ts_code'][0])
-                    if args.api == "ashare":
+                    if args.api == "akshare":
                         _ts_code = _ts_code.zfill(6)
                     if _ts_code in train_codes:
                         data_queue.put(_data)
