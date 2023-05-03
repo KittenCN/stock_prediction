@@ -631,6 +631,9 @@ if __name__=="__main__":
                 last_save_time = time.time()
             if args.pkl_queue == 0:
                 code_bar.close()
+            if len(lo_list) > 0:
+                tqdm.write("Start create image for loss")
+                loss_curve(lo_list)
             pbar.update(1)
             last_epoch = epoch
         pbar.close()
