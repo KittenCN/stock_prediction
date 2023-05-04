@@ -465,7 +465,7 @@ if __name__=="__main__":
 
     print(model)
     optimizer=optim.Adam(model.parameters(),lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
-    lr_scheduler = CustomSchedule(d_model=512, warmup_steps=4000, optimizer=optimizer)
+    lr_scheduler = CustomSchedule(d_model=512, warmup_steps=50000, optimizer=optimizer)
     if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"):
         print("Load model and optimizer from file")
         model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl"))
