@@ -35,6 +35,7 @@ TQDM_NCOLS = 150
 NUM_WORKERS = 1
 PKL = True
 BUFFER_SIZE = 10
+D_MODEL = 512
 
 # checkpoint = "bert-base-uncased"
 checkpoint = 'bert-base-chinese'

@@ -441,8 +441,8 @@ if __name__=="__main__":
         save_path=lstm_path
         criterion=nn.MSELoss()
     elif model_mode=="TRANSFORMER":
-        model=TransformerModel(input_dim=INPUT_DIMENSION, d_model=512, nhead=8, num_layers=6, dim_feedforward=2048, output_dim=OUTPUT_DIMENSION, max_len=SEQ_LEN)
-        test_model=TransformerModel(input_dim=INPUT_DIMENSION, d_model=512, nhead=8, num_layers=6, dim_feedforward=2048, output_dim=OUTPUT_DIMENSION, max_len=SEQ_LEN)
+        model=TransformerModel(input_dim=INPUT_DIMENSION, d_model=D_MODEL, nhead=8, num_layers=6, dim_feedforward=2048, output_dim=OUTPUT_DIMENSION, max_len=SEQ_LEN)
+        test_model=TransformerModel(input_dim=INPUT_DIMENSION, d_model=D_MODEL, nhead=8, num_layers=6, dim_feedforward=2048, output_dim=OUTPUT_DIMENSION, max_len=SEQ_LEN)
         save_path=transformer_path
         criterion=nn.MSELoss()
     else:
@@ -465,7 +465,7 @@ if __name__=="__main__":
 
     print(model)
     optimizer=optim.Adam(model.parameters(),lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
-    lr_scheduler = CustomSchedule(d_model=512, warmup_steps=50000, optimizer=optimizer)
+    lr_scheduler = CustomSchedule(d_model=D_MODEL, warmup_steps=50000, optimizer=optimizer)
     if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"):
         print("Load model and optimizer from file")
         model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl"))
