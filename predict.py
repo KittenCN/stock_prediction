@@ -524,7 +524,9 @@ if __name__=="__main__":
                     except queue.Empty:
                         break
                 random.shuffle(_datas)
+                init_bar = tqdm(total=len(_datas))
                 for _data in _datas:
+                    init_bar.update(1)
                     # _data = _data.dropna()
                     _data = _data.fillna(-0.0)
                     if _data.empty:
@@ -541,8 +543,10 @@ if __name__=="__main__":
                     if _ts_code not in train_codes and _ts_code not in test_codes:
                         print("Error: %s not in train or test"%_ts_code)
                         continue
+                init_bar.close()
             codes_len = data_queue.qsize()
         print("total codes: %d, total length: %d"%(codes_len, total_length))
+        print("total test codes: %d, total test length: %d"%(test_queue.qsize(), total_test_length))
         batch_none = 0
         data_none = 0
         scaler = GradScaler()
