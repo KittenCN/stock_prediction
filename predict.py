@@ -23,7 +23,7 @@ if device.type == "cuda":
     torch.backends.cudnn.benchmark = True
 
 def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
-    global loss, last_save_time, loss_list, iteration, lo_list, batch_none, data_none, last_loss
+    global loss, last_save_time, loss_list, iteration, lo_list, batch_none, data_none, last_loss, lr_scheduler
     model.train()
     subbar = tqdm(total=len(dataloader), leave=False, ncols=TQDM_NCOLS)
     test_iner = len(dataloader) // TEST_INTERVAL
@@ -60,10 +60,12 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
             optimizer.zero_grad()
             if device.type == "cuda":
                 scaler.scale(loss).backward()
+                lr_scheduler.step()
                 scaler.step(optimizer)
                 scaler.update()
             else:
                 loss.backward()
+                lr_scheduler.step()
                 optimizer.step()
             if is_number(str(loss.item())):
                 loss_list.append(loss.item())
@@ -419,7 +421,7 @@ def contrast_lines(test_codes):
     plt.close()
 
 if __name__=="__main__":
-    global last_loss,test_model,model,total_test_length
+    global last_loss,test_model,model,total_test_length,lr_scheduler
 
     last_loss = 1e10
     if os.path.exists('loss.txt'):
@@ -463,6 +465,7 @@ if __name__=="__main__":
 
     print(model)
     optimizer=optim.Adam(model.parameters(),lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+    lr_scheduler = CustomSchedule(d_model=512, warmup_steps=4000, optimizer=optimizer)
     if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"):
         print("Load model and optimizer from file")
         model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl"))
