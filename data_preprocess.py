@@ -1,3 +1,4 @@
+import random
 from common import *
 
 parser = argparse.ArgumentParser()
@@ -13,6 +14,7 @@ if __name__ == ("__main__"):
     dump_queue=queue.Queue()
     for csv_file in csv_files:
         ts_codes.append(os.path.basename(csv_file).rsplit(".", 1)[0])
+    random.shuffle(ts_codes)
     # data_thread = threading.Thread(target=load_data, args=(ts_codes,))
     # data_thread.start()
     load_data(ts_codes, True)

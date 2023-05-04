@@ -503,6 +503,8 @@ if __name__=="__main__":
             train_codes = ts_codes
             test_codes = ts_codes
         random.shuffle(ts_codes)
+        random.shuffle(train_codes)
+        random.shuffle(test_codes)
         lo_list=[]
         data_len=0
         total_length = 0
@@ -513,13 +515,16 @@ if __name__=="__main__":
             data_thread.start()
             codes_len = len(ts_codes)
         else:
+            _datas = []
             with open(train_pkl_path, 'rb') as f:
                 _data_queue = dill.load(f)
                 while _data_queue.empty() == False:
                     try:
-                        _data = _data_queue.get(timeout=30)
+                        _datas.append(_data_queue.get(timeout=30))
                     except queue.Empty:
                         break
+                random.shuffle(_datas)
+                for _data in _datas:
                     # _data = _data.dropna()
                     _data = _data.fillna(-0.0)
                     if _data.empty:
