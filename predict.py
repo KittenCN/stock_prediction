@@ -386,46 +386,47 @@ def contrast_lines(test_codes):
         exit(0)
     print("test_data MSELoss:(pred-real)/real=", test_loss)
 
-    real_list = []
-    prediction_list = []
-    for i,(_,label) in enumerate(dataloader):
-        for idx in range(label.shape[0]):
-            _tmp = []
-            for index in range(OUTPUT_DIMENSION):
-                if use_list[index] == 1:
-                    _tmp.append(label[idx][index]*test_std_list[index]+test_mean_list[index])
-            real_list.append(np.array(_tmp))
+    if int(args.predict_days) == 0:
+        real_list = []
+        prediction_list = []
+        for i,(_,label) in enumerate(dataloader):
+            for idx in range(label.shape[0]):
+                _tmp = []
+                for index in range(OUTPUT_DIMENSION):
+                    if use_list[index] == 1:
+                        _tmp.append(label[idx][index]*test_std_list[index]+test_mean_list[index])
+                real_list.append(np.array(_tmp))
 
-    for items in predict_list:
-        items=items.to("cpu", non_blocking=True)
-        for idxs in items:
-            _tmp = []
-            for index, item in enumerate(idxs):
-                if use_list[index] == 1:
-                    _tmp.append(item*test_std_list[index]+test_mean_list[index])
-            prediction_list.append(np.array(_tmp))
-    pbar = tqdm(total=OUTPUT_DIMENSION, ncols=TQDM_NCOLS)
-    for i in range(OUTPUT_DIMENSION):
-        try:
-            pbar.set_description(f"{name_list[i]}")
-            _real_list = np.transpose(real_list)[i]
-            _prediction_list = np.transpose(prediction_list)[i]
-            plt.figure()
-            x1 = np.linspace(0, len(_real_list), len(_real_list))
-            x2 = np.linspace(0, len(_prediction_list), len(_prediction_list))
-            plt.plot(x1, np.array(_real_list), label="real_"+name_list[i])
-            plt.plot(x2, np.array(_prediction_list), label="prediction_"+name_list[i], linewidth=0.75, linestyle='--')
-            plt.legend()
-            now = datetime.now()
-            date_string = now.strftime("%Y%m%d%H%M%S")
-            plt.savefig(png_path + "/test/" + cnname + "_"  + str(test_code[0]).split('.')[0] + "_" + model_mode + "_" + name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
-            pbar.update(1)
-        except Exception as e:
-            print("Error: contrast_lines", e)
-            pbar.update(1)
-            continue
-    pbar.close()
-    plt.close()
+        for items in predict_list:
+            items=items.to("cpu", non_blocking=True)
+            for idxs in items:
+                _tmp = []
+                for index, item in enumerate(idxs):
+                    if use_list[index] == 1:
+                        _tmp.append(item*test_std_list[index]+test_mean_list[index])
+                prediction_list.append(np.array(_tmp))
+        pbar = tqdm(total=OUTPUT_DIMENSION, ncols=TQDM_NCOLS)
+        for i in range(OUTPUT_DIMENSION):
+            try:
+                pbar.set_description(f"{name_list[i]}")
+                _real_list = np.transpose(real_list)[i]
+                _prediction_list = np.transpose(prediction_list)[i]
+                plt.figure()
+                x1 = np.linspace(0, len(_real_list), len(_real_list))
+                x2 = np.linspace(0, len(_prediction_list), len(_prediction_list))
+                plt.plot(x1, np.array(_real_list), label="real_"+name_list[i])
+                plt.plot(x2, np.array(_prediction_list), label="prediction_"+name_list[i], linewidth=0.75, linestyle='--')
+                plt.legend()
+                now = datetime.now()
+                date_string = now.strftime("%Y%m%d%H%M%S")
+                plt.savefig(png_path + "/test/" + cnname + "_"  + str(test_code[0]).split('.')[0] + "_" + model_mode + "_" + name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
+                pbar.update(1)
+            except Exception as e:
+                print("Error: contrast_lines", e)
+                pbar.update(1)
+                continue
+        pbar.close()
+        plt.close()
 
 if __name__=="__main__":
     global last_loss,test_model,model,total_test_length,lr_scheduler,drop_last
