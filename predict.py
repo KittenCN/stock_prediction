@@ -6,15 +6,15 @@ from datetime import datetime, timedelta
 from common import *
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', default="predict", type=str, help="select running mode: train, test, predict")
+parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
 parser.add_argument('--model', default="transformer", type=str, help="lstm or transformer")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--cpu', default=0, type=int, help="only use cpu")
 parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of csv file")
 parser.add_argument('--pkl_queue', default=1, type=int, help="use pkl queue instead of csv file")
-parser.add_argument('--test_code', default="600581", type=str, help="test code")
+parser.add_argument('--test_code', default="", type=str, help="test code")
 parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu or not")
-parser.add_argument('--predict_days', default=15, type=int, help="number of the predict days")
+parser.add_argument('--predict_days', default=2, type=int, help="number of the predict days")
 parser.add_argument('--api', default="akshare", type=str, help="api-interface, tushare, akshare or yfinance")
 args = parser.parse_args()
 last_save_time = 0
@@ -45,7 +45,7 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
             data, label = data.to(device, non_blocking=True), label.to(device, non_blocking=True)
             with autocast():
                 data = pad_input(data)
-                outputs = model.forward(data, label)
+                outputs = model.forward(data, label, int(args.predict_days))
                 if outputs.shape == label.shape:
                     loss = criterion(outputs, label)
                 else:
@@ -84,23 +84,23 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
             test_loss, predict_list, _ = test(data_queue, testmodel, dataloader_mode=1)
             if last_loss > test_loss:
                 last_loss = test_loss
-                thread_save_model(model, optimizer, save_path, True)
+                thread_save_model(model, optimizer, save_path, True, int(args.predict_days))
                 with open('loss.txt', 'w') as file:
                     file.write(str(last_loss))
 
         if (iteration % SAVE_NUM_ITER == 0 and time.time() - last_save_time >= SAVE_INTERVAL)  and safe_save == True:
-            thread_save_model(model, optimizer, save_path)
+            thread_save_model(model, optimizer, save_path, False, int(args.predict_days))
             last_save_time = time.time()
         
 
     if (epoch % SAVE_NUM_EPOCH == 0 or epoch == EPOCH) and time.time() - last_save_time >= SAVE_INTERVAL and safe_save == True:
-        thread_save_model(model, optimizer, save_path)
+        thread_save_model(model, optimizer, save_path, False, int(args.predict_days))
         last_save_time = time.time()
     testmodel = copy.deepcopy(model)
     test_loss, predict_list, _ = test(data_queue, testmodel, dataloader_mode=1)
     if last_loss > test_loss:
         last_loss = test_loss
-        thread_save_model(model, optimizer, save_path, True)
+        thread_save_model(model, optimizer, save_path, True, int(args.predict_days))
         with open('loss.txt', 'w') as file:
             file.write(str(last_loss))
 
@@ -116,15 +116,15 @@ def test(dataset, testmodel=None, dataloader_mode=0):
         dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False, drop_last=False, num_workers=NUM_WORKERS, pin_memory=True)
     elif dataloader_mode in [1]:
         _stock_test_data_queue = deep_copy_queue(dataset)
-        stock_test = stock_queue_dataset(mode=1, data_queue=_stock_test_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_test_length)
+        stock_test = stock_queue_dataset(mode=1, data_queue=_stock_test_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_test_length,predict_days=int(args.predict_days))
         dataloader=DataLoader(dataset=stock_test,batch_size=BATCH_SIZE,shuffle=False,drop_last=False, num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
     elif dataloader_mode in [3]:
         stock_predict = Stock_Data(mode=1, dataFrame=dataset, label_num=OUTPUT_DIMENSION)
         dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False, drop_last=False, num_workers=NUM_WORKERS, pin_memory=True)
 
     if testmodel is None:
-        if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"):
-            test_model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl"))
+        if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Optimizer.pkl"):
+            test_model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Model.pkl"))
         else:
             tqdm.write("No model found")
             return -1, -1, -1
@@ -151,7 +151,7 @@ def test(dataset, testmodel=None, dataloader_mode=0):
                     data, label = data.to("cpu", non_blocking=True), label.to("cpu", non_blocking=True)
                 # test_optimizer.zero_grad()
                 data = pad_input(data)
-                predict = test_model.forward(data, label)
+                predict = test_model.forward(data, label, int(args.predict_days))
                 predict_list.append(predict)
                 if(predict.shape == label.shape):
                     accuracy = accuracy_fn(predict, label)
@@ -430,6 +430,8 @@ def contrast_lines(test_codes):
 if __name__=="__main__":
     global last_loss,test_model,model,total_test_length,lr_scheduler
 
+    assert (BATCH_SIZE*SEQ_LEN) % int(args.predict_days) == 0, "Error: BATCH_SIZE*SEQ_LEN must be divisible by predict_days"
+
     last_loss = 1e10
     if os.path.exists('loss.txt'):
         with open('loss.txt', 'r') as file:
@@ -473,10 +475,10 @@ if __name__=="__main__":
     print(model)
     optimizer=optim.Adam(model.parameters(),lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
     lr_scheduler = CustomSchedule(d_model=D_MODEL, warmup_steps=50000, optimizer=optimizer)
-    if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"):
+    if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Optimizer.pkl"):
         print("Load model and optimizer from file")
-        model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl"))
-        optimizer.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"))
+        model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Model.pkl"))
+        optimizer.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Optimizer.pkl"))
     else:
         print("No model and optimizer file, train from scratch")
 
@@ -638,7 +640,7 @@ if __name__=="__main__":
                 tqdm.write("epoch: %d, data_queue size after deep copy: %d" % (epoch, data_queue.qsize()))
                 tqdm.write("epoch: %d, _stock_data_queue size: %d" % (epoch, _stock_data_queue.qsize()))
                 
-                stock_train = stock_queue_dataset(mode=0, data_queue=_stock_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_length)
+                stock_train = stock_queue_dataset(mode=0, data_queue=_stock_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_length,predict_days=int(args.predict_days))
             iteration=0
             loss_list=[]
             
@@ -649,7 +651,7 @@ if __name__=="__main__":
             if args.pkl_queue == 0:
                 code_bar.update(1)
             if (time.time() - last_save_time >= SAVE_INTERVAL or index == len(ts_codes) - 1) and safe_save == True:
-                thread_save_model(model, optimizer, save_path, False)
+                thread_save_model(model, optimizer, save_path, False, int(args.predict_days))
                 last_save_time = time.time()
             if args.pkl_queue == 0:
                 code_bar.close()
