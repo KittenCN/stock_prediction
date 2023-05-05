@@ -430,7 +430,7 @@ def contrast_lines(test_codes):
 
 if __name__=="__main__":
     global last_loss,test_model,model,total_test_length,lr_scheduler,drop_last
-
+    # batch_size*input_dim=predict_days*n
     assert (BATCH_SIZE*SEQ_LEN) % int(args.predict_days) == 0, "Error: BATCH_SIZE*SEQ_LEN must be divisible by predict_days"
 
     if args.predict_days == 0:
