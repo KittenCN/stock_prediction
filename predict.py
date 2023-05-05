@@ -113,14 +113,14 @@ def test(dataset, testmodel=None, dataloader_mode=0):
     accuracy_list = []
     if dataloader_mode in [0, 2]:
         stock_predict = Stock_Data(mode=dataloader_mode, dataFrame=dataset, label_num=OUTPUT_DIMENSION)
-        dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False, drop_last=False, num_workers=NUM_WORKERS, pin_memory=True)
+        dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False, drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=True)
     elif dataloader_mode in [1]:
         _stock_test_data_queue = deep_copy_queue(dataset)
         stock_test = stock_queue_dataset(mode=1, data_queue=_stock_test_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_test_length,predict_days=int(args.predict_days))
-        dataloader=DataLoader(dataset=stock_test,batch_size=BATCH_SIZE,shuffle=False,drop_last=False, num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
+        dataloader=DataLoader(dataset=stock_test,batch_size=BATCH_SIZE,shuffle=False,drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
     elif dataloader_mode in [3]:
         stock_predict = Stock_Data(mode=1, dataFrame=dataset, label_num=OUTPUT_DIMENSION)
-        dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False, drop_last=False, num_workers=NUM_WORKERS, pin_memory=True)
+        dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False, drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=True)
 
     if testmodel is None:
         if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Optimizer.pkl"):
@@ -428,9 +428,14 @@ def contrast_lines(test_codes):
     plt.close()
 
 if __name__=="__main__":
-    global last_loss,test_model,model,total_test_length,lr_scheduler
+    global last_loss,test_model,model,total_test_length,lr_scheduler,drop_last
 
     assert (BATCH_SIZE*SEQ_LEN) % int(args.predict_days) == 0, "Error: BATCH_SIZE*SEQ_LEN must be divisible by predict_days"
+
+    if args.predict_days == 0:
+        drop_last = False
+    else:
+        drop_last = True
 
     last_loss = 1e10
     if os.path.exists('loss.txt'):
@@ -644,7 +649,7 @@ if __name__=="__main__":
             iteration=0
             loss_list=[]
             
-            train_dataloader=DataLoader(dataset=stock_train,batch_size=BATCH_SIZE,shuffle=False,drop_last=False, num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
+            train_dataloader=DataLoader(dataset=stock_train,batch_size=BATCH_SIZE,shuffle=False,drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
             predict_list=[]
             accuracy_list=[]
             train(epoch+1, train_dataloader, scaler, ts_code, test_queue)
