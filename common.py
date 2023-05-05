@@ -1,3 +1,4 @@
+import random
 import re
 import target
 import mplfinance as mpf
@@ -6,11 +7,28 @@ from cycler import cycler# 用于定制线条颜色
 import matplotlib.pyplot as plt
 from prefetch_generator import BackgroundGenerator
 from init import *
+from getdata import args, get_stock_data
 
 class DataLoaderX(DataLoader):
     def __iter__(self):
         return BackgroundGenerator(super().__iter__())
 
+class CustomSchedule(object):
+    def __init__(self, d_model, warmup_steps=4000, optimizer=None):
+        super(CustomSchedule, self).__init__()
+        self.d_model = torch.tensor(d_model, dtype=torch.float32)
+        self.warmup_steps = warmup_steps
+        self.steps = 1.
+        self.optimizer = optimizer
+
+    def step(self):
+        arg1 = self.steps ** -0.5
+        arg2 = self.steps * (self.warmup_steps ** -1.5)
+        self.steps += 1.
+        lr = (self.d_model ** -0.5) * min(arg1, arg2)
+        for p in self.optimizer.param_groups:
+            p['lr'] = lr
+        return lr
 
 class BertForSequenceClassification(BertPreTrainedModel):
     r"""
@@ -902,19 +920,51 @@ def generate_attention_mask(input_data):
     mask = mask.T
     return mask
 
-class CustomSchedule(object):
-    def __init__(self, d_model, warmup_steps=4000, optimizer=None):
-        super(CustomSchedule, self).__init__()
-        self.d_model = torch.tensor(d_model, dtype=torch.float32)
-        self.warmup_steps = warmup_steps
-        self.steps = 1.
-        self.optimizer = optimizer
-
-    def step(self):
-        arg1 = self.steps ** -0.5
-        arg2 = self.steps * (self.warmup_steps ** -1.5)
-        self.steps += 1.
-        lr = (self.d_model ** -0.5) * min(arg1, arg2)
-        for p in self.optimizer.param_groups:
-            p['lr'] = lr
-        return lr
+def cal_compounding_factor(ts_code=""):
+    # First, find the day on which the reweighting event occurred. Usually, the difference between the post-weighting data and the non-weighting data is greatest on this day.
+    # Calculate the ratio of the post-weighted data of the two adjacent days:
+    # Ratio of post-weighted data = Post-weighted data of the second day / Post-weighted data of the first day
+    # Calculate the ratio of non-rev weighted data for two adjacent days:
+    # Non-rev weighted data ratio = Non-rev weighted data of the second day / Non-rev weighted data of the first day
+    # Divide the proportion of post-weighted data by the proportion of non-weighted data to obtain the compounding factor:
+    # Compounding factor = Proportion of post-weighted data / Proportion of non-weighted data
+    if ts_code == "":
+        csv_files = glob.glob(daily_path+"/*.csv")
+        ts_codes =[]
+        for csv_file in csv_files:
+            ts_codes.append(os.path.basename(csv_file).rsplit(".", 1)[0])
+        ts_code = random.sample(ts_codes, 1)
+    data_file_path = f"{data_path}/{ts_code}.csv"
+    daily_file_path = f"{daily_path}/{ts_code}.csv"
+    args.adjust=""
+    get_stock_data(ts_code, save=True, save_path=data_path) 
+    if os.path.exists(daily_file_path) and os.path.exists(data_file_path):
+        df = pd.read_csv(daily_file_path)
+        df['trade_date'] = pd.to_datetime(df['trade_date'], format='%Y%m%d')
+        df = df.sort_values(by='trade_date', ascending=False)
+        daily_open = df['open'][0]
+        daily_close = df['close'][0]
+        daily_high = df['high'][0]
+        daily_low = df['low'][0]
+        _date = df['trade_date'][0]
+        df = pd.read_csv(data_file_path)
+        df['trade_date'] = pd.to_datetime(df['trade_date'], format='%Y%m%d')
+        df = df.sort_values(by='trade_date', ascending=False)
+        data_open = None
+        data_close = None
+        data_high = None
+        data_low = None
+        for i in range(len(df)):
+            if df['trade_date'][i] == _date:
+                data_open = df['open'][i]
+                data_close = df['close'][i]
+                data_high = df['high'][i]
+                data_low = df['low'][i]
+                break
+        if data_open is None or data_close is None or data_high is None or data_low is None:
+            return None
+        factor = [data_open/daily_open, data_close/daily_close, data_high/daily_high, data_low/daily_low]
+        compounding_factor = np.mean(factor)
+        return compounding_factor
+    else:
+        return None

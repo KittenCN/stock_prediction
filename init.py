@@ -94,6 +94,7 @@ daily_path=root_path+"/stock_daily"
 handle_path=root_path+"/stock_handle"
 pkl_path=root_path+"/pkl_handle"
 bert_data_path=root_path+"/bert_data"
+data_path=root_path+"/stock_data"
 
 cnname = ""
 for item in symbol.split("."):

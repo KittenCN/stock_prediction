@@ -6,15 +6,15 @@ from datetime import datetime, timedelta
 from common import *
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
+parser.add_argument('--mode', default="predict", type=str, help="select running mode: train, test, predict")
 parser.add_argument('--model', default="transformer", type=str, help="lstm or transformer")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--cpu', default=0, type=int, help="only use cpu")
 parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of csv file")
 parser.add_argument('--pkl_queue', default=1, type=int, help="use pkl queue instead of csv file")
-parser.add_argument('--test_code', default="", type=str, help="test code")
+parser.add_argument('--test_code', default="600581", type=str, help="test code")
 parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu or not")
-parser.add_argument('--predict_days', default=3, type=int, help="number of the predict days")
+parser.add_argument('--predict_days', default=15, type=int, help="number of the predict days")
 parser.add_argument('--api', default="akshare", type=str, help="api-interface, tushare, akshare or yfinance")
 args = parser.parse_args()
 last_save_time = 0
@@ -292,9 +292,12 @@ def predict(test_codes):
     pbar.close()
 
     show_days = 7
+    compounding_factor = cal_compounding_factor(test_codes[0])
     datalist = predict_data.iloc[:, 2:2+OUTPUT_DIMENSION].values.tolist()[::-1]
     real_list = datalist[len(datalist)-int(args.predict_days)-show_days:len(datalist)-int(args.predict_days)]
     prediction_list = datalist[len(datalist)-int(args.predict_days)-1:]
+    real_list = np.array(real_list) * compounding_factor
+    prediction_list = np.array(prediction_list) * compounding_factor
     pbar = tqdm(total=OUTPUT_DIMENSION, leave=False, ncols=TQDM_NCOLS)
     for i in range(OUTPUT_DIMENSION):
         _real_list = np.transpose(real_list)[i]
@@ -304,6 +307,10 @@ def predict(test_codes):
         x2 = np.linspace(len(_real_list), len(_real_list) + len(_prediction_list), len(_prediction_list))
         plt.plot(x1, np.array(_real_list), label="real_"+name_list[i])
         plt.plot(x2, np.array(_prediction_list), label="prediction_"+name_list[i], linewidth=0.75, linestyle='--')
+        for item in range(len(_real_list)):
+            plt.text(item, _real_list[item], '%.2f' % _real_list[item], ha='center', va='bottom', fontsize=10)
+        for item in range(len(_prediction_list)):
+            plt.text(item + len(_real_list), _prediction_list[item], '%.2f' % _prediction_list[item], ha='center', va='bottom', fontsize=10)
         plt.legend()
         now = datetime.now()
         date_string = now.strftime("%Y%m%d%H%M%S")

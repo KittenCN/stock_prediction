@@ -33,7 +33,7 @@ def get_stock_list():
         stock_list_queue.put(stock_list)
         return stock_list
 
-def get_stock_data(ts_code="", save=True, start_code=""):
+def get_stock_data(ts_code="", save=True, start_code="", save_path=""):
     if args.api == "tushare":
         if ts_code == "":
             stock_list = get_stock_list()
@@ -120,7 +120,7 @@ def get_stock_data(ts_code="", save=True, start_code=""):
                 time.sleep(0.1)
 
                 if save:
-                    df.to_csv(daily_path+f"/{code}.csv", index=False)
+                    df.to_csv(save_path+f"/{code}.csv", index=False)
                     pbar.update(1)
 
                 else:
@@ -193,7 +193,7 @@ def get_stock_data(ts_code="", save=True, start_code=""):
                 time.sleep(0.1)
 
                 if save:
-                    df.to_csv(daily_path+f"/{code}.csv", index=False)
+                    df.to_csv(save_path+f"/{code}.csv", index=False)
                     pbar.update(1)
 
                 else:
@@ -253,7 +253,7 @@ def get_stock_data(ts_code="", save=True, start_code=""):
                         print(f"{code} {e}")
                     continue
                 if save:
-                    df.to_csv(daily_path+f"/{code}.csv", index=False)
+                    df.to_csv(save_path+f"/{code}.csv", index=False)
                     pbar.update(1)
 
                 else:
@@ -272,9 +272,9 @@ if __name__ == "__main__":
     yfi_ticker = ['DAX', 'IBM']
     if args.api == "yfinance":
         assert len(yfi_ticker) > 0, "Please input ticker"
-        get_stock_data(yfi_ticker, save=True)
+        get_stock_data(yfi_ticker, save=True, save_path=daily_path)
     else:
         if args.code != "":
-            get_stock_data(args.code, save=True)
+            get_stock_data(args.code, save=True, save_path=daily_path)
         else:
-            get_stock_data("", save=True) 
+            get_stock_data("600581", save=True, save_path=daily_path) 
