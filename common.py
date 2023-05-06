@@ -511,7 +511,6 @@ class TransformerModel(nn.Module):
         super(TransformerModel, self).__init__()
 
         # self.embedding = nn.Linear(input_dim, d_model)
-        assert d_model % 2 == 0, "d_model must be a multiple of 2"
         self.embedding = MLP(input_dim, d_model//2, d_model)  # Replace this line
         self.positional_encoding = None
 
@@ -545,7 +544,7 @@ class TransformerModel(nn.Module):
 
         memory = self.transformer_encoder(src, src_key_padding_mask=attention_mask)
 
-        # tgt = tgt.unsqueeze(1)  # (batch_size, output_dim) -> (batch_size, seq_len, output_dim)
+        tgt = tgt.unsqueeze(1)  # (batch_size, output_dim) -> (batch_size, seq_len, output_dim)
         tgt_embedding = self.target_embedding(tgt)
         tgt_seq_length = tgt.size(1)
 
