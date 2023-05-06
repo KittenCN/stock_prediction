@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from common import *
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', default="test", type=str, help="select running mode: train, test, predict")
+parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
 parser.add_argument('--model', default="transformer", type=str, help="lstm or transformer")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--cpu', default=0, type=int, help="only use cpu")
@@ -79,7 +79,7 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
             safe_save = False
             subbar.update(1)
             continue
-        if (iteration % test_iner == 0):
+        if (TEST_INTERVAL > 0 and iteration % test_iner == 0):
             testmodel = copy.deepcopy(model)
             test_loss, predict_list, _ = test(data_queue, testmodel, dataloader_mode=1)
             if last_loss > test_loss:
