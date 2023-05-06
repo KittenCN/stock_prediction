@@ -545,17 +545,17 @@ class TransformerModel(nn.Module):
 
         memory = self.transformer_encoder(src, src_key_padding_mask=attention_mask)
 
-        tgt = tgt.unsqueeze(1)
+        tgt = tgt.unsqueeze(0)
         tgt_embedding = self.target_embedding(tgt)
-        tgt_seq_length = tgt.size(1)
+        tgt_seq_length = tgt.size(0)
 
         tgt_positions = torch.arange(tgt_seq_length, device=tgt.device).unsqueeze(1).expand(tgt_seq_length, src_batch_size)
         tgt = tgt_embedding + self.positional_encoding[tgt_positions]
 
-        output = self.transformer_decoder(tgt.transpose(0, 1), memory)
+        output = self.transformer_decoder(tgt, memory)  # (seq_len, batch_size, d_model)
 
-        output = output.permute(1, 0, 2)  # (batch_size, seq_len, d_model) -> (seq_len, batch_size, d_model)
-        pooled_output = self.pooling(output.permute(0, 2, 1))
+        # output = output.permute(1, 0, 2)  # (batch_size, seq_len, d_model) -> (seq_len, batch_size, d_model)
+        pooled_output = self.pooling(output.permute(1,2,0)) # (seq_len, batch_size, d_model) -> (batch_size, d_model, seq_len) -> (batch_size, d_model, seq_len)
         output = self.fc(pooled_output.squeeze(2))
 
         return output
