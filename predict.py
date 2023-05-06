@@ -79,7 +79,7 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
             safe_save = False
             subbar.update(1)
             continue
-        if (iteration % test_iner == 0):
+        if (TEST_INTERVAL > 0 and iteration % test_iner == 0):
             testmodel = copy.deepcopy(model)
             test_loss, predict_list, _ = test(data_queue, testmodel, dataloader_mode=1)
             if last_loss > test_loss:
@@ -481,7 +481,7 @@ if __name__=="__main__":
 
     print(model)
     optimizer=optim.Adam(model.parameters(),lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
-    lr_scheduler = CustomSchedule(d_model=D_MODEL, warmup_steps=50000, optimizer=optimizer)
+    lr_scheduler = CustomSchedule(d_model=D_MODEL, warmup_steps=3000, optimizer=optimizer)
     if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Optimizer.pkl"):
         print("Load model and optimizer from file")
         model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Model.pkl"))
