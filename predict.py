@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from common import *
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
+parser.add_argument('--mode', default="test", type=str, help="select running mode: train, test, predict")
 parser.add_argument('--model', default="transformer", type=str, help="lstm or transformer")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--cpu', default=0, type=int, help="only use cpu")
@@ -492,26 +492,28 @@ if __name__=="__main__":
             ts_codes.append(os.path.basename(csv_file).rsplit(".", 1)[0])
     else:
         ts_codes = [symbol]
-    if mode == 'train':
-        if len(ts_codes) > 1:
-            # train_codes = ts_codes[:int(TRAIN_WEIGHT*len(ts_codes))]
-            # test_codes = ts_codes[int(TRAIN_WEIGHT*len(ts_codes)):]
-            if os.path.exists("test_codes.txt"):
-                with open("test_codes.txt", 'r') as f:
-                    test_codes = f.read().splitlines()
-                train_codes = list(set(ts_codes) - set(test_codes))
-            else:
-                train_codes = random.sample(ts_codes, int(TRAIN_WEIGHT*len(ts_codes)))
-                test_codes = list(set(ts_codes) - set(train_codes))
-                with open("test_codes.txt", 'w') as f:
-                    for test_code in test_codes:
-                        f.write(test_code + "\n")
+    
+    if len(ts_codes) > 1:
+        # train_codes = ts_codes[:int(TRAIN_WEIGHT*len(ts_codes))]
+        # test_codes = ts_codes[int(TRAIN_WEIGHT*len(ts_codes)):]
+        if os.path.exists("test_codes.txt"):
+            with open("test_codes.txt", 'r') as f:
+                test_codes = f.read().splitlines()
+            train_codes = list(set(ts_codes) - set(test_codes))
         else:
-            train_codes = ts_codes
-            test_codes = ts_codes
-        random.shuffle(ts_codes)
-        random.shuffle(train_codes)
-        random.shuffle(test_codes)
+            train_codes = random.sample(ts_codes, int(TRAIN_WEIGHT*len(ts_codes)))
+            test_codes = list(set(ts_codes) - set(train_codes))
+            with open("test_codes.txt", 'w') as f:
+                for test_code in test_codes:
+                    f.write(test_code + "\n")
+    else:
+        train_codes = ts_codes
+        test_codes = ts_codes
+    random.shuffle(ts_codes)
+    random.shuffle(train_codes)
+    random.shuffle(test_codes)
+    
+    if mode == 'train':
         lo_list=[]
         data_len=0
         total_length = 0
