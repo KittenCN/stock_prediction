@@ -511,6 +511,7 @@ class TransformerModel(nn.Module):
         super(TransformerModel, self).__init__()
 
         # self.embedding = nn.Linear(input_dim, d_model)
+        assert d_model % 2 == 0, "d_model must be a multiple of 2"
         self.embedding = MLP(input_dim, d_model//2, d_model)  # Replace this line
         self.positional_encoding = None
 
@@ -521,42 +522,41 @@ class TransformerModel(nn.Module):
         self.transformer_decoder = nn.TransformerDecoder(self.transformer_decoder_layer, num_layers)
 
         self.target_embedding = nn.Linear(output_dim, d_model)
-        self.pooling = nn.AdaptiveAvgPool1d
+        self.pooling = nn.AdaptiveAvgPool1d(1)
         self.fc = nn.Linear(d_model, output_dim)
 
         self.d_model = d_model
 
         self._initialize_weights()
 
-    def forward(self, src, tgt, predict_days=1):
-        # src = src.permute(1, 0, 2) # (batch_size, seq_len, input_dim) -> (seq_len, batch_size, input_dim)
-        # src & tgt: (batch_size, seq_len, input_dim)
+    def forward(self, src, tgt):
+        src = src.permute(1, 0, 2) # (batch_size, seq_len, input_dim) -> (seq_len, batch_size, input_dim)
+
         attention_mask = generate_attention_mask(src)
         src_embedding = self.embedding(src)
-        src_seq_length = src.size(1)
-        src_batch_size = src.size(0)
+        src_seq_length = src.size(0)
+        src_batch_size = src.size(1)
 
-        if self.positional_encoding is None or self.positional_encoding.size(0) < src_batch_size:
-            self.positional_encoding = self.generate_positional_encoding(src_batch_size, self.d_model).to(src.device)
+        if self.positional_encoding is None or self.positional_encoding.size(0) < src_seq_length:
+            self.positional_encoding = self.generate_positional_encoding(src_seq_length, self.d_model).to(src.device)
 
-        src_positions = torch.arange(src_batch_size, device=src.device).unsqueeze(1).expand(src_batch_size, src_seq_length)
+        src_positions = torch.arange(src_seq_length, device=src.device).unsqueeze(1).expand(src_seq_length, src_batch_size)
         src = src_embedding + self.positional_encoding[src_positions]
 
         memory = self.transformer_encoder(src, src_key_padding_mask=attention_mask)
 
-        tgt = tgt.unsqueeze(1)  # (batch_size, output_dim) -> (batch_size, seq_len, output_dim)
+        tgt = tgt.unsqueeze(1)
         tgt_embedding = self.target_embedding(tgt)
         tgt_seq_length = tgt.size(1)
 
-        tgt_positions = torch.arange(src_batch_size, device=tgt.device).unsqueeze(1).expand(src_batch_size, tgt_seq_length)  # (batch_size, seq_len)
-        tgt = tgt_embedding + self.positional_encoding[tgt_positions]  # (batch_size, seq_len, d_model)
+        tgt_positions = torch.arange(tgt_seq_length, device=tgt.device).unsqueeze(1).expand(tgt_seq_length, src_batch_size)
+        tgt = tgt_embedding + self.positional_encoding[tgt_positions]
 
-        # output = self.transformer_decoder(tgt.transpose(0, 1), memory)
-        output = self.transformer_decoder(tgt, memory)
+        output = self.transformer_decoder(tgt.transpose(0, 1), memory)
 
-        output = output.permute(0, 2, 1)  # (batch_size, seq_len, d_model) -> (batch_size, d_model, seq_len)
-        pooled_output = self.pooling(predict_days)(output)
-        output = self.fc(pooled_output.permute(0,2,1).squeeze(1)) # (batch_size, d_model, seq_len) -> (batch_size, seq_len, output_dim) -> (batch_size, output_dim)
+        output = output.permute(1, 0, 2)  # (batch_size, seq_len, d_model) -> (seq_len, batch_size, d_model)
+        pooled_output = self.pooling(output.permute(0, 2, 1))
+        output = self.fc(pooled_output.squeeze(2))
 
         return output
 
