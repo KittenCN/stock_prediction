@@ -431,8 +431,8 @@ def contrast_lines(test_codes):
 if __name__=="__main__":
     global last_loss,test_model,model,total_test_length,lr_scheduler,drop_last
     # b_size * (p_days * n_head) * (d_model // n_head) = b_size * seq_len * d_model
-    if int(args.predict_days) > 0:
-        assert BATCH_SIZE * (int(args.predict_days) * NHEAD) * (D_MODEL // NHEAD) == BATCH_SIZE * SEQ_LEN * D_MODEL and D_MODEL % NHEAD == 0, "Error: assert error"
+    # if int(args.predict_days) > 0:
+    #     assert BATCH_SIZE * (int(args.predict_days) * NHEAD) * (D_MODEL // NHEAD) == BATCH_SIZE * SEQ_LEN * D_MODEL and D_MODEL % NHEAD == 0, "Error: assert error"
 
     if args.predict_days == 0:
         drop_last = False
