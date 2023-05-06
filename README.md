@@ -1,6 +1,9 @@
 # 基于神经网络的通用股票预测模型 A general stock prediction model based on neural networks
 
 ## New
+* 20230506
+* 1. 按照原始论文，重新构建了transformer模型，使得训练速度提高20倍
+*    According to the original paper, the transformer model is reconstructed, which makes the training speed 20 times faster
 * 20230502
 * 1. 增加使用yfinance接口下载数据，如果是中国大陆用户，需要使用代理，或者使用其他接口
 *    Add the use of yfinance interface to download data. If you are a user in mainland China, you need to use a proxy or other interface.
