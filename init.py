@@ -36,7 +36,7 @@ NUM_WORKERS = 1
 PKL = True
 BUFFER_SIZE = 10
 D_MODEL = 512
-
+NHEAD = 8
 # checkpoint = "bert-base-uncased"
 checkpoint = 'bert-base-chinese'
 symbol = 'Generic.Data'
