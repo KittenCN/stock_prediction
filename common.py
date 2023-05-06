@@ -395,9 +395,9 @@ class stock_queue_dataset(Dataset):
                     elif self.predict_days == 0:
                         _tmp.append(data[i, index])
             if self.predict_days > 0:
-                label[i, :] = torch.Tensor(_tmp).permute(1,0)
+                label[i, :] = torch.Tensor(np.array(_tmp)).permute(1,0)
             elif self.predict_days == 0:
-                label[i, :] = torch.Tensor(_tmp)
+                label[i, :] = torch.Tensor(np.array(_tmp))
 
         _value = value.flip(0)
         _label = label.flip(0)

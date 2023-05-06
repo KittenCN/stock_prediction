@@ -430,8 +430,9 @@ def contrast_lines(test_codes):
 
 if __name__=="__main__":
     global last_loss,test_model,model,total_test_length,lr_scheduler,drop_last
-    # batch_size*input_dim=predict_days*n
-    assert (BATCH_SIZE*SEQ_LEN) % int(args.predict_days) == 0, "Error: BATCH_SIZE*SEQ_LEN must be divisible by predict_days"
+    # b_size * (p_days * n_head) * (d_model // n_head) = b_size * seq_len * d_model
+    if int(args.predict_days) > 0:
+        assert BATCH_SIZE * (int(args.predict_days) * NHEAD) * (D_MODEL // NHEAD) == BATCH_SIZE * SEQ_LEN * D_MODEL and D_MODEL % NHEAD == 0, "Error: assert error"
 
     if args.predict_days == 0:
         drop_last = False
@@ -456,8 +457,8 @@ if __name__=="__main__":
         save_path=lstm_path
         criterion=nn.MSELoss()
     elif model_mode=="TRANSFORMER":
-        model=TransformerModel(input_dim=INPUT_DIMENSION, d_model=D_MODEL, nhead=8, num_layers=6, dim_feedforward=2048, output_dim=OUTPUT_DIMENSION, max_len=SEQ_LEN)
-        test_model=TransformerModel(input_dim=INPUT_DIMENSION, d_model=D_MODEL, nhead=8, num_layers=6, dim_feedforward=2048, output_dim=OUTPUT_DIMENSION, max_len=SEQ_LEN)
+        model=TransformerModel(input_dim=INPUT_DIMENSION, d_model=D_MODEL, nhead=NHEAD, num_layers=6, dim_feedforward=2048, output_dim=OUTPUT_DIMENSION, max_len=SEQ_LEN)
+        test_model=TransformerModel(input_dim=INPUT_DIMENSION, d_model=D_MODEL, nhead=NHEAD, num_layers=6, dim_feedforward=2048, output_dim=OUTPUT_DIMENSION, max_len=SEQ_LEN)
         save_path=transformer_path
         criterion=nn.MSELoss()
     else:
