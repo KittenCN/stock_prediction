@@ -277,4 +277,4 @@ if __name__ == "__main__":
         if args.code != "":
             get_stock_data(args.code, save=True, save_path=daily_path)
         else:
-            get_stock_data("600581", save=True, save_path=daily_path) 
+            get_stock_data("", save=True, save_path=daily_path) 
