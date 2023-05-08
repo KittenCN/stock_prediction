@@ -270,7 +270,7 @@ class Stock_Data(Dataset):
             value = torch.rand(self.data.shape[0] - SEQ_LEN, SEQ_LEN, self.data.shape[1])
             if self.predict_days > 0:
                 label = torch.rand(self.data.shape[0] - SEQ_LEN, self.predict_days, label_num)
-            elif self.predict_days == 0:
+            elif self.predict_days <= 0:
                 label = torch.rand(self.data.shape[0] - SEQ_LEN, label_num)
 
             for i in range(self.data.shape[0] - SEQ_LEN):
@@ -280,15 +280,20 @@ class Stock_Data(Dataset):
                 _tmp = []
                 for index in range(label_num):
                     if use_list[index] == 1:
-                        if self.predict_days == 0:
+                        if self.predict_days <= 0:
                             _tmp.append(self.data[i, index])
                         elif self.predict_days > 0:
                             _tmp.append(self.data[i:i+self.predict_days, index])
-
-                label[i, :] = torch.Tensor(_tmp)
+                if self.predict_days <= 0:
+                    label[i, :] = torch.Tensor(np.array(_tmp))
+                elif self.predict_days > 0:
+                    label[i, :, :] = torch.Tensor(np.array(_tmp)).permute(1,0)
         elif self.mode == 2:
             value = torch.rand(1, SEQ_LEN, self.data.shape[1])
-            label = torch.rand(1, label_num)
+            if self.predict_days <= 0:
+                label = torch.rand(1, label_num)
+            elif self.predict_days > 0:
+                label = torch.rand(1, self.predict_days, label_num)
             # for i in range(0, SEQ_LEN):
             #     _i = SEQ_LEN - i - 1
             #     value[0, i, :] = torch.from_numpy(self.data[_i, :].reshape(1, self.data.shape[1]))
@@ -380,7 +385,7 @@ class stock_queue_dataset(Dataset):
         value = torch.rand(data.shape[0] - SEQ_LEN, SEQ_LEN, data.shape[1])
         if self.predict_days > 0:
             label = torch.rand(data.shape[0] - SEQ_LEN, self.predict_days, label_num)
-        elif self.predict_days == 0:
+        elif self.predict_days <= 0:
             label = torch.rand(data.shape[0] - SEQ_LEN, label_num)
 
         for i in range(data.shape[0] - SEQ_LEN):
@@ -392,11 +397,11 @@ class stock_queue_dataset(Dataset):
                 if use_list[index] == 1:
                     if self.predict_days > 0:
                         _tmp.append(data[i:i+self.predict_days, index])
-                    elif self.predict_days == 0:
+                    elif self.predict_days <= 0:
                         _tmp.append(data[i, index])
             if self.predict_days > 0:
-                label[i, :] = torch.Tensor(np.array(_tmp)).permute(1,0)
-            elif self.predict_days == 0:
+                label[i, :, :] = torch.Tensor(np.array(_tmp)).permute(1,0)
+            elif self.predict_days <= 0:
                 label[i, :] = torch.Tensor(np.array(_tmp))
 
         _value = value.flip(0)

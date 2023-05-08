@@ -14,7 +14,7 @@ parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of 
 parser.add_argument('--pkl_queue', default=1, type=int, help="use pkl queue instead of csv file")
 parser.add_argument('--test_code', default="", type=str, help="test code")
 parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu or not")
-parser.add_argument('--predict_days', default=2, type=int, help="number of the predict days,Positive numbers use interval prediction algorithm, 0 and negative numbers use date prediction algorithm")
+parser.add_argument('--predict_days', default=3, type=int, help="number of the predict days,Positive numbers use interval prediction algorithm, 0 and negative numbers use date prediction algorithm")
 parser.add_argument('--api', default="akshare", type=str, help="api-interface, tushare, akshare or yfinance")
 args = parser.parse_args()
 last_save_time = 0
@@ -112,14 +112,14 @@ def test(dataset, testmodel=None, dataloader_mode=0):
     predict_list = []
     accuracy_list = []
     if dataloader_mode in [0, 2]:
-        stock_predict = Stock_Data(mode=dataloader_mode, dataFrame=dataset, label_num=OUTPUT_DIMENSION)
+        stock_predict = Stock_Data(mode=dataloader_mode, dataFrame=dataset, label_num=OUTPUT_DIMENSION,predict_days=int(args.predict_days))
         dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False, drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=True)
     elif dataloader_mode in [1]:
         _stock_test_data_queue = deep_copy_queue(dataset)
         stock_test = stock_queue_dataset(mode=1, data_queue=_stock_test_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_test_length,predict_days=int(args.predict_days))
         dataloader=DataLoader(dataset=stock_test,batch_size=BATCH_SIZE,shuffle=False,drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
     elif dataloader_mode in [3]:
-        stock_predict = Stock_Data(mode=1, dataFrame=dataset, label_num=OUTPUT_DIMENSION)
+        stock_predict = Stock_Data(mode=1, dataFrame=dataset, label_num=OUTPUT_DIMENSION,predict_days=int(args.predict_days))
         dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False, drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=True)
 
     if testmodel is None:
@@ -223,6 +223,9 @@ def predict(test_codes):
 
     predict_data = copy.deepcopy(data)
     spliced_data = copy.deepcopy(data)
+    show_days = 7
+    real_list = []
+    prediction_list = []
     if predict_data.empty or predict_data is None:
         print("Error: Train_data or Test_data is None")
         return
@@ -298,20 +301,52 @@ def predict(test_codes):
             predict_days -= 1
             pbar.update(1)
         pbar.close()
-    else:
-        pass
 
-    show_days = 7
+        datalist = predict_data.iloc[:, 2:2+OUTPUT_DIMENSION].values.tolist()[::-1]
+        real_list = datalist[len(datalist)-abs(int(args.predict_days))-show_days:len(datalist)-abs(int(args.predict_days))]
+        prediction_list = datalist[len(datalist)-abs(int(args.predict_days))-1:]
+    else:
+        predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
+        # predict_data = predict_data.dropna()
+        predict_data = predict_data.fillna(-0.0)
+        accuracy_list, predict_list = [], []
+        test_loss, predict_list, dataloader = test(predict_data,dataloader_mode=2)
+        
+        for items in predict_list:
+            items=items.to("cpu", non_blocking=True)
+            for idxs in items:
+                for idx in idxs:
+                    _tmp = []
+                    for index, item in enumerate(idx):
+                        if use_list[index] == 1:
+                            _tmp.append(item*std_list[index]+mean_list[index])
+                    prediction_list.append(np.array(_tmp))
+        
+        _data_real =  predict_data.head(show_days).sort_values(by=['Date'], ascending=True).values.tolist()
+        for idx in range(len(_data_real)):
+            _tmp = []
+            for index in range(OUTPUT_DIMENSION):
+                if use_list[index] == 1:
+                    # _tmp.append(_data_real[idx][index]*std_list[index]+mean_list[index])
+                    _tmp.append(_data_real[idx][index])
+            real_list.append(np.array(_tmp))
+        prediction_list = [real_list[-1]] + prediction_list
+        # for i,(_,label) in enumerate(dataloader):
+        #     for idx in range(label.shape[0]):
+        #         _tmp = []
+        #         for index in range(OUTPUT_DIMENSION):
+        #             if use_list[index] == 1:
+        #                 _tmp.append(label[idx][0][index]*std_list[index]+mean_list[index])
+        #         real_list.append(np.array(_tmp))
+        # real_list = real_list[len(real_list) - show_days:]
     compounding_factor = cal_compounding_factor(test_codes[0])
-    datalist = predict_data.iloc[:, 2:2+OUTPUT_DIMENSION].values.tolist()[::-1]
-    real_list = datalist[len(datalist)-abs(int(args.predict_days))-show_days:len(datalist)-abs(int(args.predict_days))]
-    prediction_list = datalist[len(datalist)-abs(int(args.predict_days))-1:]
     real_list = np.array(real_list) * compounding_factor
     prediction_list = np.array(prediction_list) * compounding_factor
     pbar = tqdm(total=OUTPUT_DIMENSION, leave=False, ncols=TQDM_NCOLS)
     for i in range(OUTPUT_DIMENSION):
         _real_list = np.transpose(real_list)[i]
         _prediction_list = np.transpose(prediction_list)[i]
+        assert len(_real_list) >= show_days, "The length of real_list is less than show_days"
         plt.figure()
         x1 = np.linspace(len(_real_list) - show_days, len(_real_list), show_days)
         x2 = np.linspace(len(_real_list), len(_real_list) + len(_prediction_list), len(_prediction_list))
@@ -396,9 +431,9 @@ def contrast_lines(test_codes):
         exit(0)
     print("test_data MSELoss:(pred-real)/real=", test_loss)
 
+    real_list = []
+    prediction_list = []
     if int(args.predict_days) <= 0:
-        real_list = []
-        prediction_list = []
         for i,(_,label) in enumerate(dataloader):
             for idx in range(label.shape[0]):
                 _tmp = []
@@ -415,30 +450,45 @@ def contrast_lines(test_codes):
                     if use_list[index] == 1:
                         _tmp.append(item*test_std_list[index]+test_mean_list[index])
                 prediction_list.append(np.array(_tmp))
-        pbar = tqdm(total=OUTPUT_DIMENSION, ncols=TQDM_NCOLS)
-        for i in range(OUTPUT_DIMENSION):
-            try:
-                pbar.set_description(f"{name_list[i]}")
-                _real_list = np.transpose(real_list)[i]
-                _prediction_list = np.transpose(prediction_list)[i]
-                plt.figure()
-                x1 = np.linspace(0, len(_real_list), len(_real_list))
-                x2 = np.linspace(0, len(_prediction_list), len(_prediction_list))
-                plt.plot(x1, np.array(_real_list), label="real_"+name_list[i])
-                plt.plot(x2, np.array(_prediction_list), label="prediction_"+name_list[i], linewidth=0.75, linestyle='--')
-                plt.legend()
-                now = datetime.now()
-                date_string = now.strftime("%Y%m%d%H%M%S")
-                plt.savefig(png_path + "/test/" + cnname + "_"  + str(test_code[0]).split('.')[0] + "_" + model_mode + "_" + name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
-                pbar.update(1)
-            except Exception as e:
-                print("Error: contrast_lines", e)
-                pbar.update(1)
-                continue
-        pbar.close()
-        plt.close()
     else:
-        pass
+        for i,(_,label) in enumerate(dataloader):
+            for idx in range(label.shape[0]):
+                _tmp = []
+                for index in range(OUTPUT_DIMENSION):
+                    if use_list[index] == 1:
+                        _tmp.append(label[idx][0][index]*test_std_list[index]+test_mean_list[index])
+                real_list.append(np.array(_tmp))
+
+        for items in predict_list:
+            items=items.to("cpu", non_blocking=True)
+            for idxs in items:
+                _tmp = []
+                for index, item in enumerate(idxs[0]):
+                    if use_list[index] == 1:
+                        _tmp.append(item*test_std_list[index]+test_mean_list[index])
+                prediction_list.append(np.array(_tmp))
+    pbar = tqdm(total=OUTPUT_DIMENSION, ncols=TQDM_NCOLS)
+    for i in range(OUTPUT_DIMENSION):
+        try:
+            pbar.set_description(f"{name_list[i]}")
+            _real_list = np.transpose(real_list)[i]
+            _prediction_list = np.transpose(prediction_list)[i]
+            plt.figure()
+            x1 = np.linspace(0, len(_real_list), len(_real_list))
+            x2 = np.linspace(0, len(_prediction_list), len(_prediction_list))
+            plt.plot(x1, np.array(_real_list), label="real_"+name_list[i])
+            plt.plot(x2, np.array(_prediction_list), label="prediction_"+name_list[i], linewidth=0.75, linestyle='--')
+            plt.legend()
+            now = datetime.now()
+            date_string = now.strftime("%Y%m%d%H%M%S")
+            plt.savefig(png_path + "/test/" + cnname + "_"  + str(test_code[0]).split('.')[0] + "_" + model_mode + "_" + name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
+            pbar.update(1)
+        except Exception as e:
+            print("Error: contrast_lines", e)
+            pbar.update(1)
+            continue
+    pbar.close()
+    plt.close()
 
 if __name__=="__main__":
     global last_loss,test_model,model,total_test_length,lr_scheduler,drop_last
@@ -493,7 +543,7 @@ if __name__=="__main__":
 
     print(model)
     optimizer=optim.Adam(model.parameters(),lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
-    lr_scheduler = CustomSchedule(d_model=D_MODEL, warmup_steps=3000, optimizer=optimizer)
+    lr_scheduler = CustomSchedule(d_model=D_MODEL, warmup_steps=WARMUP_STEPS, optimizer=optimizer)
     if int(args.predict_days) > 0:
         if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Optimizer.pkl"):
             print("Load model and optimizer from file")

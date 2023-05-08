@@ -37,7 +37,7 @@ PKL = True
 BUFFER_SIZE = 10
 D_MODEL = 512
 NHEAD = 8
-
+WARMUP_STEPS = 60000
 # checkpoint = "bert-base-uncased"
 checkpoint = 'bert-base-chinese'
 symbol = 'Generic.Data'
