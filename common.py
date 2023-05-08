@@ -566,7 +566,7 @@ class TransformerModel(nn.Module):
 
         memory = self.transformer_encoder(src, src_key_padding_mask=attention_mask)
 
-        if predict_days == 0:
+        if predict_days <= 0:
             tgt = tgt.unsqueeze(0)
         else:
             tgt = tgt.permute(1, 0, 2)  # (batch_size, seq_len, input_dim) -> (seq_len, batch_size, input_dim)
@@ -578,7 +578,7 @@ class TransformerModel(nn.Module):
 
         output = self.transformer_decoder(tgt, memory)
 
-        if predict_days == 0:
+        if predict_days <= 0:
             # output = output.permute(1, 0, 2)  # (batch_size, seq_len, d_model) -> (seq_len, batch_size, d_model)
             pooled_output = self.pooling(output.permute(1,2,0)) # (seq_len, batch_size, d_model) -> (batch_size, d_model, seq_len) -> (batch_size, d_model, seq_len)
             output = self.fc(pooled_output.squeeze(2))
