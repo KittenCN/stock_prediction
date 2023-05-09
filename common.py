@@ -532,6 +532,7 @@ class TransformerModel(nn.Module):
         super(TransformerModel, self).__init__()
 
         # self.embedding = nn.Linear(input_dim, d_model)
+        assert d_model % 2 == 0, "d_model must be a multiple of 2"
         self.embedding = MLP(input_dim, d_model//2, d_model)  # Replace this line
         self.positional_encoding = None
 
@@ -586,7 +587,7 @@ class TransformerModel(nn.Module):
             output = output.permute(1, 2, 0)  # (seq_len, batch_size, d_model) -> (batch_size, d_model, seq_len)
             pooled_output = self.pooling(predict_days)(output)
             output = self.fc(pooled_output.permute(0,2,1))
-
+            
         return output
 
     def generate_positional_encoding(self, max_len, d_model):

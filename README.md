@@ -4,6 +4,9 @@
 * 20230508
 * 1. 增加支持时间区间训练及预测，predict_days参数为正数时，使用区间模型，为负数时，使用单点模型
 *    Add support for time interval training and prediction. When the predict_days parameter is a positive number, the interval model is used. When it is a negative number, the single point model is used.
+* 20230506
+* 1. 按照原始论文，重新构建了transformer模型，使得训练速度提高20倍
+*    According to the original paper, the transformer model is reconstructed, which makes the training speed 20 times faster
 * 20230502
 * 1. 增加使用yfinance接口下载数据，如果是中国大陆用户，需要使用代理，或者使用其他接口
 *    Add the use of yfinance interface to download data. If you are a user in mainland China, you need to use a proxy or other interface.
