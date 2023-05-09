@@ -210,10 +210,11 @@ class TextDataset(Dataset):
 
 class Stock_Data(Dataset):
     # mode 0:train 1:test 2:predict
-    def __init__(self, mode=0, transform=None, dataFrame=None, label_num=1):
+    def __init__(self, mode=0, transform=None, dataFrame=None, label_num=1, predict_days=0):
         try:
             assert mode in [0, 1, 2]
             self.mode = mode
+            self.predict_days = predict_days
             self.data = self.load_data(dataFrame)
             self.normalize_data()
             self.value, self.label = self.generate_value_label_tensors(label_num)
@@ -267,7 +268,10 @@ class Stock_Data(Dataset):
     def generate_value_label_tensors(self, label_num):
         if self.mode in [0, 1]:
             value = torch.rand(self.data.shape[0] - SEQ_LEN, SEQ_LEN, self.data.shape[1])
-            label = torch.rand(self.data.shape[0] - SEQ_LEN, label_num)
+            if self.predict_days > 0:
+                label = torch.rand(self.data.shape[0] - SEQ_LEN, self.predict_days, label_num)
+            elif self.predict_days <= 0:
+                label = torch.rand(self.data.shape[0] - SEQ_LEN, label_num)
 
             for i in range(self.data.shape[0] - SEQ_LEN):
                 _value_tmp = np.copy(np.flip(self.data[i + 1:i + SEQ_LEN + 1, :].reshape(SEQ_LEN, self.data.shape[1]), 0))
@@ -276,12 +280,20 @@ class Stock_Data(Dataset):
                 _tmp = []
                 for index in range(label_num):
                     if use_list[index] == 1:
-                        _tmp.append(self.data[i, index])
-
-                label[i, :] = torch.Tensor(np.array(_tmp))
+                        if self.predict_days <= 0:
+                            _tmp.append(self.data[i, index])
+                        elif self.predict_days > 0:
+                            _tmp.append(self.data[i:i+self.predict_days, index])
+                if self.predict_days <= 0:
+                    label[i, :] = torch.Tensor(np.array(_tmp))
+                elif self.predict_days > 0:
+                    label[i, :, :] = torch.Tensor(np.array(_tmp)).permute(1,0)
         elif self.mode == 2:
             value = torch.rand(1, SEQ_LEN, self.data.shape[1])
-            label = torch.rand(1, label_num)
+            if self.predict_days <= 0:
+                label = torch.rand(1, label_num)
+            elif self.predict_days > 0:
+                label = torch.rand(1, self.predict_days, label_num)
             # for i in range(0, SEQ_LEN):
             #     _i = SEQ_LEN - i - 1
             #     value[0, i, :] = torch.from_numpy(self.data[_i, :].reshape(1, self.data.shape[1]))
@@ -311,7 +323,7 @@ class Stock_Data(Dataset):
 
 class stock_queue_dataset(Dataset):
     # mode 0:train 1:test 2:predict
-    def __init__(self, mode=0, data_queue=None, label_num=1, buffer_size=100, total_length=0):
+    def __init__(self, mode=0, data_queue=None, label_num=1, buffer_size=100, total_length=0, predict_days=0):
         try:
             assert mode in [0, 1, 2]
             self.mode = mode
@@ -322,6 +334,7 @@ class stock_queue_dataset(Dataset):
             self.value_buffer = []
             self.label_buffer = []
             self.total_length = total_length
+            self.predict_days = predict_days
             # if data_queue is not None:
             #     self.total_length = 0
             #     while not data_queue.empty():
@@ -370,7 +383,10 @@ class stock_queue_dataset(Dataset):
 
     def generate_value_label_tensors(self, data, label_num):
         value = torch.rand(data.shape[0] - SEQ_LEN, SEQ_LEN, data.shape[1])
-        label = torch.rand(data.shape[0] - SEQ_LEN, label_num)
+        if self.predict_days > 0:
+            label = torch.rand(data.shape[0] - SEQ_LEN, self.predict_days, label_num)
+        elif self.predict_days <= 0:
+            label = torch.rand(data.shape[0] - SEQ_LEN, label_num)
 
         for i in range(data.shape[0] - SEQ_LEN):
             _value_tmp = np.copy(np.flip(data[i + 1:i + SEQ_LEN + 1, :].reshape(SEQ_LEN, data.shape[1]), 0))
@@ -379,9 +395,14 @@ class stock_queue_dataset(Dataset):
             _tmp = []
             for index in range(OUTPUT_DIMENSION):
                 if use_list[index] == 1:
-                    _tmp.append(data[i, index])
-
-            label[i, :] = torch.Tensor(np.array(_tmp))
+                    if self.predict_days > 0:
+                        _tmp.append(data[i:i+self.predict_days, index])
+                    elif self.predict_days <= 0:
+                        _tmp.append(data[i, index])
+            if self.predict_days > 0:
+                label[i, :, :] = torch.Tensor(np.array(_tmp)).permute(1,0)
+            elif self.predict_days <= 0:
+                label[i, :] = torch.Tensor(np.array(_tmp))
 
         _value = value.flip(0)
         _label = label.flip(0)
@@ -522,14 +543,15 @@ class TransformerModel(nn.Module):
         self.transformer_decoder = nn.TransformerDecoder(self.transformer_decoder_layer, num_layers)
 
         self.target_embedding = nn.Linear(output_dim, d_model)
-        self.pooling = nn.AdaptiveAvgPool1d(1)
+        self.pooling = nn.AdaptiveAvgPool1d
         self.fc = nn.Linear(d_model, output_dim)
 
         self.d_model = d_model
+        self.output_dim = output_dim
 
         self._initialize_weights()
 
-    def forward(self, src, tgt):
+    def forward(self, src, tgt, predict_days=0):
         src = src.permute(1, 0, 2) # (batch_size, seq_len, input_dim) -> (seq_len, batch_size, input_dim)
 
         attention_mask = generate_attention_mask(src)
@@ -545,19 +567,27 @@ class TransformerModel(nn.Module):
 
         memory = self.transformer_encoder(src, src_key_padding_mask=attention_mask)
 
-        tgt = tgt.unsqueeze(0)
+        if predict_days <= 0:
+            tgt = tgt.unsqueeze(0)
+        else:
+            tgt = tgt.permute(1, 0, 2)  # (batch_size, seq_len, input_dim) -> (seq_len, batch_size, input_dim)
         tgt_embedding = self.target_embedding(tgt)
         tgt_seq_length = tgt.size(0)
 
         tgt_positions = torch.arange(tgt_seq_length, device=tgt.device).unsqueeze(1).expand(tgt_seq_length, src_batch_size)
         tgt = tgt_embedding + self.positional_encoding[tgt_positions]
 
-        output = self.transformer_decoder(tgt, memory)  # (seq_len, batch_size, d_model)
+        output = self.transformer_decoder(tgt, memory)
 
-        # output = output.permute(1, 0, 2)  # (batch_size, seq_len, d_model) -> (seq_len, batch_size, d_model)
-        pooled_output = self.pooling(output.permute(1,2,0)) # (seq_len, batch_size, d_model) -> (batch_size, d_model, seq_len) -> (batch_size, d_model, seq_len)
-        output = self.fc(pooled_output.squeeze(2))
-
+        if predict_days <= 0:
+            output = output.permute(1, 2, 0)  # (seq_len, batch_size, d_model) -> (batch_size, d_model, seq_len)
+            pooled_output = self.pooling(1)(output) # (batch_size, d_model, seq_len) -> (batch_size, d_model, seq_len)
+            output = self.fc(pooled_output.squeeze(2))
+        else:
+            output = output.permute(1, 2, 0)  # (seq_len, batch_size, d_model) -> (batch_size, d_model, seq_len)
+            pooled_output = self.pooling(predict_days)(output)
+            output = self.fc(pooled_output.permute(0,2,1))
+            
         return output
 
     def generate_positional_encoding(self, max_len, d_model):
@@ -851,18 +881,25 @@ def custom_collate(batch):
     else:
         return None
 
-def save_model(model, optimizer, save_path, best_model=False):
-    if best_model is False:
-        torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl")
-        torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl")
-    elif best_model is True:
-        torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model_best.pkl")
-        torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer_best.pkl")
-
-def thread_save_model(model, optimizer, save_path, best_model=False):
+def save_model(model, optimizer, save_path, best_model=False, predict_days=0):
+    if predict_days > 0:
+        if best_model is False:
+            torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Model.pkl")
+            torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Optimizer.pkl")
+        elif best_model is True:
+            torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Model_best.pkl")
+            torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Optimizer_best.pkl")
+    else:
+        if best_model is False:
+            torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl")
+            torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl")
+        elif best_model is True:
+            torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model_best.pkl")
+            torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer_best.pkl")
+def thread_save_model(model, optimizer, save_path, best_model=False, predict_days=0):
     _model = copy.deepcopy(model)
     _optimizer = copy.deepcopy(optimizer)
-    data_thread = threading.Thread(target=save_model, args=(_model, _optimizer, save_path, best_model, ))
+    data_thread = threading.Thread(target=save_model, args=(_model, _optimizer, save_path, best_model, predict_days,))
     data_thread.start()
 
 def deep_copy_queue(q):

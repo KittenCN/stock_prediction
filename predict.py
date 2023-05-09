@@ -14,7 +14,7 @@ parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of 
 parser.add_argument('--pkl_queue', default=1, type=int, help="use pkl queue instead of csv file")
 parser.add_argument('--test_code', default="", type=str, help="test code")
 parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu or not")
-parser.add_argument('--predict_days', default=15, type=int, help="number of the predict days")
+parser.add_argument('--predict_days', default=3, type=int, help="number of the predict days,Positive numbers use interval prediction algorithm, 0 and negative numbers use date prediction algorithm")
 parser.add_argument('--api', default="akshare", type=str, help="api-interface, tushare, akshare or yfinance")
 args = parser.parse_args()
 last_save_time = 0
@@ -45,7 +45,7 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
             data, label = data.to(device, non_blocking=True), label.to(device, non_blocking=True)
             with autocast():
                 data = pad_input(data)
-                outputs = model.forward(data, label)
+                outputs = model.forward(data, label, int(args.predict_days))
                 if outputs.shape == label.shape:
                     loss = criterion(outputs, label)
                 else:
@@ -84,23 +84,23 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
             test_loss, predict_list, _ = test(data_queue, testmodel, dataloader_mode=1)
             if last_loss > test_loss:
                 last_loss = test_loss
-                thread_save_model(model, optimizer, save_path, True)
+                thread_save_model(model, optimizer, save_path, True, int(args.predict_days))
                 with open('loss.txt', 'w') as file:
                     file.write(str(last_loss))
 
         if (iteration % SAVE_NUM_ITER == 0 and time.time() - last_save_time >= SAVE_INTERVAL)  and safe_save == True:
-            thread_save_model(model, optimizer, save_path)
+            thread_save_model(model, optimizer, save_path, False, int(args.predict_days))
             last_save_time = time.time()
         
 
     if (epoch % SAVE_NUM_EPOCH == 0 or epoch == EPOCH) and time.time() - last_save_time >= SAVE_INTERVAL and safe_save == True:
-        thread_save_model(model, optimizer, save_path)
+        thread_save_model(model, optimizer, save_path, False, int(args.predict_days))
         last_save_time = time.time()
     testmodel = copy.deepcopy(model)
     test_loss, predict_list, _ = test(data_queue, testmodel, dataloader_mode=1)
     if last_loss > test_loss:
         last_loss = test_loss
-        thread_save_model(model, optimizer, save_path, True)
+        thread_save_model(model, optimizer, save_path, True, int(args.predict_days))
         with open('loss.txt', 'w') as file:
             file.write(str(last_loss))
 
@@ -112,22 +112,29 @@ def test(dataset, testmodel=None, dataloader_mode=0):
     predict_list = []
     accuracy_list = []
     if dataloader_mode in [0, 2]:
-        stock_predict = Stock_Data(mode=dataloader_mode, dataFrame=dataset, label_num=OUTPUT_DIMENSION)
-        dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False, drop_last=False, num_workers=NUM_WORKERS, pin_memory=True)
+        stock_predict = Stock_Data(mode=dataloader_mode, dataFrame=dataset, label_num=OUTPUT_DIMENSION,predict_days=int(args.predict_days))
+        dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False, drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=True)
     elif dataloader_mode in [1]:
         _stock_test_data_queue = deep_copy_queue(dataset)
-        stock_test = stock_queue_dataset(mode=1, data_queue=_stock_test_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_test_length)
-        dataloader=DataLoader(dataset=stock_test,batch_size=BATCH_SIZE,shuffle=False,drop_last=False, num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
+        stock_test = stock_queue_dataset(mode=1, data_queue=_stock_test_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_test_length,predict_days=int(args.predict_days))
+        dataloader=DataLoader(dataset=stock_test,batch_size=BATCH_SIZE,shuffle=False,drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
     elif dataloader_mode in [3]:
-        stock_predict = Stock_Data(mode=1, dataFrame=dataset, label_num=OUTPUT_DIMENSION)
-        dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False, drop_last=False, num_workers=NUM_WORKERS, pin_memory=True)
+        stock_predict = Stock_Data(mode=1, dataFrame=dataset, label_num=OUTPUT_DIMENSION,predict_days=int(args.predict_days))
+        dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False, drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=True)
 
     if testmodel is None:
-        if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"):
-            test_model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl"))
+        if int(args.predict_days) > 0:
+            if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Optimizer.pkl"):
+                test_model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Model.pkl"))
+            else:
+                tqdm.write("No model found")
+                return -1, -1, -1
         else:
-            tqdm.write("No model found")
-            return -1, -1, -1
+            if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"):
+                test_model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl"))
+            else:
+                tqdm.write("No model found")
+                return -1, -1, -1
     else:
         test_model = testmodel
     test_model.eval()
@@ -151,7 +158,7 @@ def test(dataset, testmodel=None, dataloader_mode=0):
                     data, label = data.to("cpu", non_blocking=True), label.to("cpu", non_blocking=True)
                 # test_optimizer.zero_grad()
                 data = pad_input(data)
-                predict = test_model.forward(data, label)
+                predict = test_model.forward(data, label, int(args.predict_days))
                 predict_list.append(predict)
                 if(predict.shape == label.shape):
                     accuracy = accuracy_fn(predict, label)
@@ -216,92 +223,130 @@ def predict(test_codes):
 
     predict_data = copy.deepcopy(data)
     spliced_data = copy.deepcopy(data)
+    show_days = 7
+    real_list = []
+    prediction_list = []
     if predict_data.empty or predict_data is None:
         print("Error: Train_data or Test_data is None")
         return
-    predict_days = int(args.predict_days)
-    pbar = tqdm(total=predict_days, leave=False, ncols=TQDM_NCOLS)
-    while predict_days > 0:
-        lastdate = predict_data["Date"][0].strftime("%Y%m%d")
-        if args.api == "tushare":
-            lastclose = predict_data["Close"][0]
+    if int(args.predict_days) <= 0:
+        predict_days = abs(int(args.predict_days))
+        pbar = tqdm(total=predict_days, leave=False, ncols=TQDM_NCOLS)
+        while predict_days > 0:
+            lastdate = predict_data["Date"][0].strftime("%Y%m%d")
+            if args.api == "tushare":
+                lastclose = predict_data["Close"][0]
+            predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
+            # predict_data = predict_data.dropna()
+            predict_data = predict_data.fillna(-0.0)
+            accuracy_list, predict_list = [], []
+            test_loss, predict_list, _ = test(predict_data,dataloader_mode=2)
+            if test_loss == -1 and predict_list == -1:
+                return
+            _tmp = []
+            prediction_list = []
+            for items in predict_list:
+                items=items.to("cpu", non_blocking=True)
+                for idxs in items:
+                    _tmp = []
+                    for index, item in enumerate(idxs):
+                        if use_list[index] == 1:
+                            _tmp.append((item*std_list[index]+mean_list[index]).detach().numpy())
+            date_str = lastdate
+            date_obj = datetime.strptime(date_str, "%Y%m%d")
+            new_date_obj = date_obj + timedelta(days=1)
+            # date_string = new_date_obj.strftime("%Y%m%d")
+            _tmpdata = [test_codes[0], new_date_obj]
+            _tmpdata = _tmpdata + copy.deepcopy(_tmp)
+            _splice_data = copy.deepcopy(spliced_data).drop(['ts_code', 'Date'], axis=1)
+            df_mean = _splice_data.mean().tolist()
+            if args.api == "tushare":
+                for index in range(len(_tmpdata) - 2, len(df_mean)-1):
+                    _tmpdata.append(df_mean[index])
+                _tmpdata.append(lastclose)
+            elif args.api == "akshare" or args.api == "yfinance":
+                for index in range(len(_tmpdata) - 2, len(df_mean)):
+                    _tmpdata.append(-0.0)
+            _tmpdata = pd.DataFrame(_tmpdata).T
+            _tmpdata.columns = spliced_data.columns
+            predict_data = pd.concat([_tmpdata, spliced_data], axis=0, ignore_index=True)
+            spliced_data = copy.deepcopy(predict_data)
+            predict_data['Date'] = pd.to_datetime(predict_data['Date'])
+
+            if args.api == "akshare" or args.api == "yfinance":
+                ## use akshare data or yfinance data
+                predict_data[["Open","Close","High","Low"]] = predict_data[["Open","Close","High","Low"]].astype('float64')
+                predict_data = predict_data.loc[:,["ts_code","Date","Open","Close","High","Low"]]
+                predict_data.to_csv(test_path,sep=',',index=False,header=True)
+            elif args.api == "tushare":
+                ## Use tushare data
+                predict_data['Date'] = predict_data['Date'].dt.strftime('%Y%m%d')
+                predict_data = predict_data.loc[:,["ts_code","Date","Open","Close","High","Low","Volume","amount","amplitude","pct_change","change","exchange_rate"]]
+                predict_data.rename(
+                    columns={
+                        'Date': 'trade_date', 'Open': 'open',
+                        'High': 'high', 'Low': 'low',
+                        'Close': 'close', 'Volume': 'vol'},
+                    inplace=True)
+
+                predict_data.to_csv(test_path,sep=',',index=False,header=True)
+                load_data([test_codes[0]],None,test_path,data_queue=data_queue)
+                while data_queue.empty() == False:
+                    try: 
+                        predict_data = data_queue.get(timeout=30)
+                        break
+                    except queue.Empty:
+                        break
+
+            predict_days -= 1
+            pbar.update(1)
+        pbar.close()
+
+        datalist = predict_data.iloc[:, 2:2+OUTPUT_DIMENSION].values.tolist()[::-1]
+        real_list = datalist[len(datalist)-abs(int(args.predict_days))-show_days:len(datalist)-abs(int(args.predict_days))]
+        prediction_list = datalist[len(datalist)-abs(int(args.predict_days))-1:]
+    else:
         predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
         # predict_data = predict_data.dropna()
         predict_data = predict_data.fillna(-0.0)
         accuracy_list, predict_list = [], []
-        test_loss, predict_list, _ = test(predict_data,dataloader_mode=2)
-        if test_loss == -1 and predict_list == -1:
-            return
-        _tmp = []
-        prediction_list = []
+        test_loss, predict_list, dataloader = test(predict_data,dataloader_mode=2)
+        
         for items in predict_list:
             items=items.to("cpu", non_blocking=True)
             for idxs in items:
-                _tmp = []
-                for index, item in enumerate(idxs):
-                    if use_list[index] == 1:
-                        _tmp.append((item*std_list[index]+mean_list[index]).detach().numpy())
-        date_str = lastdate
-        date_obj = datetime.strptime(date_str, "%Y%m%d")
-        new_date_obj = date_obj + timedelta(days=1)
-        # date_string = new_date_obj.strftime("%Y%m%d")
-        _tmpdata = [test_codes[0], new_date_obj]
-        _tmpdata = _tmpdata + copy.deepcopy(_tmp)
-        _splice_data = copy.deepcopy(spliced_data).drop(['ts_code', 'Date'], axis=1)
-        df_mean = _splice_data.mean().tolist()
-        if args.api == "tushare":
-            for index in range(len(_tmpdata) - 2, len(df_mean)-1):
-                _tmpdata.append(df_mean[index])
-            _tmpdata.append(lastclose)
-        elif args.api == "akshare" or args.api == "yfinance":
-            for index in range(len(_tmpdata) - 2, len(df_mean)):
-                _tmpdata.append(-0.0)
-        _tmpdata = pd.DataFrame(_tmpdata).T
-        _tmpdata.columns = spliced_data.columns
-        predict_data = pd.concat([_tmpdata, spliced_data], axis=0, ignore_index=True)
-        spliced_data = copy.deepcopy(predict_data)
-        predict_data['Date'] = pd.to_datetime(predict_data['Date'])
-
-        if args.api == "akshare" or args.api == "yfinance":
-            ## use akshare data or yfinance data
-            predict_data[["Open","Close","High","Low"]] = predict_data[["Open","Close","High","Low"]].astype('float64')
-            predict_data = predict_data.loc[:,["ts_code","Date","Open","Close","High","Low"]]
-            predict_data.to_csv(test_path,sep=',',index=False,header=True)
-        elif args.api == "tushare":
-            ## Use tushare data
-            predict_data['Date'] = predict_data['Date'].dt.strftime('%Y%m%d')
-            predict_data = predict_data.loc[:,["ts_code","Date","Open","Close","High","Low","Volume","amount","amplitude","pct_change","change","exchange_rate"]]
-            predict_data.rename(
-                columns={
-                    'Date': 'trade_date', 'Open': 'open',
-                    'High': 'high', 'Low': 'low',
-                    'Close': 'close', 'Volume': 'vol'},
-                inplace=True)
-
-            predict_data.to_csv(test_path,sep=',',index=False,header=True)
-            load_data([test_codes[0]],None,test_path,data_queue=data_queue)
-            while data_queue.empty() == False:
-                try: 
-                    predict_data = data_queue.get(timeout=30)
-                    break
-                except queue.Empty:
-                    break
-
-        predict_days -= 1
-        pbar.update(1)
-    pbar.close()
-
-    show_days = 7
+                for idx in idxs:
+                    _tmp = []
+                    for index, item in enumerate(idx):
+                        if use_list[index] == 1:
+                            _tmp.append(item*std_list[index]+mean_list[index])
+                    prediction_list.append(np.array(_tmp))
+        
+        _data_real =  predict_data.head(show_days).sort_values(by=['Date'], ascending=True).values.tolist()
+        for idx in range(len(_data_real)):
+            _tmp = []
+            for index in range(OUTPUT_DIMENSION):
+                if use_list[index] == 1:
+                    # _tmp.append(_data_real[idx][index]*std_list[index]+mean_list[index])
+                    _tmp.append(_data_real[idx][index])
+            real_list.append(np.array(_tmp))
+        prediction_list = [real_list[-1]] + prediction_list
+        # for i,(_,label) in enumerate(dataloader):
+        #     for idx in range(label.shape[0]):
+        #         _tmp = []
+        #         for index in range(OUTPUT_DIMENSION):
+        #             if use_list[index] == 1:
+        #                 _tmp.append(label[idx][0][index]*std_list[index]+mean_list[index])
+        #         real_list.append(np.array(_tmp))
+        # real_list = real_list[len(real_list) - show_days:]
     compounding_factor = cal_compounding_factor(test_codes[0])
-    datalist = predict_data.iloc[:, 2:2+OUTPUT_DIMENSION].values.tolist()[::-1]
-    real_list = datalist[len(datalist)-int(args.predict_days)-show_days:len(datalist)-int(args.predict_days)]
-    prediction_list = datalist[len(datalist)-int(args.predict_days)-1:]
     real_list = np.array(real_list) * compounding_factor
     prediction_list = np.array(prediction_list) * compounding_factor
     pbar = tqdm(total=OUTPUT_DIMENSION, leave=False, ncols=TQDM_NCOLS)
     for i in range(OUTPUT_DIMENSION):
         _real_list = np.transpose(real_list)[i]
         _prediction_list = np.transpose(prediction_list)[i]
+        assert len(_real_list) >= show_days, "The length of real_list is less than show_days"
         plt.figure()
         x1 = np.linspace(len(_real_list) - show_days, len(_real_list), show_days)
         x2 = np.linspace(len(_real_list), len(_real_list) + len(_prediction_list), len(_prediction_list))
@@ -388,22 +433,40 @@ def contrast_lines(test_codes):
 
     real_list = []
     prediction_list = []
-    for i,(_,label) in enumerate(dataloader):
-        for idx in range(label.shape[0]):
-            _tmp = []
-            for index in range(OUTPUT_DIMENSION):
-                if use_list[index] == 1:
-                    _tmp.append(label[idx][index]*test_std_list[index]+test_mean_list[index])
-            real_list.append(np.array(_tmp))
+    if int(args.predict_days) <= 0:
+        for i,(_,label) in enumerate(dataloader):
+            for idx in range(label.shape[0]):
+                _tmp = []
+                for index in range(OUTPUT_DIMENSION):
+                    if use_list[index] == 1:
+                        _tmp.append(label[idx][index]*test_std_list[index]+test_mean_list[index])
+                real_list.append(np.array(_tmp))
 
-    for items in predict_list:
-        items=items.to("cpu", non_blocking=True)
-        for idxs in items:
-            _tmp = []
-            for index, item in enumerate(idxs):
-                if use_list[index] == 1:
-                    _tmp.append(item*test_std_list[index]+test_mean_list[index])
-            prediction_list.append(np.array(_tmp))
+        for items in predict_list:
+            items=items.to("cpu", non_blocking=True)
+            for idxs in items:
+                _tmp = []
+                for index, item in enumerate(idxs):
+                    if use_list[index] == 1:
+                        _tmp.append(item*test_std_list[index]+test_mean_list[index])
+                prediction_list.append(np.array(_tmp))
+    else:
+        for i,(_,label) in enumerate(dataloader):
+            for idx in range(label.shape[0]):
+                _tmp = []
+                for index in range(OUTPUT_DIMENSION):
+                    if use_list[index] == 1:
+                        _tmp.append(label[idx][0][index]*test_std_list[index]+test_mean_list[index])
+                real_list.append(np.array(_tmp))
+
+        for items in predict_list:
+            items=items.to("cpu", non_blocking=True)
+            for idxs in items:
+                _tmp = []
+                for index, item in enumerate(idxs[0]):
+                    if use_list[index] == 1:
+                        _tmp.append(item*test_std_list[index]+test_mean_list[index])
+                prediction_list.append(np.array(_tmp))
     pbar = tqdm(total=OUTPUT_DIMENSION, ncols=TQDM_NCOLS)
     for i in range(OUTPUT_DIMENSION):
         try:
@@ -428,8 +491,16 @@ def contrast_lines(test_codes):
     plt.close()
 
 if __name__=="__main__":
-    global last_loss,test_model,model,total_test_length,lr_scheduler
+    global last_loss,test_model,model,total_test_length,lr_scheduler,drop_last
+    # b_size * (p_days * n_head) * (d_model // n_head) = b_size * seq_len * d_model
+    # if int(args.predict_days) > 0:
+    #     assert BATCH_SIZE * (int(args.predict_days) * NHEAD) * (D_MODEL // NHEAD) == BATCH_SIZE * SEQ_LEN * D_MODEL and D_MODEL % NHEAD == 0, "Error: assert error"
 
+    # if args.predict_days <= 0:
+    #     drop_last = False
+    # else:
+    #     drop_last = True
+    drop_last = False
     last_loss = 1e10
     if os.path.exists('loss.txt'):
         with open('loss.txt', 'r') as file:
@@ -473,12 +544,20 @@ if __name__=="__main__":
     print(model)
     optimizer=optim.Adam(model.parameters(),lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
     lr_scheduler = CustomSchedule(d_model=D_MODEL, warmup_steps=WARMUP_STEPS, optimizer=optimizer)
-    if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"):
-        print("Load model and optimizer from file")
-        model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl"))
-        optimizer.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"))
+    if int(args.predict_days) > 0:
+        if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Optimizer.pkl"):
+            print("Load model and optimizer from file")
+            model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Model.pkl"))
+            optimizer.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Optimizer.pkl"))
+        else:
+            print("No model and optimizer file, train from scratch")
     else:
-        print("No model and optimizer file, train from scratch")
+        if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"):
+            print("Load model and optimizer from file")
+            model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl"))
+            optimizer.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"))
+        else:
+            print("No model and optimizer file, train from scratch")
 
     period = 100
     train_codes = []
@@ -512,7 +591,7 @@ if __name__=="__main__":
     random.shuffle(ts_codes)
     random.shuffle(train_codes)
     random.shuffle(test_codes)
-    
+
     if mode == 'train':
         lo_list=[]
         data_len=0
@@ -640,18 +719,18 @@ if __name__=="__main__":
                 tqdm.write("epoch: %d, data_queue size after deep copy: %d" % (epoch, data_queue.qsize()))
                 tqdm.write("epoch: %d, _stock_data_queue size: %d" % (epoch, _stock_data_queue.qsize()))
                 
-                stock_train = stock_queue_dataset(mode=0, data_queue=_stock_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_length)
+                stock_train = stock_queue_dataset(mode=0, data_queue=_stock_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_length,predict_days=int(args.predict_days))
             iteration=0
             loss_list=[]
             
-            train_dataloader=DataLoader(dataset=stock_train,batch_size=BATCH_SIZE,shuffle=False,drop_last=False, num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
+            train_dataloader=DataLoader(dataset=stock_train,batch_size=BATCH_SIZE,shuffle=False,drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
             predict_list=[]
             accuracy_list=[]
             train(epoch+1, train_dataloader, scaler, ts_code, test_queue)
             if args.pkl_queue == 0:
                 code_bar.update(1)
             if (time.time() - last_save_time >= SAVE_INTERVAL or index == len(ts_codes) - 1) and safe_save == True:
-                thread_save_model(model, optimizer, save_path, False)
+                thread_save_model(model, optimizer, save_path, False, int(args.predict_days))
                 last_save_time = time.time()
             if args.pkl_queue == 0:
                 code_bar.close()
