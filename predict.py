@@ -14,7 +14,7 @@ parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of 
 parser.add_argument('--pkl_queue', default=1, type=int, help="use pkl queue instead of csv file")
 parser.add_argument('--test_code', default="", type=str, help="test code")
 parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu or not")
-parser.add_argument('--predict_days', default=3, type=int, help="number of the predict days,Positive numbers use interval prediction algorithm, 0 and negative numbers use date prediction algorithm")
+parser.add_argument('--predict_days', default=0, type=int, help="number of the predict days,Positive numbers use interval prediction algorithm, 0 and negative numbers use date prediction algorithm")
 parser.add_argument('--api', default="akshare", type=str, help="api-interface, tushare, akshare or yfinance")
 args = parser.parse_args()
 last_save_time = 0
