@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from prefetch_generator import BackgroundGenerator
 from init import *
 from getdata import args, get_stock_data
+from datetime import datetime, timedelta
 
 class DataLoaderX(DataLoader):
     def __iter__(self):
@@ -1006,3 +1007,10 @@ def cal_compounding_factor(ts_code=""):
         return compounding_factor
     else:
         return None
+
+def generate_dates(start_date, num_days):
+    start_date = datetime.strptime(start_date, '%Y%m%d') # Convert string to datetime
+    if num_days < 0:
+        return np.array([ (start_date + timedelta(days=i)).strftime('%Y%m%d') for i in range(num_days, 1) ])
+    else:
+        return np.array([ (start_date + timedelta(days=i)).strftime('%Y%m%d') for i in range(num_days+1) ])

@@ -229,6 +229,7 @@ def predict(test_codes):
     if predict_data.empty or predict_data is None:
         print("Error: Train_data or Test_data is None")
         return
+    current_date = predict_data["Date"][0]
     if int(args.predict_days) <= 0:
         predict_days = abs(int(args.predict_days))
         pbar = tqdm(total=predict_days, leave=False, ncols=TQDM_NCOLS)
@@ -350,11 +351,13 @@ def predict(test_codes):
         plt.figure()
         x1 = np.linspace(len(_real_list) - show_days, len(_real_list), show_days)
         x2 = np.linspace(len(_real_list), len(_real_list) + len(_prediction_list), len(_prediction_list))
-        plt.plot(x1, np.array(_real_list), label="real_"+name_list[i])
-        plt.plot(x2, np.array(_prediction_list), label="prediction_"+name_list[i], linewidth=0.75, linestyle='--')
+        # x1 = generate_dates(current_date.strftime("%Y%m%d"), -1 * (show_days - 1))
+        # x2 = np.concatenate((np.array([""]),generate_dates((current_date + timedelta(days=1)).strftime("%Y%m%d"), len(_prediction_list) - 2)),axis=0)
+        plt.plot(x1, np.array(_real_list), label=current_date.strftime("%Y%m%d")+"_real_"+name_list[i])
+        plt.plot(x2, np.array(_prediction_list), label=current_date.strftime("%Y%m%d")+"_prediction_"+name_list[i], linewidth=0.75, linestyle='--')
         for item in range(len(_real_list)):
             plt.text(item, _real_list[item], '%.2f' % _real_list[item], ha='center', va='bottom', fontsize=10)
-        for item in range(len(_prediction_list)):
+        for item in range(1, len(_prediction_list)):
             plt.text(item + len(_real_list), _prediction_list[item], '%.2f' % _prediction_list[item], ha='center', va='bottom', fontsize=10)
         plt.legend()
         now = datetime.now()

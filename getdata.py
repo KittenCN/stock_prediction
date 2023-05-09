@@ -3,7 +3,7 @@ import datetime
 import tushare as ts
 import akshare as ak
 import yfinance as yf
-from common import *
+from common import argparse,stock_list_queue,tqdm,time,stock_data_queue,NoneDataFrame,pd,daily_path
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--code', default="", type=str, help="code")
@@ -146,7 +146,7 @@ def get_stock_data(ts_code="", save=True, start_code="", save_path=""):
 
         with lock:
             now_time = datetime.datetime.now()
-            end_time = now_time + datetime.timedelta(days = -1)
+            end_time = now_time +  datetime.timedelta(days = -1)
             enddate = end_time.strftime('%Y%m%d')
             for code in stock_list:
                 try:
