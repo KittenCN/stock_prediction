@@ -580,7 +580,7 @@ class TransformerModel(nn.Module):
 
         if predict_days <= 0:
             output = output.permute(1, 2, 0)  # (seq_len, batch_size, d_model) -> (batch_size, d_model, seq_len)
-            pooled_output = self.pooling(abs(predict_days))(output) # (batch_size, d_model, seq_len) -> (batch_size, d_model, seq_len)
+            pooled_output = self.pooling(1)(output) # (batch_size, d_model, seq_len) -> (batch_size, d_model, seq_len)
             output = self.fc(pooled_output.squeeze(2))
         else:
             output = output.permute(1, 2, 0)  # (seq_len, batch_size, d_model) -> (batch_size, d_model, seq_len)
