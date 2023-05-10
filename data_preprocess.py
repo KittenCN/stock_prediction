@@ -2,9 +2,9 @@ import random
 import argparse
 from common import *
 
-dp_parser = argparse.Argumentdp_parser()
-dp_parser.add_argument('--pklname', default="train.pkl", type=str, help="code")
-dp_args = dp_parser.parse_dp_args()
+parser = argparse.ArgumentParser()
+parser.add_argument('--pklname', default="train.pkl", type=str, help="code")
+args = parser.parse_args()
 
 if __name__ == ("__main__"):
     csv_files = glob.glob(daily_path+"/*.csv")
@@ -16,7 +16,7 @@ if __name__ == ("__main__"):
     for csv_file in csv_files:
         ts_codes.append(os.path.basename(csv_file).rsplit(".", 1)[0])
     random.shuffle(ts_codes)
-    # data_thread = threading.Thread(target=load_data, dp_args=(ts_codes,))
+    # data_thread = threading.Thread(target=load_data, args=(ts_codes,))
     # data_thread.start()
     load_data(ts_codes, True)
     pbar = tqdm(total=len(ts_codes), leave=False, ncols=TQDM_NCOLS)
@@ -36,7 +36,7 @@ if __name__ == ("__main__"):
             print(ts_code, e)
             pbar.update(1)
             continue
-    with open(pkl_path+"/"+dp_args.pklname, "wb") as f:
+    with open(pkl_path+"/"+args.pklname, "wb") as f:
         dill.dump(dump_queue, f)
     pbar.close()
     print("dump_queue size: ", dump_queue.qsize())
