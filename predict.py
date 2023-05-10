@@ -326,7 +326,7 @@ def predict(test_codes):
         _data_real =  predict_data.head(show_days).sort_values(by=['Date'], ascending=True).values.tolist()
         for idx in range(len(_data_real)):
             _tmp = []
-            for index in range(OUTPUT_DIMENSION):
+            for index in range(len(use_list)):
                 if use_list[index] == 1:
                     # _tmp.append(_data_real[idx][index]*std_list[index]+mean_list[index])
                     _tmp.append(_data_real[idx][index])
@@ -340,9 +340,9 @@ def predict(test_codes):
         #                 _tmp.append(label[idx][0][index]*std_list[index]+mean_list[index])
         #         real_list.append(np.array(_tmp))
         # real_list = real_list[len(real_list) - show_days:]
-    compounding_factor = cal_compounding_factor(test_codes[0])
-    real_list = np.array(real_list) * compounding_factor
-    prediction_list = np.array(prediction_list) * compounding_factor
+    # compounding_factor = cal_compounding_factor(test_codes[0])
+    # real_list = np.array(real_list) * compounding_factor
+    # prediction_list = np.array(prediction_list) * compounding_factor
     pbar = tqdm(total=OUTPUT_DIMENSION, leave=False, ncols=TQDM_NCOLS)
     for i in range(OUTPUT_DIMENSION):
         _real_list = np.transpose(real_list)[i]
@@ -440,7 +440,7 @@ def contrast_lines(test_codes):
         for i,(_,label) in enumerate(dataloader):
             for idx in range(label.shape[0]):
                 _tmp = []
-                for index in range(OUTPUT_DIMENSION):
+                for index in range(len(use_list)):
                     if use_list[index] == 1:
                         _tmp.append(label[idx][index]*test_std_list[index]+test_mean_list[index])
                 real_list.append(np.array(_tmp))
@@ -457,7 +457,7 @@ def contrast_lines(test_codes):
         for i,(_,label) in enumerate(dataloader):
             for idx in range(label.shape[0]):
                 _tmp = []
-                for index in range(OUTPUT_DIMENSION):
+                for index in range(len(use_list)):
                     if use_list[index] == 1:
                         _tmp.append(label[idx][0][index]*test_std_list[index]+test_mean_list[index])
                 real_list.append(np.array(_tmp))

@@ -279,7 +279,7 @@ class Stock_Data(Dataset):
                 value[i, :, :] = torch.from_numpy(_value_tmp)
 
                 _tmp = []
-                for index in range(label_num):
+                for index in range(len(use_list)):
                     if use_list[index] == 1:
                         if self.predict_days <= 0:
                             _tmp.append(self.data[i, index])
@@ -394,7 +394,7 @@ class stock_queue_dataset(Dataset):
             value[i, :, :] = torch.from_numpy(_value_tmp)
 
             _tmp = []
-            for index in range(OUTPUT_DIMENSION):
+            for index in range(len(use_list)):
                 if use_list[index] == 1:
                     if self.predict_days > 0:
                         _tmp.append(data[i:i+self.predict_days, index])
