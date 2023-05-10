@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 import random
+import argparse
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 from common import *

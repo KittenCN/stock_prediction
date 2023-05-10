@@ -3,6 +3,7 @@ import datetime
 import tushare as ts
 import akshare as ak
 import yfinance as yf
+import argparse
 from common import argparse,stock_list_queue,tqdm,time,stock_data_queue,NoneDataFrame,pd,daily_path
 
 parser = argparse.ArgumentParser()
