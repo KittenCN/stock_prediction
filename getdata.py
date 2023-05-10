@@ -36,7 +36,7 @@ def get_stock_list():
         stock_list_queue.put(stock_list)
         return stock_list
 
-def get_stock_data(ts_code="", save=True, start_code="", save_path=""):
+def get_stock_data(ts_code="", save=True, start_code="", save_path="", datediff=-1):
     if args.api == "tushare":
         if ts_code == "":
             stock_list = get_stock_list()
@@ -149,7 +149,7 @@ def get_stock_data(ts_code="", save=True, start_code="", save_path=""):
 
         with lock:
             now_time = datetime.datetime.now()
-            end_time = now_time +  datetime.timedelta(days = -1)
+            end_time = now_time +  datetime.timedelta(days = datediff)
             enddate = end_time.strftime('%Y%m%d')
             for code in stock_list:
                 try:
@@ -280,4 +280,4 @@ if __name__ == "__main__":
         if args.code != "":
             get_stock_data(args.code, save=True, save_path=daily_path)
         else:
-            get_stock_data("", save=True, save_path=daily_path) 
+            get_stock_data("", save=True, save_path=daily_path, datediff=-1) 
