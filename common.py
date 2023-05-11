@@ -484,7 +484,7 @@ class MLP(nn.Module):
         return self.layers(x)
 
 class TransformerModel(nn.Module):
-    def __init__(self, input_dim, d_model, nhead, num_layers, dim_feedforward, output_dim, max_len=5000):
+    def __init__(self, input_dim, d_model, nhead, num_layers, dim_feedforward, output_dim, max_len=5000, mode=0):
         super(TransformerModel, self).__init__()
 
         # self.embedding = nn.Linear(input_dim, d_model)
@@ -492,10 +492,15 @@ class TransformerModel(nn.Module):
         self.embedding = MLP(input_dim, d_model//2, d_model)  # Replace this line
         self.positional_encoding = None
 
-        self.transformer_encoder_layer = TransformerEncoderLayerWithNorm(d_model, nhead, dim_feedforward, norm=nn.LayerNorm(d_model))
+        if mode in [0]:
+            dropout = 0.5
+        elif mode in [1 ,2]:
+            dropout = 0
+
+        self.transformer_encoder_layer = TransformerEncoderLayerWithNorm(d_model, nhead, dim_feedforward, norm=nn.LayerNorm(d_model), dropout=dropout)
         self.transformer_encoder = nn.TransformerEncoder(self.transformer_encoder_layer, num_layers)
 
-        self.transformer_decoder_layer = TransformerDecoderLayerWithNorm(d_model, nhead, dim_feedforward, norm=nn.LayerNorm(d_model))
+        self.transformer_decoder_layer = TransformerDecoderLayerWithNorm(d_model, nhead, dim_feedforward, norm=nn.LayerNorm(d_model), dropout=dropout)
         self.transformer_decoder = nn.TransformerDecoder(self.transformer_decoder_layer, num_layers)
 
         self.target_embedding = nn.Linear(output_dim, d_model)
