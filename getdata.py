@@ -4,6 +4,7 @@ import akshare as ak
 import yfinance as yf
 import argparse
 from common import stock_list_queue,tqdm,time,stock_data_queue,NoneDataFrame,pd,daily_path,threading
+from init import TQDM_NCOLS
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--code', default="", type=str, help="code")
@@ -47,7 +48,7 @@ def get_stock_data(ts_code="", save=True, start_code="", save_path="", datediff=
             stock_list = stock_list[stock_list.index(start_code):]
 
         if save:
-            pbar = tqdm(total=len(stock_list), leave=False)
+            pbar = tqdm(total=len(stock_list), leave=False, ncols=TQDM_NCOLS)
 
         lock = threading.Lock()
 
@@ -143,7 +144,7 @@ def get_stock_data(ts_code="", save=True, start_code="", save_path="", datediff=
             stock_list = stock_list[stock_list.index(start_code):]
 
         if save:
-            pbar = tqdm(total=len(stock_list), leave=False)
+            pbar = tqdm(total=len(stock_list), leave=False, ncols=TQDM_NCOLS)
 
         lock = threading.Lock()
 
@@ -220,7 +221,7 @@ def get_stock_data(ts_code="", save=True, start_code="", save_path="", datediff=
             back_adjust = True
         stock_list = ts_code
         if save:
-            pbar = tqdm(total=len(stock_list), leave=False)
+            pbar = tqdm(total=len(stock_list), leave=False, ncols=TQDM_NCOLS)
         lock = threading.Lock()
         with lock:
             for code in stock_list:

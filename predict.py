@@ -616,7 +616,7 @@ if __name__=="__main__":
                     except queue.Empty:
                         break
                 random.shuffle(_datas)
-                init_bar = tqdm(total=len(_datas))
+                init_bar = tqdm(total=len(_datas), ncols=TQDM_NCOLS)
                 for _data in _datas:
                     init_bar.update(1)
                     # _data = _data.dropna()
@@ -634,6 +634,9 @@ if __name__=="__main__":
                         total_test_length += _data.shape[0] - SEQ_LEN
                     if _ts_code not in train_codes and _ts_code not in test_codes:
                         print("Error: %s not in train or test"%_ts_code)
+                        continue
+                    if _ts_code in train_codes and _ts_code in test_codes:
+                        print("Error: %s in train and test"%_ts_code)
                         continue
                 init_bar.close()
             codes_len = data_queue.qsize()
