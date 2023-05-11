@@ -310,8 +310,10 @@ class Stock_Data(Dataset):
             #         if use_list[index] == 1:
             #             _tmp.append(self.data[i, index])
                 
-        _value = value.flip(0)
-        _label = label.flip(0)
+        # _value = value.flip(0)
+        # _label = label.flip(0)
+        _value = value[torch.randperm(value.size(0))]
+        _label = label[torch.randperm(label.size(0))]
         return _value, _label
 
     def __getitem__(self, index):
@@ -402,9 +404,10 @@ class stock_queue_dataset(Dataset):
                 label[i, :, :] = torch.Tensor(np.array(_tmp)).permute(1,0)
             elif self.predict_days <= 0:
                 label[i, :] = torch.Tensor(np.array(_tmp))
-
-        _value = value.flip(0)
-        _label = label.flip(0)
+        # _value = value.flip(0)
+        # _label = label.flip(0)
+        _value = value[torch.randperm(value.size(0))]
+        _label = label[torch.randperm(label.size(0))]
         return _value, _label
 
     # def process_data(self):
