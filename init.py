@@ -17,7 +17,7 @@ from tqdm import tqdm
 from transformers import BertModel,BertPreTrainedModel,BertForSequenceClassification,BertTokenizer,AutoTokenizer,AutoModelForSequenceClassification
 
 TRAIN_WEIGHT=0.9
-SEQ_LEN=5
+SEQ_LEN=5  # 5
 LEARNING_RATE=0.00001   # 0.00001
 WEIGHT_DECAY=0.05   # 0.05
 BATCH_SIZE=4
@@ -27,7 +27,7 @@ SAVE_NUM_EPOCH=1
 # GET_DATA=True
 TEST_NUM=25
 SAVE_INTERVAL=300
-TEST_INTERVAL=100
+TEST_INTERVAL=3  # 100
 OUTPUT_DIMENSION=4
 INPUT_DIMENSION=50   ## max input dimension
 TQDM_NCOLS = 150
@@ -63,15 +63,18 @@ NoneDataFrame["ts_code"] = ["None"]
 ## tushare data list
 # name_list = ["open", "high", "low", "close", "change", "pct_chg", "vol", "amount"]
 # use_list = [1,1,1,1,0,0,0,0]
+# show_list = [1,1,1,1,0,0,0,0]
 
 
 ## akshare data list
 name_list = ["open","close","high","low","vol","amount","amplitude","pct_change","change","exchange_rate"]
 use_list = [1,1,1,1,0,0,0,0,0,0]
+show_list = [1,1,1,1,0,0,0,0,0,0]
 
 ## yfinance data list
 # name_list = ["open","close","high","low","vol"]
 # use_list = [1,1,1,1,0]
+# show_list = [1,1,1,1,0]
 
 OUTPUT_DIMENSION = sum(use_list)
 # INPUT_DIMENSION = 20+OUTPUT_DIMENSION

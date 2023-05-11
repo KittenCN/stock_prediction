@@ -277,9 +277,26 @@ def predict(test_codes):
 
             if args.api == "akshare" or args.api == "yfinance":
                 ## use akshare data or yfinance data
-                predict_data[["Open","Close","High","Low"]] = predict_data[["Open","Close","High","Low"]].astype('float64')
-                predict_data = predict_data.loc[:,["ts_code","Date","Open","Close","High","Low"]]
-                predict_data.to_csv(test_path,sep=',',index=False,header=True)
+                predict_data[['Open', 'High', 'Low', 'Close', 'change', 'pct_change', 'Volume', 'amount', 'amplitude', 'exchange_rate']] = predict_data[['Open', 'High', 'Low', 'Close', 'change', 'pct_change', 'Volume', 'amount', 'amplitude', 'exchange_rate']].astype('float64')
+                predict_data['Date'] = predict_data['Date'].dt.strftime('%Y%m%d')
+                predict_data.rename(
+                    columns={
+                        'Date': 'trade_date', 'Open': 'open',
+                        'High': 'high', 'Low': 'low',
+                        'Close': 'close', 'Volume': 'vol'},
+                    inplace=True)
+                predict_data = predict_data.loc[:,["ts_code",
+                    "trade_date",
+                    "open",
+                    "high",
+                    "low",
+                    "close",
+                    "change",
+                    "pct_change",
+                    "vol",
+                    "amount",
+                    "amplitude",
+                    "exchange_rate"]]
             elif args.api == "tushare":
                 ## Use tushare data
                 predict_data['Date'] = predict_data['Date'].dt.strftime('%Y%m%d')
@@ -291,14 +308,14 @@ def predict(test_codes):
                         'Close': 'close', 'Volume': 'vol'},
                     inplace=True)
 
-                predict_data.to_csv(test_path,sep=',',index=False,header=True)
-                load_data([test_codes[0]],None,test_path,data_queue=data_queue)
-                while data_queue.empty() == False:
-                    try: 
-                        predict_data = data_queue.get(timeout=30)
-                        break
-                    except queue.Empty:
-                        break
+            predict_data.to_csv(test_path,sep=',',index=False,header=True)
+            load_data([test_codes[0]],None,test_path,data_queue=data_queue)
+            while data_queue.empty() == False:
+                try: 
+                    predict_data = data_queue.get(timeout=30)
+                    break
+                except queue.Empty:
+                    break
 
             predict_days -= 1
             pbar.update(1)
@@ -320,15 +337,15 @@ def predict(test_codes):
                 for idx in idxs:
                     _tmp = []
                     for index, item in enumerate(idx):
-                        if use_list[index] == 1:
+                        if show_list[index] == 1:
                             _tmp.append(item*std_list[index]+mean_list[index])
                     prediction_list.append(np.array(_tmp))
         
         _data_real =  predict_data.head(show_days).sort_values(by=['Date'], ascending=True).values.tolist()
         for idx in range(len(_data_real)):
             _tmp = []
-            for index in range(len(use_list)):
-                if use_list[index] == 1:
+            for index in range(len(show_list)):
+                if show_list[index] == 1:
                     # _tmp.append(_data_real[idx][index]*std_list[index]+mean_list[index])
                     _tmp.append(_data_real[idx][index])
             real_list.append(np.array(_tmp))
@@ -344,8 +361,8 @@ def predict(test_codes):
     # compounding_factor = cal_compounding_factor(test_codes[0])
     # real_list = np.array(real_list) * compounding_factor
     # prediction_list = np.array(prediction_list) * compounding_factor
-    pbar = tqdm(total=OUTPUT_DIMENSION, leave=False, ncols=TQDM_NCOLS)
-    for i in range(OUTPUT_DIMENSION):
+    pbar = tqdm(total=sum(show_list), leave=False, ncols=TQDM_NCOLS)
+    for i in range(sum(show_list)):
         _real_list = np.transpose(real_list)[i]
         _prediction_list = np.transpose(prediction_list)[i]
         assert len(_real_list) >= show_days, "The length of real_list is less than show_days"
@@ -441,8 +458,8 @@ def contrast_lines(test_codes):
         for i,(_,label) in enumerate(dataloader):
             for idx in range(label.shape[0]):
                 _tmp = []
-                for index in range(len(use_list)):
-                    if use_list[index] == 1:
+                for index in range(len(show_list)):
+                    if show_list[index] == 1:
                         _tmp.append(label[idx][index]*test_std_list[index]+test_mean_list[index])
                 real_list.append(np.array(_tmp))
 
@@ -451,15 +468,15 @@ def contrast_lines(test_codes):
             for idxs in items:
                 _tmp = []
                 for index, item in enumerate(idxs):
-                    if use_list[index] == 1:
+                    if show_list[index] == 1:
                         _tmp.append(item*test_std_list[index]+test_mean_list[index])
                 prediction_list.append(np.array(_tmp))
     else:
         for i,(_,label) in enumerate(dataloader):
             for idx in range(label.shape[0]):
                 _tmp = []
-                for index in range(len(use_list)):
-                    if use_list[index] == 1:
+                for index in range(len(show_list)):
+                    if show_list[index] == 1:
                         _tmp.append(label[idx][0][index]*test_std_list[index]+test_mean_list[index])
                 real_list.append(np.array(_tmp))
 
@@ -468,11 +485,11 @@ def contrast_lines(test_codes):
             for idxs in items:
                 _tmp = []
                 for index, item in enumerate(idxs[0]):
-                    if use_list[index] == 1:
+                    if show_list[index] == 1:
                         _tmp.append(item*test_std_list[index]+test_mean_list[index])
                 prediction_list.append(np.array(_tmp))
-    pbar = tqdm(total=OUTPUT_DIMENSION, ncols=TQDM_NCOLS)
-    for i in range(OUTPUT_DIMENSION):
+    pbar = tqdm(total=sum(show_list), ncols=TQDM_NCOLS)
+    for i in range(sum(show_list)):
         try:
             pbar.set_description(f"{name_list[i]}")
             _real_list = np.transpose(real_list)[i]
