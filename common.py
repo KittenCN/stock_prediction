@@ -287,33 +287,19 @@ class Stock_Data(Dataset):
                     label[i, :] = torch.Tensor(np.array(_tmp))
                 elif self.predict_days > 0:
                     label[i, :, :] = torch.Tensor(np.array(_tmp)).permute(1,0)
+            _value = value[torch.randperm(value.size(0))]
+            _label = label[torch.randperm(label.size(0))]
         elif self.mode == 2:
             value = torch.rand(1, SEQ_LEN, self.data.shape[1])
             if self.predict_days <= 0:
                 label = torch.rand(1, label_num)
             elif self.predict_days > 0:
                 label = torch.rand(1, self.predict_days, label_num)
-            # for i in range(0, SEQ_LEN):
-            #     _i = SEQ_LEN - i - 1
-            #     value[0, i, :] = torch.from_numpy(self.data[_i, :].reshape(1, self.data.shape[1]))
             _value_tmp = np.copy(np.flip(self.data[0:SEQ_LEN, :].reshape(SEQ_LEN, self.data.shape[1]), 0))
             value[0, :, :] = torch.from_numpy(_value_tmp)
-            # value = torch.rand(self.data.shape[0] - SEQ_LEN + 1, SEQ_LEN, self.data.shape[1])
-            # label = torch.rand(self.data.shape[0] - SEQ_LEN + 1, label_num)
-
-            # for i in range(self.data.shape[0] - SEQ_LEN + 1):
-            #     _value_tmp = np.copy(np.flip(self.data[i:i + SEQ_LEN, :].reshape(SEQ_LEN, self.data.shape[1]), 0))
-            #     value[i, :, :] = torch.from_numpy(_value_tmp)
-
-            #     _tmp = []
-            #     for index in range(label_num):
-            #         if use_list[index] == 1:
-            #             _tmp.append(self.data[i, index])
                 
-        # _value = value.flip(0)
-        # _label = label.flip(0)
-        _value = value[torch.randperm(value.size(0))]
-        _label = label[torch.randperm(label.size(0))]
+            _value = value.flip(0)
+            _label = label.flip(0)
         return _value, _label
 
     def __getitem__(self, index):
@@ -404,10 +390,12 @@ class stock_queue_dataset(Dataset):
                 label[i, :, :] = torch.Tensor(np.array(_tmp)).permute(1,0)
             elif self.predict_days <= 0:
                 label[i, :] = torch.Tensor(np.array(_tmp))
-        # _value = value.flip(0)
-        # _label = label.flip(0)
-        _value = value[torch.randperm(value.size(0))]
-        _label = label[torch.randperm(label.size(0))]
+        if self.mode in [2]:
+            _value = value.flip(0)
+            _label = label.flip(0)
+        elif self.mode in [0, 1]:
+            _value = value[torch.randperm(value.size(0))]
+            _label = label[torch.randperm(label.size(0))]
         return _value, _label
 
     # def process_data(self):
