@@ -238,12 +238,6 @@ class Stock_Data(Dataset):
         return data[:, 0:INPUT_DIMENSION]
 
     def normalize_data(self):
-        # for i in range(len(self.data[0])):
-        #     if self.mode in [0, 2]:
-        #         mean_list.append(np.mean(self.data[:, i]))
-        #         std_list.append(np.std(self.data[:, i]))
-
-        #     self.data[:, i] = (self.data[:, i] - mean_list[i]) / (std_list[i] + 1e-8)
         if self.mode in [0, 2]:
             mean_list.clear()
             std_list.clear()
@@ -287,8 +281,6 @@ class Stock_Data(Dataset):
                     label[i, :] = torch.Tensor(np.array(_tmp))
                 elif self.predict_days > 0:
                     label[i, :, :] = torch.Tensor(np.array(_tmp)).permute(1,0)
-            _value = value[torch.randperm(value.size(0))]
-            _label = label[torch.randperm(label.size(0))]
         elif self.mode == 2:
             value = torch.rand(1, SEQ_LEN, self.data.shape[1])
             if self.predict_days <= 0:
@@ -298,8 +290,8 @@ class Stock_Data(Dataset):
             _value_tmp = np.copy(np.flip(self.data[0:SEQ_LEN, :].reshape(SEQ_LEN, self.data.shape[1]), 0))
             value[0, :, :] = torch.from_numpy(_value_tmp)
                 
-            _value = value.flip(0)
-            _label = label.flip(0)
+        _value = value.flip(0)
+        _label = label.flip(0)
         return _value, _label
 
     def __getitem__(self, index):
@@ -322,13 +314,6 @@ class stock_queue_dataset(Dataset):
             self.label_buffer = []
             self.total_length = total_length
             self.predict_days = predict_days
-            # if data_queue is not None:
-            #     self.total_length = 0
-            #     while not data_queue.empty():
-            #         data_frame = data_queue.get()
-            #         data_frame = data_frame.dropna()
-            #         self.total_length += len(data_frame) - SEQ_LEN
-            #         self.data_queue.put(data_frame)
         except Exception as e:
             print(e)
             return None
@@ -390,28 +375,9 @@ class stock_queue_dataset(Dataset):
                 label[i, :, :] = torch.Tensor(np.array(_tmp)).permute(1,0)
             elif self.predict_days <= 0:
                 label[i, :] = torch.Tensor(np.array(_tmp))
-        if self.mode in [2]:
-            _value = value.flip(0)
-            _label = label.flip(0)
-        elif self.mode in [0, 1]:
-            _value = value[torch.randperm(value.size(0))]
-            _label = label[torch.randperm(label.size(0))]
+        _value = value.flip(0)
+        _label = label.flip(0)
         return _value, _label
-
-    # def process_data(self):
-    #     raw_data = self.load_data()
-    #     if raw_data is not None:
-    #         while len(raw_data) < SEQ_LEN:
-    #             raw_data = self.load_data()
-    #             if raw_data is None:
-    #                 return None
-    #     if raw_data is not None:
-    #         normalized_data = self.normalize_data(raw_data)
-    #         value, label = self.generate_value_label_tensors(normalized_data, self.label_num)
-    #         self.value_buffer.extend(value)
-    #         self.label_buffer.extend(label)
-    #     if raw_data is None:
-    #         return None
 
     def process_data(self):
         # Check if there is data in the queue
@@ -605,7 +571,6 @@ def is_number(num):
     else:
         return False
     
-#数据清洗：丢弃行，或用上一行的值填充
 def data_wash(dataset,keepTime=False):
     if keepTime:
         dataset.fillna(axis=1,method='ffill')
@@ -701,12 +666,12 @@ def draw_Kline(df, period, symbol):
              savefig=f'A_stock-{symbol} {period}_candle_line.jpg')
     plt.show()
 
-def data_replace(data):  #截取小数点后两位
+def data_replace(data):  
     data = str(data)
     index = data.index('.')
     return float(data[:index+3])
 
-def cmp_append(data, cmp_data):  #比较数据，如果数据不同则添加到列表
+def cmp_append(data, cmp_data):  
     # while len(data) < len(cmp_data):
     #     data.append(0)
     if len(cmp_data) - len(data) > 0:
