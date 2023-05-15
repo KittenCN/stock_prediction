@@ -201,7 +201,7 @@ def predict(test_codes):
         while data_queue.empty() == False:
             try:
                 item = data_queue.get(timeout=30)
-                if str(item['ts_code'][0]) in test_codes:
+                if str(item['ts_code'][0]).zfill(6) in test_codes:
                     _data = item
                     break
             except queue.Empty:
@@ -213,7 +213,7 @@ def predict(test_codes):
         print("Error: data is empty or ts_code is None")
         return
 
-    if str(data['ts_code'][0]) != str(test_codes[0]):
+    if str(data['ts_code'][0]).zfill(6) != str(test_codes[0]):
         print("Error: ts_code is not match")
         return
 
@@ -416,7 +416,7 @@ def contrast_lines(test_codes):
                 item = data_queue.get(timeout=30)
             except queue.Empty:
                 break
-            if str(item['ts_code'][0]) in test_codes:
+            if str(item['ts_code'][0]).zfill(6) in test_codes:
                 data = copy.deepcopy(item)
                 break
         if data is NoneDataFrame:
@@ -640,7 +640,7 @@ if __name__=="__main__":
                     _data = _data.fillna(-0.0)
                     if _data.empty:
                         continue
-                    _ts_code = str(_data['ts_code'][0])
+                    _ts_code = str(_data['ts_code'][0]).zfill(6)
                     if args.api == "akshare":
                         _ts_code = _ts_code.zfill(6)
                     if _ts_code in train_codes:
@@ -705,7 +705,7 @@ if __name__=="__main__":
                             tqdm.write("data is empty or data has invalid col")
                             code_bar.update(1)
                             continue
-                        ts_code = data['ts_code'][0]
+                        ts_code = str(data['ts_code'][0]).zfill(6)
                         if args.begin_code != "":
                             if ts_code != args.begin_code:
                                 code_bar.update(1)
