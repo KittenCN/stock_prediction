@@ -1,13 +1,13 @@
-import numpy as np
-from datetime import datetime, timedelta
+import akshare as ak
 
-def generate_dates(start_date, num_days):
-    start_date = datetime.strptime(start_date, '%Y%m%d') # Convert string to datetime
-    if num_days < 0:
-        return np.array([ (start_date + timedelta(days=i)).strftime('%Y%m%d') for i in range(num_days, 1) ])
-    else:
-        return np.array([ (start_date + timedelta(days=i)).strftime('%Y%m%d') for i in range(num_days+1) ])
+# stock_comment_detail_zlkp_jgcyd_em_df = ak.stock_comment_detail_zlkp_jgcyd_em(symbol="600975")
+# print(stock_comment_detail_zlkp_jgcyd_em_df)
 
-# Test the function
-dates = generate_dates('20230509', -10)
-print(dates)
+# stock_comment_detail_zhpj_lspf_em_df = ak.stock_comment_detail_zhpj_lspf_em(symbol="600975")
+# print(stock_comment_detail_zhpj_lspf_em_df)
+
+stock_hot_follow_xq_df = ak.stock_hot_follow_xq(symbol="最热门")
+print(stock_hot_follow_xq_df)
+
+stock_daily_data = ak.stock_zh_a_daily(symbol="sh600975", adjust="qfq")
+print(stock_daily_data)

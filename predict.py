@@ -45,7 +45,8 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
                 continue
             data, label = data.to(device, non_blocking=True), label.to(device, non_blocking=True)
             with autocast():
-                data = pad_input(data)
+                if args.model == 'transformer':
+                    data = pad_input(data)
                 outputs = model.forward(data, label, int(args.predict_days))
                 if outputs.shape == label.shape:
                     loss = criterion(outputs, label)
@@ -158,7 +159,8 @@ def test(dataset, testmodel=None, dataloader_mode=0):
                 else:
                     data, label = data.to("cpu", non_blocking=True), label.to("cpu", non_blocking=True)
                 # test_optimizer.zero_grad()
-                data = pad_input(data)
+                if args.model == 'transformer':
+                    data = pad_input(data)
                 predict = test_model.forward(data, label, int(args.predict_days))
                 predict_list.append(predict)
                 if(predict.shape == label.shape):

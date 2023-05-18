@@ -443,8 +443,9 @@ class LSTM(nn.Module):
         self.LeakyReLU=nn.LeakyReLU()
         # self.ELU = nn.ELU()
         # self.ReLU = nn.ReLU()
-    def forward(self,x, tgt):
+    def forward(self,x, tgt, predict_days=0):
         # out,_=self.lstm(x)
+        self.lstm.flatten_parameters()
         lengths = [s.size(0) for s in x] # 获取数据真实的长度
         x_packed = nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True, enforce_sorted=False)
         out_packed, _ = self.lstm(x_packed)
