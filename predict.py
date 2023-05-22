@@ -45,8 +45,7 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
                 continue
             data, label = data.to(device, non_blocking=True), label.to(device, non_blocking=True)
             with autocast():
-                if args.model == 'transformer':
-                    data = pad_input(data)
+                data = pad_input(data)
                 outputs = model.forward(data, label, int(args.predict_days))
                 if outputs.shape == label.shape:
                     loss = criterion(outputs, label)
@@ -159,8 +158,7 @@ def test(dataset, testmodel=None, dataloader_mode=0):
                 else:
                     data, label = data.to("cpu", non_blocking=True), label.to("cpu", non_blocking=True)
                 # test_optimizer.zero_grad()
-                if args.model == 'transformer':
-                    data = pad_input(data)
+                data = pad_input(data)
                 predict = test_model.forward(data, label, int(args.predict_days))
                 predict_list.append(predict)
                 if(predict.shape == label.shape):
@@ -243,7 +241,7 @@ def predict(test_codes):
             predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
             # predict_data = predict_data.dropna()
             # predict_data = predict_data.fillna(-0.0)
-            predict_data = predict_data.fillna(predict_data.median())
+            predict_data = predict_data.fillna(predict_data.median(numeric_only=True))
             accuracy_list, predict_list = [], []
             test_loss, predict_list, _ = test(predict_data,dataloader_mode=2)
             if test_loss == -1 and predict_list == -1:
@@ -331,7 +329,7 @@ def predict(test_codes):
         predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
         # predict_data = predict_data.dropna()
         # predict_data = predict_data.fillna(-0.0)
-        predict_data = predict_data.fillna(predict_data.median())
+        predict_data = predict_data.fillna(predict_data.median(numeric_only=True))
         accuracy_list, predict_list = [], []
         test_loss, predict_list, dataloader = test(predict_data,dataloader_mode=2)
         
@@ -431,7 +429,7 @@ def contrast_lines(test_codes):
     
     # data = data.dropna()
     # data = data.fillna(-0.0)
-    data = data.fillna(data.median())
+    data = data.fillna(data.median(numeric_only=True))
     print("test_code=", test_codes)
     if data.empty or (PKL is False and data["ts_code"][0] == "None"):
         print("Error: data is empty or ts_code is None")
@@ -643,7 +641,7 @@ if __name__=="__main__":
                     init_bar.update(1)
                     # _data = _data.dropna()
                     # _data = _data.fillna(-0.0)
-                    _data = _data.fillna(_data.median())
+                    _data = _data.fillna(_data.median(numeric_only=True))
                     if _data.empty:
                         continue
                     _ts_code = str(_data['ts_code'][0]).zfill(6)
@@ -707,7 +705,7 @@ if __name__=="__main__":
                         data = data_list[index].copy(deep=True)
                         # data = data.dropna()
                         # data = data.fillna(-0.0)
-                        data = data.fillna(data.median())
+                        data = data.fillna(data.median(numeric_only=True))
                         if data.empty or data["ts_code"][0] == "None":
                             tqdm.write("data is empty or data has invalid col")
                             code_bar.update(1)

@@ -329,7 +329,7 @@ class stock_queue_dataset(Dataset):
             dataFrame.drop(['ts_code', 'Date'], axis=1, inplace=True)
             # dataFrame = dataFrame.dropna()
             # dataFrame = dataFrame.fillna(-0.0)
-            dataFrame = dataFrame.fillna(dataFrame.median())
+            dataFrame = dataFrame.fillna(dataFrame.median(numeric_only=True))
             data = dataFrame.values[:, 0:INPUT_DIMENSION]
             return data
 
