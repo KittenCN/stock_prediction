@@ -104,6 +104,7 @@ for item in symbol.split("."):
     cnname += item
 lstm_path=root_path+"/"+cnname+"/LSTM"
 transformer_path=root_path+"/"+cnname+"/TRANSFORMER"
+cnnlstm_path=root_path+"/"+cnname+"/CNNLSTM"
 save_path=lstm_path
 
 check_exist(root_path+"/" + cnname)

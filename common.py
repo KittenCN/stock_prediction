@@ -2,11 +2,13 @@ import re
 import target
 import mplfinance as mpf
 import matplotlib as mpl# 用于设置曲线参数
-from cycler import cycler# 用于定制线条颜色
 import matplotlib.pyplot as plt
+import torch.nn.functional as F
+from cycler import cycler# 用于定制线条颜色
 from prefetch_generator import BackgroundGenerator
 from init import *
 from datetime import datetime, timedelta
+from torchvision.models import resnet101
 
 class DataLoaderX(DataLoader):
     def __iter__(self):
@@ -929,3 +931,38 @@ def generate_dates(start_date, num_days):
         return np.array([ (start_date + timedelta(days=i)).strftime('%Y%m%d') for i in range(num_days, 1) ])
     else:
         return np.array([ (start_date + timedelta(days=i)).strftime('%Y%m%d') for i in range(num_days+1) ])
+    
+class Attention(nn.Module):
+    def __init__(self, hidden_size):
+        super(Attention, self).__init__()
+        self.hidden_size = hidden_size
+        self.attn = nn.Linear(self.hidden_size, 1)
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, outputs):
+        attn_weights = self.softmax(self.attn(outputs))
+        return torch.bmm(attn_weights.transpose(1, 2), outputs).squeeze(1)
+    
+class CNNLSTM(nn.Module):
+    def __init__(self, input_dim=INPUT_DIMENSION, num_classes=OUTPUT_DIMENSION, predict_days=1):
+        super(CNNLSTM, self).__init__()
+        self.conv1 = nn.Conv1d(input_dim, 64, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv1d(64, 128, kernel_size=3, padding=1)
+        self.lstm = nn.LSTM(input_size=128, hidden_size=256, num_layers=3, batch_first=True)
+        self.attention = Attention(256)
+        self.fc1 = nn.Linear(256, 128)
+        self.fc2 = nn.Linear(128, num_classes)
+        self.predict_days = predict_days
+       
+    def forward(self, x_3d, _tgt, _predict_days=1):
+        self.lstm.flatten_parameters()
+        batch_size, timesteps, C = x_3d.size()
+        x_3d = x_3d.transpose(1, 2)
+        c_out = F.relu(self.conv1(x_3d))
+        c_out = F.relu(self.conv2(c_out))
+        r_in = c_out.view(batch_size, timesteps, -1)
+        r_out, _ = self.lstm(r_in)
+        attn_out = self.attention(r_out)
+        x = F.relu(self.fc1(attn_out))
+        x = self.fc2(x)
+        return x.view(batch_size, self.predict_days, -1)
