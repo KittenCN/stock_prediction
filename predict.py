@@ -59,12 +59,12 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
                         continue
                 
             optimizer.zero_grad()
-            if device.type == "cuda":
+            if device.type == "cuda" and is_number(str(loss.item())):
                 scaler.scale(loss).backward()
                 lr_scheduler.step()
                 scaler.step(optimizer)
                 scaler.update()
-            else:
+            elif is_number(str(loss.item())):
                 loss.backward()
                 lr_scheduler.step()
                 optimizer.step()
@@ -163,7 +163,10 @@ def test(dataset, testmodel=None, dataloader_mode=0):
                 predict_list.append(predict)
                 if(predict.shape == label.shape):
                     accuracy = accuracy_fn(predict, label)
-                    accuracy_list.append(accuracy.item())
+                    if is_number(str(accuracy.item())):
+                        accuracy_list.append(accuracy.item())
+                    else:
+                        pass
                     if dataloader_mode not in [2]:
                         pbar.set_description(f"test accuracy: {np.mean(accuracy_list):.2e}")
                     pbar.update(1)
