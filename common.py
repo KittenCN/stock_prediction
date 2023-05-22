@@ -956,7 +956,7 @@ class CNNLSTM(nn.Module):
         self.dropout2 = nn.Dropout(dropout_rate)  # new Dropout layer after fc2
         self.predict_days = predict_days
        
-    def forward(self, x_3d):
+    def forward(self, x_3d, _tgt, _predict_days=1):
         batch_size, seq_len, C = x_3d.size()
         x_3d = x_3d.transpose(1, 2)  # change the shape to (batch_size, in_channels, seq_len)
         c_out = F.relu(self.conv1(x_3d))
