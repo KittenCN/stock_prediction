@@ -944,25 +944,28 @@ class Attention(nn.Module):
         return torch.bmm(attn_weights.transpose(1, 2), outputs).squeeze(1)
     
 class CNNLSTM(nn.Module):
-    def __init__(self, input_dim=INPUT_DIMENSION, num_classes=OUTPUT_DIMENSION, predict_days=1):
+    def __init__(self, input_dim, num_classes=2, predict_days=1, dropout_rate=0.5):
         super(CNNLSTM, self).__init__()
         self.conv1 = nn.Conv1d(input_dim, 64, kernel_size=3, padding=1)
         self.conv2 = nn.Conv1d(64, 128, kernel_size=3, padding=1)
         self.lstm = nn.LSTM(input_size=128, hidden_size=256, num_layers=3, batch_first=True)
         self.attention = Attention(256)
         self.fc1 = nn.Linear(256, 128)
+        self.dropout1 = nn.Dropout(dropout_rate)  # new Dropout layer after fc1
         self.fc2 = nn.Linear(128, num_classes)
+        self.dropout2 = nn.Dropout(dropout_rate)  # new Dropout layer after fc2
         self.predict_days = predict_days
        
-    def forward(self, x_3d, _tgt, _predict_days=1):
-        self.lstm.flatten_parameters()
-        batch_size, timesteps, C = x_3d.size()
-        x_3d = x_3d.transpose(1, 2)
+    def forward(self, x_3d):
+        batch_size, seq_len, C = x_3d.size()
+        x_3d = x_3d.transpose(1, 2)  # change the shape to (batch_size, in_channels, seq_len)
         c_out = F.relu(self.conv1(x_3d))
         c_out = F.relu(self.conv2(c_out))
-        r_in = c_out.view(batch_size, timesteps, -1)
+        r_in = c_out.transpose(1, 2)  # change the shape back to (batch_size, seq_len, -1)
         r_out, _ = self.lstm(r_in)
         attn_out = self.attention(r_out)
         x = F.relu(self.fc1(attn_out))
+        x = self.dropout1(x)  # apply Dropout after fc1
         x = self.fc2(x)
+        x = self.dropout2(x)  # apply Dropout after fc2
         return x.view(batch_size, self.predict_days, -1)
