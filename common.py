@@ -957,6 +957,7 @@ class CNNLSTM(nn.Module):
         self.predict_days = predict_days
        
     def forward(self, x_3d, _tgt, _predict_days=1):
+        self.lstm.flatten_parameters()
         batch_size, seq_len, C = x_3d.size()
         x_3d = x_3d.transpose(1, 2)  # change the shape to (batch_size, in_channels, seq_len)
         c_out = F.relu(self.conv1(x_3d))
