@@ -77,7 +77,7 @@ show_list = [1,1,1,1,0,0,0,0,0,0]
 # show_list = [1,1,1,1,0]
 
 OUTPUT_DIMENSION = sum(use_list)
-INPUT_DIMENSION = 20+OUTPUT_DIMENSION
+# INPUT_DIMENSION = 20+OUTPUT_DIMENSION
 
 assert OUTPUT_DIMENSION > 0
 

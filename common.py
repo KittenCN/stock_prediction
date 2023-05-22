@@ -438,24 +438,27 @@ class stock_queue_dataset(Dataset):
 class LSTM(nn.Module):
     def __init__(self,dimension):
         super(LSTM,self).__init__()
-        self.lstm=nn.LSTM(input_size=dimension,hidden_size=128,num_layers=3,batch_first=True, dropout=0.5)
-        self.linear1=nn.Linear(in_features=128,out_features=16)
-        self.linear2=nn.Linear(16,OUTPUT_DIMENSION)
-        self.LeakyReLU=nn.LeakyReLU()
+        self.lstm = nn.LSTM(input_size=dimension,hidden_size=128,num_layers=3,batch_first=True, dropout=0.5)
+        self.linear1 = nn.Linear(in_features=128,out_features=16)
+        self.linear2 = nn.Linear(16,OUTPUT_DIMENSION)
+        self.LeakyReLU = nn.LeakyReLU()
         # self.ELU = nn.ELU()
         # self.ReLU = nn.ReLU()
     def forward(self,x, tgt, predict_days=0):
-        # out,_=self.lstm(x)
-        self.lstm.flatten_parameters()
-        lengths = [s.size(0) for s in x] # 获取数据真实的长度
-        x_packed = nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True, enforce_sorted=False)
-        out_packed, _ = self.lstm(x_packed)
-        out, lengths = nn.utils.rnn.pad_packed_sequence(out_packed, batch_first=True)
-        x=out[:,-1,:]        
-        x=self.linear1(x)
-        x=self.LeakyReLU(x)
+        # self.lstm.flatten_parameters()
+        # lengths = [s.size(0) for s in x] # 获取数据真实的长度
+        # x_packed = nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True, enforce_sorted=False)
+        # out_packed, _ = self.lstm(x_packed)
+        # out, lengths = nn.utils.rnn.pad_packed_sequence(out_packed, batch_first=True)
+
+        out,_=self.lstm(x)
+        x = out[:,-1,:]        
+        x = self.linear1(x)
+        x = self.LeakyReLU(x)
         # x=self.ELU(x)
-        x=self.linear2(x)
+        x = self.linear2(x)
+        if predict_days > 0:
+            x = x.unsqueeze(1)
         return x
 
 class TransformerEncoderLayerWithNorm(nn.TransformerEncoderLayer):

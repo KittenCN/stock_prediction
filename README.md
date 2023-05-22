@@ -1,6 +1,9 @@
 # 基于神经网络的通用股票预测模型 A general stock prediction model based on neural networks
 
 ## New
+* 20230522
+* 1. 经过长时间的训练，分析和学习，我深深感觉到单纯使用lstm和transformer进行价格的预测是相当的困难。我下面的更新方向将向三个方向进行：一是开发一种新的模型以更加适配金融预测的特点； 二是继续完成NLP方向的情感分析，做到分析大众和专业机构的恐慌程度； 三是彻底重写一个新的预测程序，从预测价格转变为预测走势，降低预测的难度，提高预测的准确度。有能力或者有想法的朋友，欢迎给我提意见。
+*    After a long time of training, analysis and learning, I deeply feel that it is quite difficult to use lstm and transformer alone to predict prices. My update direction below will go in three directions: one is to develop a new model to better adapt to the characteristics of financial forecasting; the second is to continue to complete the sentiment analysis in the NLP direction, so as to analyze the panic degree of the public and professional institutions; the third is to completely rewrite a new prediction program, from predicting prices to predicting trends, reducing the difficulty of prediction and improving the accuracy of prediction. Friends with ability or ideas are welcome to give me advice.
 * 20230508
 * 1. 增加支持时间区间训练及预测，predict_days参数为正数时，使用区间模型，为负数时，使用单点模型
 *    Add support for time interval training and prediction. When the predict_days parameter is a positive number, the interval model is used. When it is a negative number, the single point model is used.
