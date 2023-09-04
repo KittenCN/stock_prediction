@@ -4,6 +4,7 @@ import mplfinance as mpf
 import matplotlib as mpl# 用于设置曲线参数
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
+import torch.nn as nn
 from cycler import cycler# 用于定制线条颜色
 from prefetch_generator import BackgroundGenerator
 from init import *
@@ -211,7 +212,7 @@ class TextDataset(Dataset):
 
 class Stock_Data(Dataset):
     # mode 0:train 1:test 2:predict
-    def __init__(self, mode=0, transform=None, dataFrame=None, label_num=1, predict_days=0):
+    def __init__(self, mode=0, transform=None, dataFrame=None, label_num=1, predict_days=0, trend=0):
         try:
             assert mode in [0, 1, 2]
             self.mode = mode
@@ -219,6 +220,7 @@ class Stock_Data(Dataset):
             self.data = self.load_data(dataFrame)
             self.normalize_data()
             self.value, self.label = self.generate_value_label_tensors(label_num)
+            self.trend=trend
         except Exception as e:
             print(e)
             return None
@@ -271,7 +273,6 @@ class Stock_Data(Dataset):
             for i in range(self.data.shape[0] - SEQ_LEN):
                 _value_tmp = np.copy(np.flip(self.data[i + 1:i + SEQ_LEN + 1, :].reshape(SEQ_LEN, self.data.shape[1]), 0))
                 value[i, :, :] = torch.from_numpy(_value_tmp)
-
                 _tmp = []
                 for index in range(len(use_list)):
                     if use_list[index] == 1:
@@ -291,7 +292,14 @@ class Stock_Data(Dataset):
                 label = torch.rand(1, self.predict_days, label_num)
             _value_tmp = np.copy(np.flip(self.data[0:SEQ_LEN, :].reshape(SEQ_LEN, self.data.shape[1]), 0))
             value[0, :, :] = torch.from_numpy(_value_tmp)
-                
+            if self.trend == 1:
+                if self.predict_days > 0:
+                    label[i][0] = compare_tensor(label[i][0], value[0][-1][:OUTPUT_DIMENSION])
+        
+        # if self.trend == 1:
+        #     if self.predict_days > 0:
+        #         label = compare_tensor(label[0][0], value[0][-1][:OUTPUT_DIMENSION])
+
         _value = value.flip(0)
         _label = label.flip(0)
         return _value, _label
@@ -304,7 +312,7 @@ class Stock_Data(Dataset):
 
 class stock_queue_dataset(Dataset):
     # mode 0:train 1:test 2:predict
-    def __init__(self, mode=0, data_queue=None, label_num=1, buffer_size=100, total_length=0, predict_days=0):
+    def __init__(self, mode=0, data_queue=None, label_num=1, buffer_size=100, total_length=0, predict_days=0, trend=0):
         try:
             assert mode in [0, 1, 2]
             self.mode = mode
@@ -316,6 +324,7 @@ class stock_queue_dataset(Dataset):
             self.label_buffer = []
             self.total_length = total_length
             self.predict_days = predict_days
+            self.trend=trend
         except Exception as e:
             print(e)
             return None
@@ -378,6 +387,9 @@ class stock_queue_dataset(Dataset):
                 label[i, :, :] = torch.Tensor(np.array(_tmp)).permute(1,0)
             elif self.predict_days <= 0:
                 label[i, :] = torch.Tensor(np.array(_tmp))
+            if self.trend == 1:
+                if self.predict_days > 0:
+                    label[i][0] = compare_tensor(label[i][0], value[0][-1][:OUTPUT_DIMENSION])
         _value = value.flip(0)
         _label = label.flip(0)
         return _value, _label
@@ -958,15 +970,30 @@ class CNNLSTM(nn.Module):
        
     def forward(self, x_3d, _tgt, _predict_days=1):
         self.lstm.flatten_parameters()
-        batch_size, seq_len, C = x_3d.size()
+        batch_size, seq_len, C = x_3d.size() # batch_size, seq_len, input_dim
+        tar = torch.zeros(batch_size, 1, OUTPUT_DIMENSION).to(x_3d.device)
+        for index in range(x_3d.size(0)):
+            tar[index] = x_3d[index][-1][:OUTPUT_DIMENSION]
         x_3d = x_3d.transpose(1, 2)  # change the shape to (batch_size, in_channels, seq_len)
         c_out = F.relu(self.conv1(x_3d))
         c_out = F.relu(self.conv2(c_out))
         r_in = c_out.transpose(1, 2)  # change the shape back to (batch_size, seq_len, -1)
         r_out, _ = self.lstm(r_in)
-        attn_out = self.attention(r_out)
+        attn_out = self.attention(r_out) # batch_size, hidden_size
         x = F.relu(self.fc1(attn_out))
         x = self.dropout1(x)  # apply Dropout after fc1
         x = self.fc2(x)
         x = self.dropout2(x)  # apply Dropout after fc2
         return x.view(batch_size, self.predict_days, -1)
+
+def compare_tensor(original, target):
+    assert original.size() == target.size()
+    result = torch.zeros(original.size()[0])
+    for index in range(original.size()[0]):
+        if original[index] == target[index]:
+            result[index] = 0
+        elif original[index] > target[index]:
+            result[index] = 1
+        else:
+            result[index] = -1
+    return result
