@@ -1,93 +1,94 @@
-# 基于神经网络的通用股票预测模型 A general stock prediction model based on neural networks
+___基于神经网络的通用股票预测模型     
+A general stock prediction model based on neural networks___
 
 ## New
-* 20230522
-* 1. 经过长时间的训练，分析和学习，我深深感觉到单纯使用lstm和transformer进行价格的预测是相当的困难。我下面的更新方向将向三个方向进行：一是开发一种新的模型以更加适配金融预测的特点； 二是继续完成NLP方向的情感分析，做到分析大众和专业机构的恐慌程度； 三是彻底重写一个新的预测程序，从预测价格转变为预测走势，降低预测的难度，提高预测的准确度。有能力或者有想法的朋友，欢迎给我提意见。
-*    After a long time of training, analysis and learning, I deeply feel that it is quite difficult to use lstm and transformer alone to predict prices. My update direction below will go in three directions: one is to develop a new model to better adapt to the characteristics of financial forecasting; the second is to continue to complete the sentiment analysis in the NLP direction, so as to analyze the panic degree of the public and professional institutions; the third is to completely rewrite a new prediction program, from predicting prices to predicting trends, reducing the difficulty of prediction and improving the accuracy of prediction. Friends with ability or ideas are welcome to give me advice.
-* 20230508
-* 1. 增加支持时间区间训练及预测，predict_days参数为正数时，使用区间模型，为负数时，使用单点模型
-*    Add support for time interval training and prediction. When the predict_days parameter is a positive number, the interval model is used. When it is a negative number, the single point model is used.
-* 20230506
-* 1. 按照原始论文，重新构建了transformer模型，使得训练速度提高20倍
-*    According to the original paper, the transformer model is reconstructed, which makes the training speed 20 times faster
-* 20230502
-* 1. 增加使用yfinance接口下载数据，如果是中国大陆用户，需要使用代理，或者使用其他接口
-*    Add the use of yfinance interface to download data. If you are a user in mainland China, you need to use a proxy or other interface.
-* 20230501
-* 1. 支持可变维度的输入，可变长度的输入，最大输入维度需要在init.py中设置
-*    Support variable dimension input, variable length input, and the maximum input dimension needs to be set in init.py
-* 2. 修改删除nan数据整行的模式为将nan数据替换为-0.0
-*    Modify the mode of deleting the whole row of nan data to replace the nan data with -0.0
-* 3. 增加transformer模型的mask机制，以支持可变长度的输入
-*    Add the mask mechanism of the transformer model to support variable length input
-* 4. 修改很多数据处理及数据接口相关代码，目前默认是akshare接口，如果需要使用tushare，请自行修改代码, 且考虑删除对于tushare的支持，后期如需要使用tushare，请自行回退至上一个版本
-*    Modify a lot of data processing and data interface related code, the default is akshare interface, if you need to use tushare, please modify the code by yourself, and consider deleting the support for tushare. If you need to use tushare later, please roll back to the previous version by yourself.
-* 5. 修正了在akshare接口下，预测数据的bug
-*    Corrected the bug of predicting data under the akshare interface
-* 20230428
-* 1. 增加新的数据接口，解决原接口速度慢，很多数据还需要付费的问题
-*    Add a new data interface to solve the problem of slow speed of the original interface and many data still need to be paid for.
-* 2. 增加了对于复权数据的支持，注意在tushare数据源中，复权数据是需要更高的权限的（付费）
-*    Added support for adjusted data. Note that in the tushare data source, adjusted data requires higher permissions (paid).
-* 3. 复权数据有其自身的优点和缺点，请自行选择不复权，前复权，后复权
-*    Adjusted data has its own advantages and disadvantages. Please choose unadjusted, pre-adjusted, and post-adjusted.
-* 20230416
-* 1. 已尝试修复之前发现的bug，目前没有复发的问题，如果有问题，请及时反馈
-*    The bug found previously has been tried to be fixed, and there is no problem that has been reoccurred. If there is a problem, please feedback as soon as possible.
-* 2. 增加针对文字进行情感分析的模型，支持中文，目前仅有数据处理及训练的代码，尚未合并到预测功能中，有兴趣的朋友可以自行尝试，欢迎提出建议
-*    Add a model for sentiment analysis of text, supporting Chinese, with only data processing and training code at present, not yet merged into the prediction function. Friends who are interested can try it on their own, welcome to make suggestions.
-* 3. NLP的模型，由于版权和其他问题，我没有提供数据，或数据下载的方式，请自行寻找数据源，或者使用自己的数据源，需要的格式为csv文件，包含label和text两列，label为0或1，text为文本内容，如果有兴趣，可以自行尝试，欢迎提出建议。
-*    Due to copyright and other issues, I did not provide data or data download methods for the NLP model. Please find your own data source, or use your own data source. The required format is a csv file with two columns, label and text. The label is 0 or 1, and the text is the text content. If you are interested, you can try it on your own, welcome to make suggestions.
-* 20230413
-* 目前发现的bug:  Bugs found so far:
-* 1. predict模式会倒是load data失败 (尝试修复)
-*    predict mode will fail to load data (try to fix)
-* 2. 长时间训练，有概率导致multiprocess.queue异常 (原因未知，请有能力的朋友帮我一起debug)
-*    long training time may cause multiprocess.queue exception (cause unknown, please help me debug if you are capable)
-* 20230412
-* 1. 修复重大bug：计算输入维度时，少计算了初始的8个维度，更新了这个版本后，之前训练的模型将不能使用，需要重新训练；如果还需要使用之前的模型，请手工修改init.py中的INPUT_DIMENSION为20（最小为4，且不能小于输出维度OUTPUT_DIMENSION），并检查common.py中的add_target函数中的相关内容.
-*   Fix major bug: when calculating the input dimension, 8 dimensions were less calculated. After updating this version, the previously trained models will no longer be available and need to be retrained. If you still need to use the previous model, please manually modify INPUT_DIMENSION in init.py to 20 (minimum 4, and cannot be less than OUTPUT_DIMENSION), and check the related content in the add_target function in common.py.
-* 20230402
-* 1. 修改dataset读取方式，使用data queue以及buffer，减少IO次数，提高训练速度
-*   Modify the dataset reading method to use data queue and buffer to reduce the number of IO operations and improve training speed.
-* 2. 将全局变量移动到init.py中，方便修改
-*   Move global variables to init.py for easy modification.
-* 20230328
-* 1. 修改预处理数据文件格式，增加ts_code和date两个字段，方便后续使用
-*    Modify the format of the preprocessed data file, add two fields ts_code and date, for future use.
-* 2. 修改lstm和transformer模型，以支持混合长度输入
-*    Modify the lstm and transformer models to support mixed length input.
-* 3. 在transformer模型，增加了 decoder层，期望增加预测精度
-*    Added a decoder layer in the transformer model, hoping to increase the prediction accuracy.
-* 20230327
-* 1. 修改了部分运行逻辑，配合load pkl预处理文件，极大的提高了训练速度
-*    Modified some running logic and used preprocessed pkl files to greatly improve training speed.
-* 2. 修正了一个影响极大的关于数据流方向的bug
-*    Corrected a bug that had a great impact on the direction of data flow.
-* 3. 尝试使用新的模型
-*    Tried a new model.
-* 4. 增加了一个新的指标，用于评估模型的好坏
-*    Added a new index to evaluate the quality of the model.
-* 20230325
-* 1. 增加数据预处理功能，并能将预处理好的queue保存为pkl文件，减少IO损耗
-*    Add data preprocessing function and save the preprocessed queue as a pkl file to reduce IO loss.
-* 2. 修改不必要的代码
-*    Modify unnecessary code.
-* 3. 简化逻辑，减少时间负责度，方向是以空间换时间
-*    Simplify the logic and reduce the time burden. The direction is to trade space for time.
-* 4. 增加常见的指标，增加预测精度
-*    Add common indicators to increase prediction accuracy.
-* 20230322
-* 1. 增加输出内容控制，可以自行定义输出的内容和数量
-*    Add output content control, you can define the content and quantity of the output yourself.
-* 2. 修改读取数据源为本地csv文件
-*    Modify the data source to local csv files.
-* 3. 修改IO逻辑，使用多线程读取指定文件夹下的csv文件，并存储到内存中，反复训练，减少IO次数
-*    Modify the IO logic to use multiple threads to read the csv files in the specified folder and store them in memory, repeatedly train, and reduce the number of IO operations.
-* 4. 修改lstm, transformer模型
-*    Modify the lstm and transformer models.
-* 5. 增加下载数据功能，请使用自己的api token
-*    Add download data function, please use your own api token.
+>* 20230522
+>* 1. 经过长时间的训练，分析和学习，我深深感觉到单纯使用lstm和transformer进行价格的预测是相当的困难。我下面的更新方向将向三个方向进行：一是开发一种新的模型以更加适配金融预测的特点； 二是继续完成NLP方向的情感分析，做到分析大众和专业机构的恐慌程度； 三是彻底重写一个新的预测程序，从预测价格转变为预测走势，降低预测的难度，提高预测的准确度。有能力或者有想法的朋友，欢迎给我提意见。
+>*    After a long time of training, analysis and learning, I deeply feel that it is quite difficult to use lstm and transformer alone to predict prices. My update direction below will go in three directions: one is to develop a new model to better adapt to the characteristics of financial forecasting; the second is to continue to complete the sentiment analysis in the NLP direction, so as to analyze the panic degree of the public and professional institutions; the third is to completely rewrite a new prediction program, from predicting prices to predicting trends, reducing the difficulty of prediction and improving the accuracy of prediction. Friends with ability or ideas are welcome to give me advice.
+>* 20230508
+>* 1. 增加支持时间区间训练及预测，predict_days参数为正数时，使用区间模型，为负数时，使用单点模型
+>*    Add support for time interval training and prediction. When the predict_days parameter is a positive number, the interval model is used. When it is a negative number, the single point model is used.
+>* 20230506
+>* 1. 按照原始论文，重新构建了transformer模型，使得训练速度提高20倍
+>*    According to the original paper, the transformer model is reconstructed, which makes the training speed 20 times faster
+>* 20230502
+>* 1. 增加使用yfinance接口下载数据，如果是中国大陆用户，需要使用代理，或者使用其他接口
+>*    Add the use of yfinance interface to download data. If you are a user in mainland China, you need to use a proxy or other interface.
+>* 20230501
+>* 1. 支持可变维度的输入，可变长度的输入，最大输入维度需要在init.py中设置
+>*    Support variable dimension input, variable length input, and the maximum input dimension needs to be set in init.py
+>* 2. 修改删除nan数据整行的模式为将nan数据替换为-0.0
+>*    Modify the mode of deleting the whole row of nan data to replace the nan data with -0.0
+>* 3. 增加transformer模型的mask机制，以支持可变长度的输入
+>*    Add the mask mechanism of the transformer model to support variable length input
+>* 4. 修改很多数据处理及数据接口相关代码，目前默认是akshare接口，如果需要使用tushare，请自行修改代码, 且考虑删除对于tushare的支持，后期如需要使用tushare，请自行回退至上一个版本
+>*    Modify a lot of data processing and data interface related code, the default is akshare interface, if you need to use tushare, please modify the code by yourself, and consider deleting the support for tushare. If you need to use tushare later, please roll back to the previous version by yourself.
+>* 5. 修正了在akshare接口下，预测数据的bug
+>*    Corrected the bug of predicting data under the akshare interface
+>* 20230428
+>* 1. 增加新的数据接口，解决原接口速度慢，很多数据还需要付费的问题
+>*    Add a new data interface to solve the problem of slow speed of the original interface and many data still need to be paid for.
+>* 2. 增加了对于复权数据的支持，注意在tushare数据源中，复权数据是需要更高的权限的（付费）
+>*    Added support for adjusted data. Note that in the tushare data source, adjusted data requires higher permissions (paid).
+>* 3. 复权数据有其自身的优点和缺点，请自行选择不复权，前复权，后复权
+>*    Adjusted data has its own advantages and disadvantages. Please choose unadjusted, pre-adjusted, and post-adjusted.
+>* 20230416
+>* 1. 已尝试修复之前发现的bug，目前没有复发的问题，如果有问题，请及时反馈
+>*    The bug found previously has been tried to be fixed, and there is no problem that has been reoccurred. If there is a problem, please feedback as soon as possible.
+>* 2. 增加针对文字进行情感分析的模型，支持中文，目前仅有数据处理及训练的代码，尚未合并到预测功能中，有兴趣的朋友可以自行尝试，欢迎提出建议
+>*    Add a model for sentiment analysis of text, supporting Chinese, with only data processing and training code at present, not yet merged into the prediction function. Friends who are interested can try it on their own, welcome to make suggestions.
+>* 3. NLP的模型，由于版权和其他问题，我没有提供数据，或数据下载的方式，请自行寻找数据源，或者使用自己的数据源，需要的格式为csv文件，包含label和text两列，label为0或1，text为文本内容，如果有兴趣，可以自行尝试，欢迎提出建议。
+>*    Due to copyright and other issues, I did not provide data or data download methods for the NLP model. Please find your own data source, or use your own data source. The required format is a csv file with two columns, label and text. The label is 0 or 1, and the text is the text content. If you are interested, you can try it on your own, welcome to make suggestions.
+>* 20230413
+>* 目前发现的bug:  Bugs found so far:
+>* 1. predict模式会倒是load data失败 (尝试修复)
+>*    predict mode will fail to load data (try to fix)
+>* 2. 长时间训练，有概率导致multiprocess.queue异常 (原因未知，请有能力的朋友帮我一起debug)
+>*    long training time may cause multiprocess.queue exception (cause unknown, please help me debug if you are capable)
+>* 20230412
+>* 1. 修复重大bug：计算输入维度时，少计算了初始的8个维度，更新了这个版本后，之前训练的模型将不能使用，需要重新训练；如果还需要使用之前的模型，请手工修改init.py中的INPUT_DIMENSION为20（最小为4，且不能小于输出维度OUTPUT_DIMENSION），并检查common.py中的add_target函数中的相关内容.
+>*   Fix major bug: when calculating the input dimension, 8 dimensions were less calculated. After updating this version, the previously trained models will no longer be available and need to be retrained. If you still need to use the previous model, please manually modify INPUT_DIMENSION in init.py to 20 (minimum 4, and cannot be less than OUTPUT_DIMENSION), and check the related content in the add_target function in common.py.
+>* 20230402
+>* 1. 修改dataset读取方式，使用data queue以及buffer，减少IO次数，提高训练速度
+>*   Modify the dataset reading method to use data queue and buffer to reduce the number of IO operations and improve training speed.
+>* 2. 将全局变量移动到init.py中，方便修改
+>*   Move global variables to init.py for easy modification.
+>* 20230328
+>* 1. 修改预处理数据文件格式，增加ts_code和date两个字段，方便后续使用
+>*    Modify the format of the preprocessed data file, add two fields ts_code and date, for future use.
+>* 2. 修改lstm和transformer模型，以支持混合长度输入
+>*    Modify the lstm and transformer models to support mixed length input.
+>* 3. 在transformer模型，增加了 decoder层，期望增加预测精度
+>*    Added a decoder layer in the transformer model, hoping to increase the prediction accuracy.
+>* 20230327
+>* 1. 修改了部分运行逻辑，配合load pkl预处理文件，极大的提高了训练速度
+>*    Modified some running logic and used preprocessed pkl files to greatly improve training speed.
+>* 2. 修正了一个影响极大的关于数据流方向的bug
+>*    Corrected a bug that had a great impact on the direction of data flow.
+>* 3. 尝试使用新的模型
+>*    Tried a new model.
+>* 4. 增加了一个新的指标，用于评估模型的好坏
+>*    Added a new index to evaluate the quality of the model.
+>* 20230325
+>* 1. 增加数据预处理功能，并能将预处理好的queue保存为pkl文件，减少IO损耗
+>*    Add data preprocessing function and save the preprocessed queue as a pkl file to reduce IO loss.
+>* 2. 修改不必要的代码
+>*    Modify unnecessary code.
+>* 3. 简化逻辑，减少时间负责度，方向是以空间换时间
+>*    Simplify the logic and reduce the time burden. The direction is to trade space for time.
+>* 4. 增加常见的指标，增加预测精度
+>*    Add common indicators to increase prediction accuracy.
+>* 20230322
+>* 1. 增加输出内容控制，可以自行定义输出的内容和数量
+>*    Add output content control, you can define the content and quantity of the output yourself.
+>* 2. 修改读取数据源为本地csv文件
+>*    Modify the data source to local csv files.
+>* 3. 修改IO逻辑，使用多线程读取指定文件夹下的csv文件，并存储到内存中，反复训练，减少IO次数
+>*    Modify the IO logic to use multiple threads to read the csv files in the specified folder and store them in memory, repeatedly train, and reduce the number of IO operations.
+>* 4. 修改lstm, transformer模型
+>*    Modify the lstm and transformer models.
+>* 5. 增加下载数据功能，请使用自己的api token
+>*    Add download data function, please use your own api token.
 
 ## 0 使用方法 How to use
 * 1. 使用getdata.py下载数据，或者使用自己的数据源，将数据放在stock_daily目录下
@@ -151,18 +152,19 @@
 
 ## 1 项目介绍 Project Introduction
 
-基本思路及创意来自于：https://github.com/MiaoChenglin125/stock_prediction-based-on-lstm-and-transformer
+基本思路及创意来自于：[MiaoChenglin125](https://github.com/MiaoChenglin125/stock_prediction-based-on-lstm-and-transformer)
 由于原作者貌似已经放弃更新，我将继续按照现有掌握的新的模型和技术，继续迭代这个程序
 
-The basic idea and creativity come from: https://github.com/MiaoChenglin125/stock_prediction-based-on-lstm-and-transformer. As the original author seems to have abandoned the updates, I will continue to iterate this program based on the new models and technologies that I have mastered.
+The basic idea and creativity come from: [MiaoChenglin125](https://github.com/MiaoChenglin125/stock_prediction-based-on-lstm-and-transformer).   
+As the original author seems to have abandoned the updates, I will continue to iterate this program based on the new models and technologies that I have mastered.
 
 ## 获取下载数据的api token: Get the api token to download data:
 * 0. 20230501更新后，默认使用akshare获取数据，不再需要tushare的api token及以下流程，如由于特殊要求，必须使用tushare获取数据，请参考以下流程
 *    After the update on 20230501, the data is obtained by default using akshare, and the tushare api token and the following process are no longer required. If you must use tushare to obtain data due to special requirements, please refer to the following process.
-* 1. 在https://tushare.pro/ 网站注册，并按要求获取足够的积分（到2023年3月为止，只需要修改下用户信息，就足够积分了，以后不能确定）
-*    Register on https://tushare.pro/ website and obtain enough points as required (as of March 2023, only modifying user information is sufficient to obtain enough points, but it may not be guaranteed in the future).
-* 2. 在https://tushare.pro/user/token 页面可以查看自己的api token
-*    You can view your api token on https://tushare.pro/user/token page.
+* 1. 在[tushare](https://tushare.pro/) 网站注册，并按要求获取足够的积分（到2023年3月为止，只需要修改下用户信息，就足够积分了，以后不能确定）
+*    Register on [tushare](https://tushare.pro/) website and obtain enough points as required (as of March 2023, only modifying user information is sufficient to obtain enough points, but it may not be guaranteed in the future).
+* 2. 在[tushare](https://tushare.pro/user/token) 页面可以查看自己的api token
+*    You can view your api token on [tushare](https://tushare.pro/user/token).
 * 3. 在本项目根目录建立一个api.txt，并将获得的api token写入这个文件
 *    Create an api.txt file in the root directory of this project and write the api token you obtained into this file.
 * 4. 使用本项目getdata.py，即可自动下载日数据
