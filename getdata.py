@@ -155,10 +155,10 @@ def get_stock_data(ts_code="", save=True, start_code="", save_path="", datediff=
             for code in stock_list:
                 try:
                     df = ak.stock_zh_a_hist(symbol=code, period="daily", end_date=enddate, adjust=args.adjust)
-                    df.insert(0, "ts_code", code)
+                    # df.insert(0, "ts_code", code)
                     df.columns = [
-                            "ts_code",
                             "trade_date",
+                            "ts_code",
                             "open",
                             "close",
                             "high",
@@ -170,6 +170,10 @@ def get_stock_data(ts_code="", save=True, start_code="", save_path="", datediff=
                             "change",
                             "exchange_rate"
                     ]
+                    # df["trade_date"], df["ts_code"] = df["ts_code"], df["trade_date"]
+                    columns = list(df.columns)
+                    columns[0], columns[1] = columns[1], columns[0]  # 交换第一列和第二列
+                    df = df[columns]
                     df["trade_date"] = pd.to_datetime(df['trade_date']).dt.strftime("%Y%m%d")
                     df.sort_values(by=['trade_date'], ascending=False, inplace=True)
                     df = df.reindex(columns=[

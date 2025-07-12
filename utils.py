@@ -100,7 +100,7 @@ def cal_compounding_factor(ts_code=""):
         df = pd.read_csv(daily_file_path)
         df['trade_date'] = pd.to_datetime(df['trade_date'], format='%Y%m%d')
         df = df.sort_values(by='trade_date', ascending=False)
-        daily_open = df['open'][0]
+        daily_open = df['open'][0] 
         daily_close = df['close'][0]
         daily_high = df['high'][0]
         daily_low = df['low'][0]
