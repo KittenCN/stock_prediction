@@ -218,9 +218,9 @@ class Stock_Data(Dataset):
             self.mode = mode
             self.predict_days = predict_days
             self.data = self.load_data(dataFrame)
-            self.normalize_data()
-            self.value, self.label = self.generate_value_label_tensors(label_num)
+            self.normalize_data()           
             self.trend=trend
+            self.value, self.label = self.generate_value_label_tensors(label_num)
         except Exception as e:
             print(e)
             return None
@@ -294,7 +294,7 @@ class Stock_Data(Dataset):
             value[0, :, :] = torch.from_numpy(_value_tmp)
             if self.trend == 1:
                 if self.predict_days > 0:
-                    label[i][0] = compare_tensor(label[i][0], value[0][-1][:OUTPUT_DIMENSION])
+                    label[0][0] = compare_tensor(label[0][0], value[0][-1][:OUTPUT_DIMENSION])
         
         # if self.trend == 1:
         #     if self.predict_days > 0:
