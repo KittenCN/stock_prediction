@@ -45,7 +45,7 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
                 subbar.update(1)
                 continue
             data, label = data.to(device, non_blocking=True), label.to(device, non_blocking=True)
-            with autocast():
+            with autocast(device_type='cuda'):
                 data = pad_input(data)
                 outputs = model.forward(data, label, int(args.predict_days))
                 if outputs.shape == label.shape:
@@ -654,7 +654,7 @@ if __name__=="__main__":
                     _data = _data.fillna(_data.median(numeric_only=True))
                     if _data.empty:
                         continue
-                    _ts_code = str(_data['ts_code'][0]).zfill(6)
+                    _ts_code = str(_data['ts_code'].iloc[0]).zfill(6)
                     if args.api == "akshare":
                         _ts_code = _ts_code.zfill(6)
                     if _ts_code in train_codes:
@@ -675,7 +675,7 @@ if __name__=="__main__":
         print("total test codes: %d, total test length: %d"%(test_queue.qsize(), total_test_length))
         batch_none = 0
         data_none = 0
-        scaler = GradScaler()
+        scaler = GradScaler('cuda')
         pbar = tqdm(total=EPOCH, leave=False, ncols=TQDM_NCOLS)
         last_epoch = 0
         for epoch in range(0,EPOCH):
