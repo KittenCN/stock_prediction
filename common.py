@@ -27,7 +27,7 @@ class CustomSchedule(object):
         arg1 = self.steps ** -0.5
         arg2 = self.steps * (self.warmup_steps ** -1.5)
         self.steps += 1.
-        lr = (self.d_model ** -0.5) * min(arg1, arg2)
+        lr = (self.d_model ** -0.5) * min(arg1, arg2).item()
         for p in self.optimizer.param_groups:
             p['lr'] = lr
         return lr
@@ -875,6 +875,7 @@ def save_model(model, optimizer, save_path, best_model=False, predict_days=0):
         elif best_model is True:
             torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model_best.pkl")
             torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer_best.pkl")
+
 def thread_save_model(model, optimizer, save_path, best_model=False, predict_days=0):
     _model = copy.deepcopy(model)
     _optimizer = copy.deepcopy(optimizer)
