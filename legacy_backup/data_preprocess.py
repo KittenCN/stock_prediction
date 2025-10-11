@@ -1,6 +1,6 @@
 import random
 import argparse
-from common import *
+from stock_prediction.common import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--pklname', default="train.pkl", type=str, help="code")

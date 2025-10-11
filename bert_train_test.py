@@ -1,4 +1,5 @@
-from common import *
+from stock_prediction.common import *
+import argparse
 
 def get_train_args():
     parser=argparse.ArgumentParser()

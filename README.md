@@ -91,14 +91,50 @@ A general stock prediction model based on neural networks___
 >*    Add download data function, please use your own api token.
 
 ## 0 使用方法 How to use
-* 1. 使用getdata.py下载数据，或者使用自己的数据源，将数据放在stock_daily目录下
-*    Use getdata.py to download data, or use your own data source, and put the data in the stock_daily directory.
-* 2. 使用data_preprocess.py预处理数据，生成pkl文件，放在pkl_handle目录下(可选)
-*    Use data_preprocess.py to preprocess data and generate pkl files in the pkl_handle directory (optional).
-* 3. 调整train.py和init.py中的参数，先使用predict..py训练模型，生成模型文件，再使用predict.py进行预测，生成预测结果或测试比照图
-*    Adjust the parameters in train.py and init.py, first use predict..py to train the model, generate the model file, and then use predict.py to predict, generate the prediction results or test comparison chart.
 
-## 0.1 predict.py参数介绍 Introduction to predict.py parameters
+### 快速开始 Quick Start
+```bash
+# 安装依赖 Install dependencies
+make setup
+
+# 获取数据 Get data (可选，已有测试数据 Optional, test data included)
+make run-getdata
+
+# 预处理数据 Preprocess data (可选 Optional)
+make run-preprocess
+
+# 训练模型 Train model
+make run-train
+
+# 运行测试 Run tests
+make test
+```
+
+### 详细步骤 Detailed Steps
+* 1. 使用 `scripts/getdata.py` 或 `make run-getdata` 下载数据，或者使用自己的数据源，将数据放在 `stock_daily/` 目录下
+*    Use `scripts/getdata.py` or `make run-getdata` to download data, or use your own data source and put data in `stock_daily/` directory.
+
+* 2. 使用 `scripts/data_preprocess.py` 或 `make run-preprocess` 预处理数据，生成pkl文件，放在 `pkl_handle/` 目录下（可选）
+*    Use `scripts/data_preprocess.py` or `make run-preprocess` to preprocess data and generate pkl files in `pkl_handle/` directory (optional).
+
+* 3. 使用 `scripts/predict.py` 或 `make run-train` 训练模型，生成模型文件，然后进行预测，生成预测结果或测试比照图
+*    Use `scripts/predict.py` or `make run-train` to train the model, generate model files, then predict and generate results or comparison charts.
+
+## 0.1 配置管理 Configuration Management
+
+项目现在使用统一的配置管理系统，所有路径和参数都通过 `src/stock_prediction/config.py` 集中管理。
+The project now uses a unified configuration management system, with all paths and parameters centrally managed through `src/stock_prediction/config.py`.
+
+主要配置项 Main configuration items:
+- **路径配置 Path configuration**: 所有数据、模型、输出路径自动管理
+- **模型参数 Model parameters**: LSTM、Transformer参数配置
+- **训练参数 Training parameters**: 学习率、批次大小、训练轮数等
+- **数据源设置 Data source settings**: 支持tushare、akshare、yfinance
+
+## 0.2 predict.py参数介绍 Introduction to predict.py parameters
+使用 `scripts/predict.py` 作为统一入口，参数说明：
+Use `scripts/predict.py` as the unified entry point with the following parameters:
+
 * 1. --model: 模型名称，目前支持lstm和transformer
 *    --model: model name, currently supports lstm and transformer
 * 2. --mode: 模式，目前支持train,test和predict
@@ -114,44 +150,70 @@ A general stock prediction model based on neural networks___
 * 7. --predict_days: 预测天数，目前支持数字
 *    --predict_days: number of days to predict, currently supports numbers
 
-## 0.2 init.py部分参数介绍 Introduction to some parameters in init.py
-* 1. TRAIN_WEIGHT: 训练权重，目前支持小于等于1的数字
-*    TRAIN_WEIGHT: training weight, currently supports numbers less than or equal to 1
-* 2. SEQ_LEN: 序列长度，目前支持数字
-*    SEQ_LEN: sequence length, currently supports numbers
-* 3. BATCH_SIZE: 批量大小，目前支持数字
-*    BATCH_SIZE: batch size, currently supports numbers
-* 4. EPOCH: 训练轮数，目前支持数字
-*    EPOCH: number of training rounds, currently supports numbers
-* 5. LEARNING_RATE: 学习率，目前支持小于等于1的数字
-*    LEARNING_RATE: learning rate, currently supports numbers less than or equal to 1
-* 6. WEIGHT_DECAY: 权重衰减，目前支持小于等于1的数字
-*    WEIGHT_DECAY: weight decay, currently supports numbers less than or equal to 1
-* 7. SAVE_NUM_ITER: 保存模型间隔，目前支持数字
-*    SAVE_NUM_ITER: interval to save model, currently supports numbers
-* 8. SAVE_NUM_EPOCH: 保存模型间隔，目前支持数字
-*    SAVE_NUM_EPOCH: interval to save model, currently supports numbers
-* 9. SAVE_INTERVAL: 保存模型时间间隔（秒），目前支持数字
-*    SAVE_INTERVAL: interval to save model (seconds), currently supports numbers
-* 10. OUTPUT_DIMENSION: 输出维度，目前支持数字
-*     OUTPUT_DIMENSION: output dimension, currently supports numbers
-* 11. INPUT_DIMENSION: 输入维度，目前支持数字
-*     INPUT_DIMENSION: input dimension, currently supports numbers
-* 12. NUM_WORKERS: 线程数，目前支持数字
-*     NUM_WORKERS: number of threads, currently supports numbers
-* 13. PKL: 是否使用pkl文件，目前支持True和False
-*     PKL: whether to use pkl files, currently supports True and False
-* 14. BUFFER_SIZE: 缓冲区大小，目前支持数字
-*     BUFFER_SIZE: buffer size, currently supports numbers
-* 15. symbol: 股票代码，目前支持股票代码或Generic.Data表示全部已下载的数据
-*     symbol: stock code, currently supports stock code or Generic.Data representing all downloaded data
-* 16. name_list: 需要预测的内容名称
-*     name_list: the name of the content to be predicted
-* 17. use_list: 需要预测的内容开关,1表示使用，0表示不使用
-*     use_list: switch for content to be predicted, 1 means use, 0 means not use
+## 0.3 配置参数说明 Configuration Parameters
+通过 `src/stock_prediction/config.py` 的Config类管理：
+Managed through the Config class in `src/stock_prediction/config.py`:
+
+### 模型参数 Model Parameters
+- SEQ_LEN: 序列长度 / sequence length
+- BATCH_SIZE: 批量大小 / batch size  
+- EPOCH: 训练轮数 / number of training rounds
+- LEARNING_RATE: 学习率 / learning rate
+- WEIGHT_DECAY: 权重衰减 / weight decay
+
+### 数据参数 Data Parameters
+- INPUT_DIMENSION: 输入维度 / input dimension
+- OUTPUT_DIMENSION: 输出维度 / output dimension
+- TRAIN_WEIGHT: 训练权重 / training weight
+- PKL: 是否使用pkl文件 / whether to use pkl files
+
+### 系统参数 System Parameters
+- NUM_WORKERS: 线程数 / number of threads
+- BUFFER_SIZE: 缓冲区大小 / buffer size
+- SAVE_NUM_ITER: 保存模型间隔 / interval to save model
+- SAVE_INTERVAL: 保存模型时间间隔（秒）/ interval to save model (seconds)
 
 ## 1 项目介绍 Project Introduction
 
+### 环境要求 Environment Requirements
+- Python 3.13+ (推荐使用conda环境 Recommended using conda environment)
+- 推荐创建名为 `stock_prediction` 的conda环境
+- Recommended to create a conda environment named `stock_prediction`
+
+### 项目结构 Project Structure
+```
+stock_prediction/
+├── src/stock_prediction/       # 核心业务模块 Core business modules
+│   ├── __init__.py            # 包初始化 Package initialization
+│   ├── config.py              # 统一配置管理 Unified configuration ✨
+│   ├── common.py              # 公共功能 Common functions
+│   ├── init.py                # 初始化常量 Initialization constants
+│   ├── getdata.py             # 数据获取 Data acquisition
+│   ├── data_preprocess.py     # 数据预处理 Data preprocessing
+│   ├── predict.py             # 核心预测逻辑 Core prediction logic
+│   ├── utils.py               # 工具函数 Utility functions
+│   └── target.py              # 目标处理 Target processing
+├── scripts/                   # 命令行入口 Command-line entries
+│   ├── getdata.py             # 数据获取入口 Data acquisition entry
+│   ├── data_preprocess.py     # 数据预处理入口 Preprocessing entry
+│   └── predict.py             # 预测训练入口 Prediction/training entry
+├── tests/                     # 测试用例 Test cases (20个测试，全部通过 ✅)
+├── config/                    # 配置文件 Configuration files
+├── docs/                      # 文档 Documentation
+├── legacy_backup/             # 旧版本备份 Legacy backups
+├── bert_data/                 # BERT数据 BERT data
+├── models/                    # 模型文件 Model files
+├── stock_daily/               # 股票日线数据 Daily stock data
+└── Makefile                   # 一键任务管理 One-command task management
+```
+
+### ⚠️ 重要变化 Important Changes
+- **旧的根目录脚本已移至 `legacy_backup/`**: 请使用 `scripts/` 中的新入口
+- **Old root scripts moved to `legacy_backup/`**: Please use new entries in `scripts/`
+- **配置系统**: 现在使用统一的配置管理，所有路径自动处理
+- **Configuration system**: Now uses unified config management with automatic path handling
+
+### 创意来源 Origin
 基本思路及创意来自于：[MiaoChenglin125](https://github.com/MiaoChenglin125/stock_prediction-based-on-lstm-and-transformer)
 由于原作者貌似已经放弃更新，我将继续按照现有掌握的新的模型和技术，继续迭代这个程序
 

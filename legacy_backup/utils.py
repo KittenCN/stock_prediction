@@ -78,7 +78,7 @@ def json2csv(path, save_path):
 def cal_compounding_factor(ts_code=""):
     import random
     from getdata import set_adjust, get_stock_data
-    from init import glob, daily_path, data_path, np
+    from stock_prediction.init import glob, daily_path, data_path, np
     # First, find the day on which the reweighting event occurred. Usually, the difference between the post-weighting data and the non-weighting data is greatest on this day.
     # Calculate the ratio of the post-weighted data of the two adjacent days:
     # Ratio of post-weighted data = Post-weighted data of the second day / Post-weighted data of the first day

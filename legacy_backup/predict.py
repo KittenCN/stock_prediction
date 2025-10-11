@@ -4,7 +4,7 @@ import random
 import argparse
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
-from common import *
+from stock_prediction.common import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")

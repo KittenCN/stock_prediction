@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import math
 import pandas as pd
-from init import *
+from stock_prediction.init import *
 
 np.seterr(divide='ignore', invalid='ignore')  # 忽略除数为0的警告
 

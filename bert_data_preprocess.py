@@ -1,4 +1,4 @@
-from common import *
+from stock_prediction.common import *
 train_first_line = True
 x_list = []
 y_list = []

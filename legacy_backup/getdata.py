@@ -3,8 +3,8 @@ import tushare as ts
 import akshare as ak
 import yfinance as yf
 import argparse
-from common import stock_list_queue,tqdm,time,stock_data_queue,NoneDataFrame,pd,daily_path,threading
-from init import TQDM_NCOLS
+from stock_prediction.common import stock_list_queue, tqdm, time, stock_data_queue, NoneDataFrame, pd, daily_path, threading
+from stock_prediction.init import TQDM_NCOLS
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--code', default="", type=str, help="code")
