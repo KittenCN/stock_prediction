@@ -1,89 +1,55 @@
 # 项目文件清理记录
 
 ## 清理日期
-2024年12月28日
+2024-12-28
 
-## 清理操作
+## 清理说明
 
-### 已移动到 `legacy_backup/` 的文件
-以下文件是旧版本的实现，已被新的标准化包结构替代：
+为推进标准化包结构，旧版脚本已迁移至 `src/stock_prediction/`，原始实现备份至 `legacy_backup/`。核心调整包括：
 
-1. **common_old.py** (原 common.py)
-   - 原大小: 40,285 字节 (1002 行)
-   - 最后修改: 2025年7月26日
-   - 状态: 包含与新版本相同的函数，但使用硬编码路径
+1. **common_old.py → src/stock_prediction/common.py**  
+   - 原文件 40,285 字节，存在硬编码路径与重复函数。  
+   - 当前版本集中保留数据集、模型、训练辅助函数。
 
-2. **init.py** 
-   - 原大小: 3,259 字节 (120 行)
-   - 最后修改: 2025年7月19日
-   - 状态: 使用硬编码路径系统，已被配置系统替代
+2. **init.py（旧版） → src/stock_prediction/init.py**  
+   - 原文件 3,259 字节，采用硬编码路径；现通过 `config.py` 管理目录。  
+   - 新版新增 GPU/CPU 设备检测、全局队列初始化。
 
-3. **utils.py**
-   - 原大小: 6,172 字节
-   - 最后修改: 2025年10月11日
-   - 状态: 早期版本，功能已迁移到 src/stock_prediction/utils.py
+3. **utils.py / getdata.py / data_preprocess.py / predict.py / target.py**  
+   - 均完成路径修复与模块化迁移。  
+   - 旧文件保存在 `legacy_backup/` 以便回滚比对。
 
-4. **getdata.py**
-   - 原大小: 11,825 字节 (288 行)
-   - 最后修改: 2025年10月11日
-   - 状态: 包含导入错误，功能已迁移到 src/stock_prediction/getdata.py
+4. **test.py 等临时脚本**  
+   - 已移入备份目录，不再参与主流程。
 
-5. **data_preprocess.py**
-   - 原大小: 1,625 字节
-   - 最后修改: 2025年10月11日
-   - 状态: 早期版本，功能已迁移到 src/stock_prediction/data_preprocess.py
+## 现有活跃结构
 
-6. **predict.py**
-   - 原大小: 40,600 字节 (819 行)
-   - 最后修改: 2025年10月11日
-   - 状态: 包含导入错误，功能已重构到 src/stock_prediction/predict.py
+```
+src/stock_prediction/
+├── __init__.py
+├── config.py              # 路径与目录配置
+├── init.py                # 全局常量、队列、Torch 设备
+├── common.py              # 数据集、模型、训练工具、技术指标辅助
+├── getdata.py             # 行情抓取脚本
+├── data_preprocess.py     # 数据预处理
+├── predict.py             # 训练/测试/预测主流程
+├── target.py              # 技术指标函数库
+└── utils.py               # 文件/日志相关工具
 
-7. **target.py**
-   - 最后修改: 旧文件
-   - 状态: 功能已迁移到 src/stock_prediction/target.py
+scripts/
+├── predict.py             # 命令行入口（需补充 main() 接口支持）
+├── getdata.py
+└── data_preprocess.py
+```
 
-8. **test.py**
-   - 简单的API测试脚本
-   - 状态: 临时测试文件，不影响主要功能
+## 清理收益
 
-## 当前活跃文件结构
+- **结构清晰**：避免历史文件与新实现同名导致导入冲突。
+- **统一入口**：`scripts/` 目录提供简化的命令行脚本。
+- **可追溯性**：`legacy_backup/` 完整保留旧逻辑，便于查阅。
 
-### src/stock_prediction/ (新的标准包)
-- `__init__.py`: 包初始化
-- `config.py`: 统一配置管理 ✨
-- `common.py`: 核心功能 (35,393 字节, 952 行)
-- `init.py`: 初始化模块 (2,561 字节, 99 行)
-- `utils.py`: 工具函数 (5,269 字节)
-- `getdata.py`: 数据获取 (10,991 字节)
-- `data_preprocess.py`: 数据预处理 (1,490 字节)
-- `predict.py`: 预测逻辑 (10,690 字节)
-- `target.py`: 目标处理
+## 后续建议
 
-### scripts/ (命令行入口)
-- `predict.py`: 预测/训练入口 (408 字节)
-- `getdata.py`: 数据获取入口 (390 字节)
-- `data_preprocess.py`: 数据预处理入口 (401 字节)
-
-## 清理效果
-
-### 优点
-1. **消除混淆**: 不再有重复的文件名导致导入错误
-2. **标准化结构**: 符合Python包开发最佳实践
-3. **清晰入口**: scripts/ 提供清洁的命令行接口
-4. **向后兼容**: 保留所有功能，维持API兼容性
-
-### 安全保障
-1. **完整备份**: 所有旧文件保存在 legacy_backup/
-2. **测试验证**: 所有20个测试用例通过 ✅
-3. **功能验证**: scripts入口正常工作 ✅
-
-## 建议
-
-### 可以删除（在确认后）
-- `legacy_backup/` 中的文件在确认新系统稳定运行后可以删除
-- 一些旧的数据文件夹如果不再使用也可以清理
-
-### 保留原因
-- BERT相关文件 (`bert_*.py`) 暂时保留，等待后续整合
-- `stock_data_spider.py` 可能包含特殊爬虫逻辑，暂时保留
-- 模型和数据目录 (`models/`, `stock_daily/` 等) 包含用户数据，保留
+- 在确认新版流程稳定后，可考虑删除冗余备份文件，或转存至归档仓库。
+- 为避免再次出现乱码问题，文档统一保存为 UTF-8 编码。
+- 建议在 CI 中增加“文档同步检查”步骤，确保清理记录及时更新。
