@@ -1,4 +1,5 @@
 import re
+import queue
 import matplotlib as mpl
 import mplfinance as mpf
 import matplotlib.pyplot as plt
@@ -860,6 +861,13 @@ def deep_copy_queue(q):
         new_q.put(item)
         q.put(item)
     return new_q
+
+
+def ensure_queue_compatibility(q_obj):
+    """为旧版序列化的 queue.Queue 补齐缺失属性，保证在新版本 Python 中可用。"""
+    if isinstance(q_obj, queue.Queue) and not hasattr(q_obj, "is_shutdown"):
+        q_obj.is_shutdown = False
+    return q_obj
 
 
 def read_csv_file(file_path):

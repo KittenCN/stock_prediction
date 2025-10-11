@@ -4,7 +4,18 @@ import random
 import argparse
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
-from stock_prediction.common import *
+try:
+    from .common import *
+except ImportError:
+    # 如果直接运行此文件，使用绝对导入
+    import sys
+    from pathlib import Path
+    current_dir = Path(__file__).resolve().parent
+    root_dir = current_dir.parent.parent
+    src_dir = root_dir / "src"
+    if str(src_dir) not in sys.path:
+        sys.path.insert(0, str(src_dir))
+    from stock_prediction.common import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
@@ -201,7 +212,7 @@ def predict(test_codes):
     else:
         _data = NoneDataFrame
         with open(train_pkl_path, 'rb') as f:
-            data_queue = dill.load(f)
+            data_queue = ensure_queue_compatibility(dill.load(f))
         while data_queue.empty() == False:
             try:
                 item = data_queue.get(timeout=30)
@@ -416,7 +427,7 @@ def contrast_lines(test_codes):
             return
     else:
         with open(train_pkl_path, 'rb') as f:
-            data_queue = dill.load(f)
+            data_queue = ensure_queue_compatibility(dill.load(f))
         while data_queue.empty() == False:
             try:
                 item = data_queue.get(timeout=30)
@@ -641,7 +652,7 @@ if __name__=="__main__":
         else:
             _datas = []
             with open(train_pkl_path, 'rb') as f:
-                _data_queue = dill.load(f)
+                _data_queue = ensure_queue_compatibility(dill.load(f))
                 while _data_queue.empty() == False:
                     try:
                         _datas.append(_data_queue.get(timeout=30))
