@@ -2,6 +2,9 @@ ___基于神经网络的通用股票预测模型
 A general stock prediction model based on neural networks___
 
 ## New
+>* 20250816
+>* 1. 我现在与两年前的观点一致，单纯使用lstm和transformer进行价格的预测是相当的困难，最终训练的结果一定会偏向与平均数和均线，以满足loss的要求
+>* 2. 我正在通过某种模型进行趋势和获利预测，目前有了一定的结果，测试集准确率稳定超过88%，待我论文发表后，会公开相关基础代码。
 >* 20230522
 >* 1. 经过长时间的训练，分析和学习，我深深感觉到单纯使用lstm和transformer进行价格的预测是相当的困难。我下面的更新方向将向三个方向进行：一是开发一种新的模型以更加适配金融预测的特点； 二是继续完成NLP方向的情感分析，做到分析大众和专业机构的恐慌程度； 三是彻底重写一个新的预测程序，从预测价格转变为预测走势，降低预测的难度，提高预测的准确度。有能力或者有想法的朋友，欢迎给我提意见。
 >*    After a long time of training, analysis and learning, I deeply feel that it is quite difficult to use lstm and transformer alone to predict prices. My update direction below will go in three directions: one is to develop a new model to better adapt to the characteristics of financial forecasting; the second is to continue to complete the sentiment analysis in the NLP direction, so as to analyze the panic degree of the public and professional institutions; the third is to completely rewrite a new prediction program, from predicting prices to predicting trends, reducing the difficulty of prediction and improving the accuracy of prediction. Friends with ability or ideas are welcome to give me advice.
