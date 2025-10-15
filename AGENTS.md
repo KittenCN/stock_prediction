@@ -24,6 +24,7 @@ project-root/
 ├─ scripts/                     # 任务脚本 | Task automation scripts
 ├─ config/                      # 配置模板 | Configuration templates
 ├─ docs/                        # 设计/API/运维文档 | Design/API/Ops docs
+│  └─agent_report.md              # 自动执行报告 | Automation run report
 ├─ .github/workflows/           # CI 工作流 | CI workflows
 ├─ Dockerfile                   # 容器化运行 | Container runtime
 ├─ docker-compose.yml           # 本地依赖编排 | Local dependency orchestration
@@ -31,8 +32,7 @@ project-root/
 ├─ Makefile                     # 一键任务入口 | One-command task entry
 ├─ README.md                    # 使用说明 | Usage guide
 ├─ ASSUMPTIONS.md               # 假设与权衡 | Assumptions & trade-offs
-├─ CHANGELOG.md                 # 变更日志 | Change log
-└─ agent_report.md              # 自动执行报告 | Automation run report
+└─ CHANGELOG.md                 # 变更日志 | Change log
 ```
 
 > 要求：在可行情况下保持上述结构，为团队提供统一入口。<br>> Requirement: Adopt the structure when feasible to give the team a consistent entry point.
