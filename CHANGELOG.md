@@ -14,6 +14,7 @@
 - `scripts/run_all_models.bat` 增加 `ptft_vssm` 测试项，完善横向对比脚本。
 - README 重写结构，突出混合模型与概率组合流程。
 - `predict.py` 提供 `main(argv=None)` 与 `create_predictor()`，方便程序化调用与测试。
+- 将 `common.py` 中的 LSTM / Transformer / CNNLSTM 结构迁移至 `models/` 目录，统一模型管理。
 
 ### Fixed
 - `predict.py` 主逻辑封装为 `main()`，补齐全局变量初始化与 `global` 声明。

@@ -6,3 +6,6 @@ from .temporal_hybrid import TemporalHybridNet
 from .ptft import ProbTemporalFusionTransformer
 from .vssm import VariationalStateSpaceModel
 from .ptft_vssm import PTFTVSSMEnsemble, PTFTVSSMLoss
+from .lstm_basic import LSTM
+from .transformer_classic import TransformerModel
+from .cnn_lstm import CNNLSTM

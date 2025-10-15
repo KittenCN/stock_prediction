@@ -16,10 +16,13 @@ if str(src_dir) not in sys.path:
     sys.path.insert(0, str(src_dir))
 
 from stock_prediction.models import (
+    LSTM,
     AttentionLSTM,
     BiLSTM,
     TCN,
     MultiBranchNet,
+    TransformerModel,
+    CNNLSTM,
     TemporalHybridNet,
     PTFTVSSMEnsemble,
     PTFTVSSMLoss,
@@ -650,8 +653,8 @@ def main():
         device = torch.device("cpu")
 
     if model_mode == "LSTM":
-        model = LSTM(dimension=INPUT_DIMENSION)
-        test_model = LSTM(dimension=INPUT_DIMENSION)
+        model = LSTM(input_dim=INPUT_DIMENSION)
+        test_model = LSTM(input_dim=INPUT_DIMENSION)
         save_path = lstm_path
         criterion = nn.MSELoss()
     elif model_mode == "ATTENTION_LSTM":
