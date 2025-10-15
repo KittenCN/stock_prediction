@@ -331,7 +331,7 @@ def predict(test_codes):
         while data_queue.empty() == False:
             try:
                 item = data_queue.get(timeout=30)
-                if str(item['ts_code'][0]).zfill(6) in test_codes:
+                if str(item['ts_code'].iloc[0]).zfill(6) in test_codes:
                     _data = item
                     break
             except queue.Empty:
@@ -545,7 +545,7 @@ def contrast_lines(test_codes):
                 item = data_queue.get(timeout=30)
             except queue.Empty:
                 break
-            if str(item['ts_code'][0]).zfill(6) in test_codes:
+            if str(item['ts_code'].iloc[0]).zfill(6) in test_codes:
                 data = copy.deepcopy(item)
                 break
         if data is NoneDataFrame:
@@ -921,7 +921,7 @@ def main():
                             tqdm.write("data is empty or data has invalid col")
                             code_bar.update(1)
                             continue
-                        ts_code = str(data['ts_code'][0]).zfill(6)
+                        ts_code = str(data['ts_code'].iloc[0]).zfill(6)
                         if args.begin_code != "":
                             if ts_code != args.begin_code:
                                 code_bar.update(1)

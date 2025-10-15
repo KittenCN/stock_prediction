@@ -200,10 +200,10 @@ class Stock_Data(Dataset):
             assert mode in [0, 1, 2]
             self.mode = mode
             self.predict_days = predict_days
+            self.trend = trend  # 修复：trend 必须在 generate_value_label_tensors 之前赋值
             self.data = self.load_data(dataFrame)
             self.normalize_data()
             self.value, self.label = self.generate_value_label_tensors(label_num)
-            self.trend = trend
         except Exception as e:
             print(e)
             return None

@@ -202,40 +202,54 @@ def test(dataset, testmodel=None, dataloader_mode=0):
 
 
 def predict(test_codes):
+    print(f"[LOG] predict() called with test_codes={test_codes}")
     if not test_codes:
+        print("[LOG] test_codes is empty, abort.")
         raise ValueError("test_codes is empty")
     if PKL == 0:
+        print("[LOG] Using CSV data loading mode.")
         load_data(test_codes, data_queue=data_queue)
         try:
             data = data_queue.get(timeout=30)
         except queue.Empty:
+            print("[LOG] data_queue is empty after load_data.")
             raise RuntimeError("data_queue is empty")
     else:
+        print(f"[LOG] Using PKL mode, loading from {train_pkl_path}")
         with open(train_pkl_path, 'rb') as f:
             data_queue = ensure_queue_compatibility(dill.load(f))
         data = None
         while not data_queue.empty():
             item = data_queue.get()
-            if str(item['ts_code'][0]).zfill(6) == str(test_codes[0]):
+            print(f"[LOG] Checking ts_code in pkl: {str(item['ts_code'].iloc[0]).zfill(6)}")
+            if str(item['ts_code'].iloc[0]).zfill(6) == str(test_codes[0]):
                 data = copy.deepcopy(item)
+                print(f"[LOG] Found target ts_code: {test_codes[0]}, shape={data.shape}")
                 break
         if data is None:
+            print(f"[LOG] 目标股票 {test_codes[0]} 未在 pkl 队列中找到")
             raise RuntimeError("目标股票未在 pkl 队列中找到")
 
-    if data.empty or data['ts_code'][0] == "None":
+    if data.empty or data['ts_code'].iloc[0] == "None":
+        print(f"[LOG] 数据为空或 ts_code 无效, data.empty={data.empty}, ts_code={data['ts_code'].iloc[0]}")
         raise RuntimeError("数据为空或 ts_code 无效")
 
     predict_data = copy.deepcopy(data)
     spliced_data = copy.deepcopy(data)
+    print(f"[LOG] predict_data.columns: {list(predict_data.columns)}")
+    print(f"[LOG] predict_data.shape: {predict_data.shape}")
     if int(args.predict_days) <= 0:
         predict_days = abs(int(args.predict_days)) or 1
+        print(f"[LOG] predict_days={predict_days}")
         pbar = tqdm(total=predict_days, leave=False, ncols=TQDM_NCOLS)
         while predict_days > 0:
             predict_days -= 1
-            lastdate = predict_data['Date'][0].strftime('%Y%m%d')
+            lastdate = predict_data['Date'].iloc[0].strftime('%Y%m%d')
+            print(f"[LOG] lastdate={lastdate}")
             predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
             predict_data = predict_data.fillna(predict_data.median(numeric_only=True))
             _, predict_list, _ = test(predict_data, dataloader_mode=2)
+            print(f"[LOG] predict_list len: {len(predict_list)}")
             rows = []
             for items in predict_list:
                 items = items.to('cpu')
@@ -245,11 +259,41 @@ def predict(test_codes):
                         if use_list[index] == 1:
                             row.append((item * std_list[index] + mean_list[index]).detach().numpy())
                     rows.append(row)
+            print(f"[LOG] rows[0] len: {len(rows[0]) if rows else 0}")
             date_obj = datetime.strptime(lastdate, '%Y%m%d') + timedelta(days=1)
             new_row = [test_codes[0], date_obj]
             if rows:
                 new_row.extend(rows[0])
+            print(f"[LOG] new_row len: {len(new_row)}, columns: {len(spliced_data.columns)}")
+            # 补齐 new_row 长度到 columns 数量
+            while len(new_row) < len(spliced_data.columns):
+                new_row.append(0.0)
+            # 截断多余
+            new_row = new_row[:len(spliced_data.columns)]
             new_df = pd.DataFrame([new_row], columns=spliced_data.columns)
+            print(f"[LOG] Saving predict image, DataFrame shape: {new_df.shape}")
+            # 保存图片前加日志
+            try:
+                # 绘制预测结果曲线并保存图片
+                save_dir = root_dir / "png" / "predict"
+                save_dir.mkdir(parents=True, exist_ok=True)
+                fig, ax = plt.subplots(figsize=(10, 5))
+                # 只画预测的数值部分（去除 ts_code, Date）
+                value_cols = [col for col in new_df.columns if col not in ["ts_code", "Date"]]
+                for col in value_cols:
+                    ax.plot(new_df["Date"], new_df[col], marker='o', label=col)
+                ax.set_title(f"预测结果: {test_codes[0]} {date_obj.strftime('%Y-%m-%d')}")
+                ax.set_xlabel("日期")
+                ax.set_ylabel("预测值")
+                ax.legend()
+                img_name = f"{test_codes[0]}_{date_obj.strftime('%Y%m%d')}.png"
+                img_path = save_dir / img_name
+                plt.tight_layout()
+                plt.savefig(img_path)
+                plt.close(fig)
+                print(f"[LOG] 图片已保存: {img_path}")
+            except Exception as e:
+                print(f"[LOG] Error saving image: {e}")
             predict_data = pd.concat([new_df, spliced_data], ignore_index=True)
             spliced_data = copy.deepcopy(predict_data)
             predict_data['Date'] = pd.to_datetime(predict_data['Date'])
@@ -274,7 +318,8 @@ def main(argv=None):
     drop_last = False
     if not args.test_code:
         raise ValueError('test_code 参数不能为空')
-    _init_models(args.test_code)
+    # 修复：使用 symbol 作为模型路径，而不是 test_code
+    _init_models(symbol)
     predict([args.test_code])
 
 
