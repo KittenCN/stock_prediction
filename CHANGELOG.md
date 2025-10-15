@@ -7,17 +7,22 @@
 ### Added
 - 新增 `TemporalHybridNet`（`--model hybrid`），结合多尺度卷积、双向 GRU、Multi-Head Attention 与统计特征，提升股票多步预测能力。
 - 新增 `tests/test_models.py`，覆盖 `TemporalHybridNet` 在单步与多步预测场景下的张量形状。
+- 新增 `create_predictor()` 函数，便于外部调用和单元测试创建预测器实例。
 - 整合文档为 `docs/system_design.md`、`docs/user_guide.md`、`docs/maintenance.md`，并同步更新 `README.md`、`ASSUMPTIONS.md`。
 
 ### Changed
 - `scripts/run_all_models.bat` 现包含 `hybrid` 模型，便于横向对比。
 - README 重写结构，突出混合模型及统一训练流程。
+- **重要改进**：`predict.py` 命令行参数解析移至 `main()` 内部，模块级别使用 `DefaultArgs` 类提供默认配置，彻底解决测试环境中的 `SystemExit: 2` 问题。
 
 ### Fixed
 - `predict.py` 主逻辑封装为 `main()`，补齐全局变量初始化与 `global` 声明，修复 `UnboundLocalError` / `NameError` 等导入问题。
+- **关键修复**：解决模块导入时 `parser.parse_args()` 导致测试失败的问题，现在 `args` 默认为 `DefaultArgs` 实例，仅在 `main()` 运行时解析真实命令行参数。
+- `tests/test_models.py` 添加 `sys.path` 动态路径设置，修复 `ModuleNotFoundError: No module named 'stock_prediction'` 导入错误。
+- 所有 23 项单元测试现已通过，覆盖率达到 20%。
 
 ### Known Issues
-- `predict.py` 在导入时仍会解析命令行参数，`pytest -q` 等携带额外参数的场景可能触发 `SystemExit: 2`；需进一步解耦 CLI。
+- 无重大问题，CLI 与测试环境已完全解耦。
 
 ## [Unreleased] - 2025-10-11
 

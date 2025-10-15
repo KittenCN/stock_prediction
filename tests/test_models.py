@@ -1,5 +1,13 @@
-import torch
+import sys
+from pathlib import Path
 
+# 添加 src 目录到 Python 路径
+root_dir = Path(__file__).resolve().parent.parent
+src_dir = root_dir / "src"
+if str(src_dir) not in sys.path:
+    sys.path.insert(0, str(src_dir))
+
+import torch
 from stock_prediction.models import TemporalHybridNet
 
 

@@ -1,5 +1,6 @@
 import re
 import queue
+import copy
 import matplotlib as mpl
 import mplfinance as mpf
 import matplotlib.pyplot as plt
@@ -824,27 +825,48 @@ def custom_collate(batch):
         return None
 
 
+def _move_state_to_cpu(state):
+    if isinstance(state, dict):
+        return {k: _move_state_to_cpu(v) for k, v in state.items()}
+    if isinstance(state, list):
+        return [_move_state_to_cpu(v) for v in state]
+    if isinstance(state, tuple):
+        return tuple(_move_state_to_cpu(v) for v in state)
+    if torch.is_tensor(state):
+        return state.detach().cpu()
+    return copy.deepcopy(state)
+
+
 def save_model(model, optimizer, save_path, best_model=False, predict_days=0):
+    if isinstance(model, dict):
+        model_state = model
+    else:
+        model_state = {k: v.detach().cpu().clone() if torch.is_tensor(v) else v for k, v in model.state_dict().items()}
+    if isinstance(optimizer, dict):
+        optimizer_state = optimizer
+    else:
+        optimizer_state = _move_state_to_cpu(optimizer.state_dict())
+
     if predict_days > 0:
         if best_model is False:
-            torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Model.pkl")
-            torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Optimizer.pkl")
+            torch.save(model_state, save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Model.pkl")
+            torch.save(optimizer_state, save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Optimizer.pkl")
         elif best_model is True:
-            torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Model_best.pkl")
-            torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Optimizer_best.pkl")
+            torch.save(model_state, save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Model_best.pkl")
+            torch.save(optimizer_state, save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Optimizer_best.pkl")
     else:
         if best_model is False:
-            torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl")
-            torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl")
+            torch.save(model_state, save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl")
+            torch.save(optimizer_state, save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl")
         elif best_model is True:
-            torch.save(model.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model_best.pkl")
-            torch.save(optimizer.state_dict(), save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer_best.pkl")
+            torch.save(model_state, save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model_best.pkl")
+            torch.save(optimizer_state, save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer_best.pkl")
 
 
 def thread_save_model(model, optimizer, save_path, best_model=False, predict_days=0):
-    _model = copy.deepcopy(model)
-    _optimizer = copy.deepcopy(optimizer)
-    data_thread = threading.Thread(target=save_model, args=(_model, _optimizer, save_path, best_model, predict_days,))
+    model_state = {k: v.detach().cpu().clone() if torch.is_tensor(v) else v for k, v in model.state_dict().items()}
+    optimizer_state = _move_state_to_cpu(optimizer.state_dict())
+    data_thread = threading.Thread(target=save_model, args=(model_state, optimizer_state, save_path, best_model, predict_days,))
     data_thread.start()
 
 

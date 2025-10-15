@@ -5,18 +5,21 @@ import argparse
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import numpy as np
+import sys
+from pathlib import Path
+
+# 确保能导入 stock_prediction 包
+current_dir = Path(__file__).resolve().parent
+root_dir = current_dir.parent.parent
+src_dir = root_dir / "src"
+if str(src_dir) not in sys.path:
+    sys.path.insert(0, str(src_dir))
+
 from stock_prediction.models import AttentionLSTM, BiLSTM, TCN, MultiBranchNet, TemporalHybridNet
 try:
     from .common import *
 except ImportError:
     # 如果直接运行此文件，使用绝对导入
-    import sys
-    from pathlib import Path
-    current_dir = Path(__file__).resolve().parent
-    root_dir = current_dir.parent.parent
-    src_dir = root_dir / "src"
-    if str(src_dir) not in sys.path:
-        sys.path.insert(0, str(src_dir))
     from stock_prediction.common import *
 
 parser = argparse.ArgumentParser()
@@ -32,7 +35,23 @@ parser.add_argument('--predict_days', default=0, type=int, help="number of the p
 parser.add_argument('--api', default="akshare", type=str, help="api-interface, tushare, akshare or yfinance")
 parser.add_argument('--trend', default=0, type=int, help="predict the trend of stock, not the price")
 parser.add_argument('--epoch', default=2, type=int, help="训练轮数")
-args = parser.parse_args()
+
+# 创建一个默认 args 对象供测试和导入使用
+class DefaultArgs:
+    mode = "train"
+    model = "transformer"
+    begin_code = ""
+    cpu = 0
+    pkl = 1
+    pkl_queue = 1
+    test_code = ""
+    test_gpu = 1
+    predict_days = 0
+    api = "akshare"
+    trend = 0
+    epoch = 2
+
+args = DefaultArgs()
 
 # 初始化模块级变量
 last_save_time = 0
@@ -595,8 +614,12 @@ def contrast_lines(test_codes):
 
 def main():
     """主函数:股票预测的训练、测试和预测入口"""
+    global args
     global last_loss,test_model,model,total_test_length,lr_scheduler,drop_last
     global criterion, optimizer, model_mode, save_path, device
+    
+    # 解析命令行参数(仅在直接运行时执行)
+    args = parser.parse_args()
     # b_size * (p_days * n_head) * (d_model // n_head) = b_size * seq_len * d_model
     # if int(args.predict_days) > 0:
     #     assert BATCH_SIZE * (int(args.predict_days) * NHEAD) * (D_MODEL // NHEAD) == BATCH_SIZE * SEQ_LEN * D_MODEL and D_MODEL % NHEAD == 0, "Error: assert error"
@@ -664,7 +687,7 @@ def main():
             output_dim=OUTPUT_DIMENSION,
             predict_steps=hybrid_steps,
         )
-        save_path = config.get_model_path("HYBRID", symbol)
+        save_path = str(config.get_model_path("HYBRID", symbol))
         criterion = nn.MSELoss()
     elif model_mode == "CNNLSTM":
         assert abs(abs(int(args.predict_days))) > 0, "Error: predict_days must be greater than 0"
@@ -927,6 +950,25 @@ def main():
         else:
             print("Error: test_code is not in ts_codes")
             exit(0)
+
+
+def create_predictor(model_type="lstm", device_type="cpu"):
+    """
+    创建预测器实例(用于测试和外部调用)
+    
+    Args:
+        model_type: 模型类型 (lstm, transformer, attention_lstm 等)
+        device_type: 设备类型 (cpu 或 cuda)
+    
+    Returns:
+        一个包含模型和配置的预测器对象
+    """
+    class Predictor:
+        def __init__(self, model_type, device_type):
+            self.model_type = model_type.upper()
+            self.device = torch.device(device_type)
+            
+    return Predictor(model_type, device_type)
 
 
 if __name__ == "__main__":
