@@ -117,6 +117,8 @@
 - **V-SSM** 输出市场状态概率与风险评估，辅助调整 PTFT 的输出（如在高波动状态下收紧预测区间）。  
 - 推理阶段：PTFT 生成主预测，V-SSM 提供 regime 权重与置信约束，两者通过加权或校准层融合。  
 
+**实现提示**：对应代码已落地于 `src/stock_prediction/models/ptft.py`、`vssm.py`、`ptft_vssm.py`，训练入口新增 `--model ptft_vssm`，损失函数 `PTFTVSSMLoss` 会自动叠加 KL 正则项。相关单元测试见 `tests/test_models.py`。  
+
 **适用场景**  
 - 单股票或小规模组合的中短期价格预测，需要概率输出与风险标定。  
 

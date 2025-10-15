@@ -15,7 +15,15 @@ src_dir = root_dir / "src"
 if str(src_dir) not in sys.path:
     sys.path.insert(0, str(src_dir))
 
-from stock_prediction.models import AttentionLSTM, BiLSTM, TCN, MultiBranchNet, TemporalHybridNet
+from stock_prediction.models import (
+    AttentionLSTM,
+    BiLSTM,
+    TCN,
+    MultiBranchNet,
+    TemporalHybridNet,
+    PTFTVSSMEnsemble,
+    PTFTVSSMLoss,
+)
 try:
     from .common import *
 except ImportError:
@@ -689,6 +697,20 @@ def main():
         )
         save_path = str(config.get_model_path("HYBRID", symbol))
         criterion = nn.MSELoss()
+    elif model_mode == "PTFT_VSSM":
+        ensemble_steps = abs(int(args.predict_days)) if int(args.predict_days) > 0 else 1
+        model = PTFTVSSMEnsemble(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=ensemble_steps,
+        )
+        test_model = PTFTVSSMEnsemble(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=ensemble_steps,
+        )
+        save_path = str(config.get_model_path("PTFT_VSSM", symbol))
+        criterion = PTFTVSSMLoss(model, mse_weight=1.0, kl_weight=1e-3)
     elif model_mode == "CNNLSTM":
         assert abs(abs(int(args.predict_days))) > 0, "Error: predict_days must be greater than 0"
         model = CNNLSTM(input_dim=INPUT_DIMENSION, num_classes=OUTPUT_DIMENSION, predict_days=abs(int(args.predict_days)))

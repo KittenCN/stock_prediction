@@ -5,7 +5,7 @@
 | ---- | ---- | ---- |
 | `python scripts/getdata.py --api akshare --code 000001.SZ` | 抓取指定股票日线数据，写入 `stock_daily/` | 运行前请执行 `conda activate stock_prediction` 并安装对应数据源依赖 |
 | `python scripts/data_preprocess.py --pklname train.pkl` | 聚合 `stock_daily/` 下的 CSV，生成 `pkl_handle/train.pkl` | 依赖 `stock_prediction.init` 中的队列与 `dill` |
-| `python scripts/predict.py --mode train --model hybrid --predict_days 3` | 启动 TemporalHybridNet 训练流程 | 其他模型：`lstm`、`attention_lstm`、`bilstm`、`tcn`、`multibranch`、`transformer`、`cnnlstm` |
+| `python scripts/predict.py --mode train --model hybrid --predict_days 3` | 启动 TemporalHybridNet 训练流程 | 其他模型：`lstm`、`attention_lstm`、`bilstm`、`tcn`、`multibranch`、`transformer`、`cnnlstm��ptft_vssm` |
 | `pytest -q` | 运行测试套件 | 当前需先解决 `predict.py` 导入副作用，否则会解析外部参数 |
 
 > 提示：在 CLI 重构完成前，`src/stock_prediction/predict.py` 仍会在导入时解析 `sys.argv`。如需在带额外参数的环境（例如 `pytest -k` 或 `ipython`）中导入，请优先调用 `python -m stock_prediction.predict --help` 清空参数，或等待后续改造。  
@@ -37,7 +37,7 @@
    - 各模型采用相同的 `--test_code`、`--epoch`。  
 
 常用参数说明：  
-- `--model`：`lstm` / `attention_lstm` / `bilstm` / `tcn` / `multibranch` / `transformer` / `cnnlstm` / `hybrid`。  
+- `--model`：`lstm` / `attention_lstm` / `bilstm` / `tcn` / `multibranch` / `transformer` / `cnnlstm��ptft_vssm` / `hybrid`。  
 - `--mode`：`train` / `test` / `predict`。  
 - `--test_code`：待测试的股票代码。  
 - `--pkl`：是否使用 `train.pkl`（1 为使用）。  
@@ -83,4 +83,5 @@
 - 使用 `.env` 或 YAML 配置管理 API Token、数据路径等敏感信息，避免直接修改源码。
 
 ---
-本指南整合了原有的 API、运维与多模型测试文档，按“使用 → 维护”顺序描述项目操作流程。*** End Patch
+本指南整合了原有的 API、运维与多模型测试文档，按“使用 → 维护”顺序描述项目操作流程。
+*** End Patch

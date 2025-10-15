@@ -18,6 +18,7 @@ flowchart LR
     subgraph Package[src/stock_prediction]
         Core --> Common[common.py\n数据集与训练工具]
         Core --> Models[models/\n模型集合]
+| models/ptft.py 等 | PTFT、V-SSM 与双轨融合实现 | 新增 ProbTemporalFusionTransformer / VariationalStateSpaceModel / PTFTVSSMEnsemble |
         Core --> Target[target.py\n指标库]
         Core --> Init[init.py\n全局常量与队列]
         Core --> Config[config.py\n路径配置]
@@ -111,4 +112,5 @@ flowchart LR
 4. 融合行业指数、新闻情绪等外部信号构建多模态分支。
 
 ---
-以上内容吸收原有的架构图、系统分析、决策记录与模型优化文档，形成按“设计/实现/演进”分类的统一说明。*** End Patch
+以上内容吸收原有的架构图、系统分析、决策记录与模型优化文档，形成按“设计/实现/演进”分类的统一说明。
+*** End Patch

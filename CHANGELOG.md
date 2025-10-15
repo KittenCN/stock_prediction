@@ -5,6 +5,10 @@
 ## [Unreleased] - 2025-10-15
 
 ### Added
+- 实现 ProbTemporalFusionTransformer、VariationalStateSpaceModel 与 PTFTVSSMEnsemble，并接入 --model ptft_vssm 训练入口。
+- 新增 PTFTVSSMLoss、	ests/test_models.py 中相关用例，确保前向与损失逻辑可测。
+- 更新文档：docs/model_strategy.md、docs/system_design.md、docs/user_guide.md，补充双轨方案实现说明。
+
 - 新增 `TemporalHybridNet`（`--model hybrid`），结合多尺度卷积、双向 GRU、Multi-Head Attention 与统计特征，提升股票多步预测能力。
 - 新增 `tests/test_models.py`，覆盖 `TemporalHybridNet` 在单步与多步预测场景下的张量形状。
 - 新增 `create_predictor()` 函数，便于外部调用和单元测试创建预测器实例。
@@ -26,7 +30,7 @@
 
 ## [Unreleased] - 2025-10-11
 
-### Added
+
 - `docs/project_analysis.md`：首次汇总系统分析与风险评估。
 - `docs/architecture.md`、`docs/api.md`、`docs/ops.md`、`docs/cleanup_log.md`：补充架构示意、接口说明与运维记录。
 
@@ -39,7 +43,7 @@
 
 ## [2.0.0] - 2024-12-28
 
-### Added
+
 - 迁移核心代码至 `src/stock_prediction/`，引入标准化包结构与 `config.py`。
 - 新增 `scripts/` 目录作为命令行入口，并整理测试用例与 Makefile。
 
