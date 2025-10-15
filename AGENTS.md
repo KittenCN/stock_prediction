@@ -57,7 +57,7 @@ make ci           # 本地模拟 CI：lint + test + build | Local CI: lint + tes
 
 ## 3. 需求到实现的自动流程 | Requirement-to-Implementation Workflow
 1. **解析需求**：抽取功能点、接口、数据结构、约束、非功能需求，识别歧义并在 `ASSUMPTIONS.md` 中记录默认值。<br>**Requirement analysis**: Extract features, interfaces, data structures, constraints, and non-functional needs; capture ambiguities and assumptions in `ASSUMPTIONS.md`.
-2. **制定方案**：输出模块边界、依赖、关键数据流或时序图，并在 `docs/decision_record.md` 说明取舍。<br>**Design**: Define module boundaries, dependencies, key data flows or sequence diagrams, and document trade-offs in `docs/decision_record.md`.
+2. **制定方案**：输出模块边界、依赖、关键数据流或时序图，并在 `docs/system_design.md` 说明取舍。<br>**Design**: Define module boundaries, dependencies, key data flows or sequence diagrams, and document trade-offs in `docs/system_design.md`.
 3. **脚手架落地**：搭建目录与基础文件，补齐 `README.md` 与一键运行指引；配置 `config/.env.example` 等模板。<br>**Scaffolding**: Lay out directories and base files, enrich `README.md` and quick-start instructions, and provide `config/.env.example` templates.
 4. **实现编码**：遵循整洁代码，使用中文注释并为公共函数编写 docstring/示例。<br>**Implementation**: Write clean code with Chinese comments and docstrings/examples for public functions.
 5. **自测优先**：为模块编写单元测试，关键流程补集成测试，目标覆盖率 ≥ 80%。<br>**Self-testing**: Create unit tests per module and integration tests for critical flows, targeting ≥80% coverage.
@@ -106,7 +106,7 @@ make ci           # 本地模拟 CI：lint + test + build | Local CI: lint + tes
 
 7. **Conda 环境要求（新增）**：所有自动运行的 agent 或脚本在执行时应确认处于名为 `stock_prediction` 的 conda 环境中，或等效地使用已经安装并锁定项目依赖的虚拟环境。
   <br>**Why**: 保证在 agent 自动运行、测试或 CI 中使用一致的依赖和 Python 版本，避免因为全局包差异或者系统 Python 版本差异导致不可复现的失败。
-  <br>**How**: 在 agent 的启动脚本或 CI workflow 中显式激活环境（例如 `conda activate stock_prediction`），或使用 `actions/setup-python` 并安装 `requirements.txt`。在 `README.md` 或 `docs/ops.md` 中记录该要求。
+  <br>**How**: 在 agent 的启动脚本或 CI workflow 中显式激活环境（例如 `conda activate stock_prediction`），或使用 `actions/setup-python` 并安装 `requirements.txt`。在 `README.md` 或 `docs/maintenance.md` 中记录该要求。
 
 ---
 
@@ -155,7 +155,7 @@ make ci           # 本地模拟 CI：lint + test + build | Local CI: lint + tes
 
 ## 11. 文档要求 | Documentation Requirements
 - `README.md` 必含项目简介、功能清单、快速开始（≤3 条）、配置说明、常见问题。<br>`README.md` must include a project overview, feature list, quick start (≤3 commands), configuration notes, and FAQ.
-- `docs/` 需包含 `architecture.md`（Mermaid 图）、`api.md`（接口定义）、`ops.md`（监控/告警/日志）。<br>`docs/` should provide `architecture.md` (with Mermaid diagrams), `api.md` (API definitions), and `ops.md` (monitoring/alerting/logging).
+- `docs/` 需包含 `system_design.md`（Mermaid 图）、`user_guide.md`（接口定义）、`maintenance.md`（监控/告警/日志）。<br>`docs/` should provide `system_design.md` (with Mermaid diagrams), `user_guide.md` (API definitions), and `maintenance.md` (monitoring/alerting/logging).
 - 变更需更新 `CHANGELOG.md`（遵循 Keep a Changelog + SemVer）。<br>Update `CHANGELOG.md` for changes, following Keep a Changelog and SemVer conventions.
 
 ---

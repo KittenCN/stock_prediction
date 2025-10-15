@@ -4,6 +4,8 @@ import random
 import argparse
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
+import numpy as np
+from stock_prediction.models import AttentionLSTM, BiLSTM, TCN, MultiBranchNet, TemporalHybridNet
 try:
     from .common import *
 except ImportError:
@@ -19,7 +21,7 @@ except ImportError:
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
-parser.add_argument('--model', default="transformer", type=str, help="lstm or transformer")
+parser.add_argument('--model', default="transformer", type=str, help="lstm/transformer/hybrid 等模型名称")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--cpu', default=0, type=int, help="only use cpu")
 parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of csv file")
@@ -29,6 +31,7 @@ parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu
 parser.add_argument('--predict_days', default=0, type=int, help="number of the predict days,Positive numbers use interval prediction algorithm, 0 and negative numbers use date prediction algorithm")
 parser.add_argument('--api', default="akshare", type=str, help="api-interface, tushare, akshare or yfinance")
 parser.add_argument('--trend', default=0, type=int, help="predict the trend of stock, not the price")
+parser.add_argument('--epoch', default=2, type=int, help="训练轮数")
 args = parser.parse_args()
 
 # 初始化模块级变量
@@ -67,9 +70,28 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
                 subbar.update(1)
                 continue
             data, label = data.to(device, non_blocking=True), label.to(device, non_blocking=True)
+            # 检查数据是否有nan/inf
+            if torch.isnan(data).any() or torch.isinf(data).any():
+                tqdm.write(f"code: {ts_code}, train error: data has nan or inf, skip batch")
+                subbar.update(1)
+                continue
+            if torch.isnan(label).any() or torch.isinf(label).any():
+                tqdm.write(f"code: {ts_code}, train error: label has nan or inf, skip batch")
+                subbar.update(1)
+                continue
             with autocast(device_type='cuda'):
-                data = pad_input(data)
-                outputs = model.forward(data, label, int(args.predict_days))
+                if model_mode == "MULTIBRANCH":
+                    price_dim = INPUT_DIMENSION // 2
+                    tech_dim = INPUT_DIMENSION - price_dim
+                    price_x = data[:, :, :price_dim]
+                    tech_x = data[:, :, price_dim:]
+                    outputs = model(price_x, tech_x)
+                elif model_mode == "TRANSFORMER":
+                    data = pad_input(data)
+                    outputs = model(data, label, predict_days=int(args.predict_days))
+                else:
+                    data = pad_input(data)
+                    outputs = model(data)
                 if outputs.shape == label.shape:
                     loss = criterion(outputs, label)
                 else:
@@ -80,15 +102,23 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
                         tqdm.write(f"code: {ts_code}, train error: outputs.shape != label.shape")
                         subbar.update(1)
                         continue
-                
+            # 检查loss是否为nan/inf
+            if not torch.isfinite(loss):
+                tqdm.write(f"code: {ts_code}, train warning: loss is not finite (nan/inf), skip batch")
+                subbar.update(1)
+                continue
             optimizer.zero_grad()
             if device.type == "cuda" and is_number(str(loss.item())):
                 scaler.scale(loss).backward()
+                # 梯度裁剪
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 lr_scheduler.step()
                 scaler.step(optimizer)
                 scaler.update()
             elif is_number(str(loss.item())):
                 loss.backward()
+                # 梯度裁剪
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 lr_scheduler.step()
                 optimizer.step()
             if is_number(str(loss.item())):
@@ -117,7 +147,7 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
             last_save_time = time.time()
         
 
-    if (epoch % SAVE_NUM_EPOCH == 0 or epoch == EPOCH) and time.time() - last_save_time >= SAVE_INTERVAL and safe_save == True:
+    if (epoch % SAVE_NUM_EPOCH == 0 or epoch == args.epoch-1) and time.time() - last_save_time >= SAVE_INTERVAL and safe_save == True:
         thread_save_model(model, optimizer, save_path, False, int(args.predict_days))
         last_save_time = time.time()
     testmodel = copy.deepcopy(model)
@@ -132,6 +162,7 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
 
 
 def test(dataset, testmodel=None, dataloader_mode=0):
+    global drop_last, total_test_length
     global test_model
     predict_list = []
     accuracy_list = []
@@ -180,12 +211,36 @@ def test(dataset, testmodel=None, dataloader_mode=0):
                     data, label = data.to(device, non_blocking=True), label.to(device, non_blocking=True)
                 else:
                     data, label = data.to("cpu", non_blocking=True), label.to("cpu", non_blocking=True)
+                # 检查数据是否有nan/inf
+                if torch.isnan(data).any() or torch.isinf(data).any():
+                    tqdm.write(f"test error: data has nan or inf, skip batch")
+                    pbar.update(1)
+                    continue
+                if torch.isnan(label).any() or torch.isinf(label).any():
+                    tqdm.write(f"test error: label has nan or inf, skip batch")
+                    pbar.update(1)
+                    continue
                 # test_optimizer.zero_grad()
-                data = pad_input(data)
-                predict = test_model.forward(data, label, int(args.predict_days))
+                if model_mode == "MULTIBRANCH":
+                    price_dim = INPUT_DIMENSION // 2
+                    tech_dim = INPUT_DIMENSION - price_dim
+                    price_x = data[:, :, :price_dim]
+                    tech_x = data[:, :, price_dim:]
+                    predict = test_model.forward(price_x, tech_x)
+                elif model_mode == "TRANSFORMER":
+                    data = pad_input(data)
+                    predict = test_model.forward(data, label, int(args.predict_days))
+                else:
+                    data = pad_input(data)
+                    predict = test_model.forward(data)
                 predict_list.append(predict)
                 if(predict.shape == label.shape):
                     accuracy = accuracy_fn(predict, label)
+                    # 检查accuracy是否为nan/inf
+                    if not torch.isfinite(accuracy):
+                        tqdm.write(f"test warning: accuracy is not finite (nan/inf), skip batch")
+                        pbar.update(1)
+                        continue
                     if is_number(str(accuracy.item())):
                         accuracy_list.append(accuracy.item())
                     else:
@@ -354,14 +409,11 @@ def predict(test_codes):
         prediction_list = datalist[len(datalist)-abs(int(args.predict_days))-1:]
     else:
         predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
-        # predict_data = predict_data.dropna()
-        # predict_data = predict_data.fillna(-0.0)
         predict_data = predict_data.fillna(predict_data.median(numeric_only=True))
         accuracy_list, predict_list = [], []
-        test_loss, predict_list, dataloader = test(predict_data,dataloader_mode=2)
-        
+        test_loss, predict_list, dataloader = test(predict_data, dataloader_mode=2)
         for items in predict_list:
-            items=items.to("cpu", non_blocking=True)
+            items = items.to("cpu", non_blocking=True)
             for idxs in items:
                 for idx in idxs:
                     _tmp = []
@@ -369,13 +421,11 @@ def predict(test_codes):
                         if show_list[index] == 1:
                             _tmp.append(item*std_list[index]+mean_list[index])
                     prediction_list.append(np.array(_tmp))
-        
         _data_real =  predict_data.head(show_days).sort_values(by=['Date'], ascending=True).values.tolist()
         for idx in range(len(_data_real)):
             _tmp = []
             for index in range(len(show_list)):
                 if show_list[index] == 1:
-                    # _tmp.append(_data_real[idx][index]*std_list[index]+mean_list[index])
                     _tmp.append(_data_real[idx][index])
             real_list.append(np.array(_tmp))
         prediction_list = [real_list[-1]] + prediction_list
@@ -568,26 +618,62 @@ def main():
     if args.cpu == 1:
         device = torch.device("cpu")
 
-    if model_mode=="LSTM":
-        model=LSTM(dimension=INPUT_DIMENSION)
-        test_model=LSTM(dimension=INPUT_DIMENSION)
-        save_path=lstm_path
-        criterion=nn.MSELoss()
-    elif model_mode=="TRANSFORMER":
-        model=TransformerModel(input_dim=INPUT_DIMENSION, d_model=D_MODEL, nhead=NHEAD, num_layers=6, 
+    if model_mode == "LSTM":
+        model = LSTM(dimension=INPUT_DIMENSION)
+        test_model = LSTM(dimension=INPUT_DIMENSION)
+        save_path = lstm_path
+        criterion = nn.MSELoss()
+    elif model_mode == "ATTENTION_LSTM":
+        model = AttentionLSTM(input_dim=INPUT_DIMENSION, hidden_dim=128, num_layers=2, output_dim=OUTPUT_DIMENSION)
+        test_model = AttentionLSTM(input_dim=INPUT_DIMENSION, hidden_dim=128, num_layers=2, output_dim=OUTPUT_DIMENSION)
+        save_path = "output/attention_lstm"
+        criterion = nn.MSELoss()
+    elif model_mode == "BILSTM":
+        model = BiLSTM(input_dim=INPUT_DIMENSION, hidden_dim=128, num_layers=2, output_dim=OUTPUT_DIMENSION)
+        test_model = BiLSTM(input_dim=INPUT_DIMENSION, hidden_dim=128, num_layers=2, output_dim=OUTPUT_DIMENSION)
+        save_path = "output/bilstm"
+        criterion = nn.MSELoss()
+    elif model_mode == "TCN":
+        model = TCN(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, num_channels=[64, 64, 64], kernel_size=3)
+        test_model = TCN(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, num_channels=[64, 64, 64], kernel_size=3)
+        save_path = "output/tcn"
+        criterion = nn.MSELoss()
+    elif model_mode == "MULTIBRANCH":
+        price_dim = INPUT_DIMENSION // 2
+        tech_dim = INPUT_DIMENSION - price_dim
+        model = MultiBranchNet(price_dim=price_dim, tech_dim=tech_dim, hidden_dim=64, output_dim=OUTPUT_DIMENSION)
+        test_model = MultiBranchNet(price_dim=price_dim, tech_dim=tech_dim, hidden_dim=64, output_dim=OUTPUT_DIMENSION)
+        save_path = "output/multibranch"
+        criterion = nn.MSELoss()
+    elif model_mode == "TRANSFORMER":
+        model = TransformerModel(input_dim=INPUT_DIMENSION, d_model=D_MODEL, nhead=NHEAD, num_layers=6, 
                                dim_feedforward=2048, output_dim=OUTPUT_DIMENSION, max_len=SEQ_LEN, mode=0)
-        test_model=TransformerModel(input_dim=INPUT_DIMENSION, d_model=D_MODEL, nhead=NHEAD, 
+        test_model = TransformerModel(input_dim=INPUT_DIMENSION, d_model=D_MODEL, nhead=NHEAD, 
                                     num_layers=6, dim_feedforward=2048, output_dim=OUTPUT_DIMENSION, max_len=SEQ_LEN, mode=1)
-        save_path=transformer_path
-        criterion=nn.MSELoss()
-    elif model_mode=="CNNLSTM":
+        save_path = transformer_path
+        criterion = nn.MSELoss()
+    elif model_mode == "HYBRID":
+        hybrid_steps = abs(int(args.predict_days)) if int(args.predict_days) > 0 else 1
+        model = TemporalHybridNet(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=hybrid_steps,
+        )
+        test_model = TemporalHybridNet(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=hybrid_steps,
+        )
+        save_path = config.get_model_path("HYBRID", symbol)
+        criterion = nn.MSELoss()
+    elif model_mode == "CNNLSTM":
         assert abs(abs(int(args.predict_days))) > 0, "Error: predict_days must be greater than 0"
-        model=CNNLSTM(input_dim=INPUT_DIMENSION,num_classes=OUTPUT_DIMENSION, predict_days=abs(int(args.predict_days)))
-        test_model=CNNLSTM(input_dim=INPUT_DIMENSION,num_classes=OUTPUT_DIMENSION, predict_days=abs(int(args.predict_days)))
-        save_path=cnnlstm_path
-        criterion=nn.MSELoss()
+        model = CNNLSTM(input_dim=INPUT_DIMENSION, num_classes=OUTPUT_DIMENSION, predict_days=abs(int(args.predict_days)))
+        test_model = CNNLSTM(input_dim=INPUT_DIMENSION, num_classes=OUTPUT_DIMENSION, predict_days=abs(int(args.predict_days)))
+        save_path = cnnlstm_path
+        criterion = nn.MSELoss()
     else:
-        print("No such model")
+        print(f"No such model: {model_mode}")
         exit(0)
 
     model=model.to(device, non_blocking=True)
@@ -705,9 +791,9 @@ def main():
         batch_none = 0
         data_none = 0
         scaler = GradScaler('cuda')
-        pbar = tqdm(total=EPOCH, leave=False, ncols=TQDM_NCOLS)
+        pbar = tqdm(total=args.epoch, leave=False, ncols=TQDM_NCOLS)
         last_epoch = 0
-        for epoch in range(0,EPOCH):
+        for epoch in range(0, args.epoch):
             if len(lo_list) == 0:
                     m_loss = 0
             else:
