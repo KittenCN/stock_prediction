@@ -514,6 +514,9 @@ def predict(test_codes):
 def loss_curve(loss_list):
     global model_mode
     try:
+        import os
+        save_dir = os.path.join(png_path, "train_loss")
+        os.makedirs(save_dir, exist_ok=True)
         plt.figure()
         x=np.linspace(1,len(loss_list),len(loss_list))
         x=20*x
@@ -522,8 +525,10 @@ def loss_curve(loss_list):
         plt.xlabel("iteration")
         now = datetime.now()
         date_string = now.strftime("%Y%m%d%H%M%S")
-        plt.savefig(png_path + "/train_loss/"+cnname+"_"+model_mode+"_"+date_string+"_train_loss.png",dpi=600)
+        img_path = os.path.join(save_dir, f"{cnname}_{model_mode}_{date_string}_train_loss.png")
+        plt.savefig(img_path, dpi=600)
         plt.close()
+        print(f"[LOG] 训练损失图片已保存: {img_path}")
     except Exception as e:
         print("Error: loss_curve", e)
 

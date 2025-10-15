@@ -274,24 +274,24 @@ def predict(test_codes):
             print(f"[LOG] Saving predict image, DataFrame shape: {new_df.shape}")
             # 保存图片前加日志
             try:
-                # 绘制预测结果曲线并保存图片
+                # 只画 open/high/low/close 四个字段，分别生成四张图片
                 save_dir = root_dir / "png" / "predict"
                 save_dir.mkdir(parents=True, exist_ok=True)
-                fig, ax = plt.subplots(figsize=(10, 5))
-                # 只画预测的数值部分（去除 ts_code, Date）
-                value_cols = [col for col in new_df.columns if col not in ["ts_code", "Date"]]
-                for col in value_cols:
-                    ax.plot(new_df["Date"], new_df[col], marker='o', label=col)
-                ax.set_title(f"预测结果: {test_codes[0]} {date_obj.strftime('%Y-%m-%d')}")
-                ax.set_xlabel("日期")
-                ax.set_ylabel("预测值")
-                ax.legend()
-                img_name = f"{test_codes[0]}_{date_obj.strftime('%Y%m%d')}.png"
-                img_path = save_dir / img_name
-                plt.tight_layout()
-                plt.savefig(img_path)
-                plt.close(fig)
-                print(f"[LOG] 图片已保存: {img_path}")
+                plot_cols = ["Open", "High", "Low", "Close"]
+                for col in plot_cols:
+                    if col in new_df.columns:
+                        fig, ax = plt.subplots(figsize=(10, 5))
+                        ax.plot(new_df["Date"], new_df[col], marker='o', label=col)
+                        ax.set_title(f"预测结果: {test_codes[0]} {col} {date_obj.strftime('%Y-%m-%d')}")
+                        ax.set_xlabel("日期")
+                        ax.set_ylabel(f"{col} 预测值")
+                        ax.legend()
+                        img_name = f"{test_codes[0]}_{col}_{date_obj.strftime('%Y%m%d')}_Pre.png"
+                        img_path = save_dir / img_name
+                        plt.tight_layout()
+                        plt.savefig(img_path, dpi=600)
+                        plt.close(fig)
+                        print(f"[LOG] 图片已保存: {img_path}")
             except Exception as e:
                 print(f"[LOG] Error saving image: {e}")
             predict_data = pd.concat([new_df, spliced_data], ignore_index=True)
