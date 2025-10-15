@@ -164,7 +164,16 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
             subbar.update(1)
             continue
         if (TEST_INTERVAL > 0 and iteration % test_iner == 0):
-            testmodel = copy.deepcopy(model)
+            # 修复 PyTorch 2.x deepcopy 报错，改为新建同类型模型并加载 state_dict
+            if isinstance(model, torch.nn.DataParallel):
+                model_to_copy = model.module
+            else:
+                model_to_copy = model
+            testmodel = type(model_to_copy)(**model_to_copy._init_args)
+            testmodel.load_state_dict(copy.deepcopy(model_to_copy.state_dict()))
+            if isinstance(model, torch.nn.DataParallel):
+                testmodel = torch.nn.DataParallel(testmodel)
+            testmodel = testmodel.to(device, non_blocking=True)
             test_loss, predict_list, _ = test(data_queue, testmodel, dataloader_mode=1)
             if last_loss > test_loss:
                 last_loss = test_loss
@@ -180,7 +189,16 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
     if (epoch % SAVE_NUM_EPOCH == 0 or epoch == args.epoch-1) and time.time() - last_save_time >= SAVE_INTERVAL and safe_save == True:
         thread_save_model(model, optimizer, save_path, False, int(args.predict_days))
         last_save_time = time.time()
-    testmodel = copy.deepcopy(model)
+    # 修复 PyTorch 2.x deepcopy 报错，改为新建同类型模型并加载 state_dict
+    if isinstance(model, torch.nn.DataParallel):
+        model_to_copy = model.module
+    else:
+        model_to_copy = model
+    testmodel = type(model_to_copy)(**model_to_copy._init_args)
+    testmodel.load_state_dict(copy.deepcopy(model_to_copy.state_dict()))
+    if isinstance(model, torch.nn.DataParallel):
+        testmodel = torch.nn.DataParallel(testmodel)
+    testmodel = testmodel.to(device, non_blocking=True)
     test_loss, predict_list, _ = test(data_queue, testmodel, dataloader_mode=1)
     if last_loss > test_loss:
         last_loss = test_loss
@@ -627,7 +645,7 @@ def main():
     """主函数:股票预测的训练、测试和预测入口"""
     global args
     global last_loss,test_model,model,total_test_length,lr_scheduler,drop_last
-    global criterion, optimizer, model_mode, save_path, device
+    global criterion, optimizer, model_mode, save_path, device, last_save_time
     
     # 解析命令行参数(仅在直接运行时执行)
     args = parser.parse_args()
@@ -654,36 +672,50 @@ def main():
 
     if model_mode == "LSTM":
         model = LSTM(input_dim=INPUT_DIMENSION)
+        model._init_args = dict(input_dim=INPUT_DIMENSION)
         test_model = LSTM(input_dim=INPUT_DIMENSION)
+        test_model._init_args = dict(input_dim=INPUT_DIMENSION)
         save_path = lstm_path
         criterion = nn.MSELoss()
     elif model_mode == "ATTENTION_LSTM":
         model = AttentionLSTM(input_dim=INPUT_DIMENSION, hidden_dim=128, num_layers=2, output_dim=OUTPUT_DIMENSION)
+        model._init_args = dict(input_dim=INPUT_DIMENSION, hidden_dim=128, num_layers=2, output_dim=OUTPUT_DIMENSION)
         test_model = AttentionLSTM(input_dim=INPUT_DIMENSION, hidden_dim=128, num_layers=2, output_dim=OUTPUT_DIMENSION)
+        test_model._init_args = dict(input_dim=INPUT_DIMENSION, hidden_dim=128, num_layers=2, output_dim=OUTPUT_DIMENSION)
         save_path = "output/attention_lstm"
         criterion = nn.MSELoss()
     elif model_mode == "BILSTM":
         model = BiLSTM(input_dim=INPUT_DIMENSION, hidden_dim=128, num_layers=2, output_dim=OUTPUT_DIMENSION)
+        model._init_args = dict(input_dim=INPUT_DIMENSION, hidden_dim=128, num_layers=2, output_dim=OUTPUT_DIMENSION)
         test_model = BiLSTM(input_dim=INPUT_DIMENSION, hidden_dim=128, num_layers=2, output_dim=OUTPUT_DIMENSION)
+        test_model._init_args = dict(input_dim=INPUT_DIMENSION, hidden_dim=128, num_layers=2, output_dim=OUTPUT_DIMENSION)
         save_path = "output/bilstm"
         criterion = nn.MSELoss()
     elif model_mode == "TCN":
         model = TCN(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, num_channels=[64, 64, 64], kernel_size=3)
+        model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, num_channels=[64, 64, 64], kernel_size=3)
         test_model = TCN(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, num_channels=[64, 64, 64], kernel_size=3)
+        test_model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, num_channels=[64, 64, 64], kernel_size=3)
         save_path = "output/tcn"
         criterion = nn.MSELoss()
     elif model_mode == "MULTIBRANCH":
         price_dim = INPUT_DIMENSION // 2
         tech_dim = INPUT_DIMENSION - price_dim
         model = MultiBranchNet(price_dim=price_dim, tech_dim=tech_dim, hidden_dim=64, output_dim=OUTPUT_DIMENSION)
+        model._init_args = dict(price_dim=price_dim, tech_dim=tech_dim, hidden_dim=64, output_dim=OUTPUT_DIMENSION)
         test_model = MultiBranchNet(price_dim=price_dim, tech_dim=tech_dim, hidden_dim=64, output_dim=OUTPUT_DIMENSION)
+        test_model._init_args = dict(price_dim=price_dim, tech_dim=tech_dim, hidden_dim=64, output_dim=OUTPUT_DIMENSION)
         save_path = "output/multibranch"
         criterion = nn.MSELoss()
     elif model_mode == "TRANSFORMER":
         model = TransformerModel(input_dim=INPUT_DIMENSION, d_model=D_MODEL, nhead=NHEAD, num_layers=6, 
                                dim_feedforward=2048, output_dim=OUTPUT_DIMENSION, max_len=SEQ_LEN, mode=0)
+        model._init_args = dict(input_dim=INPUT_DIMENSION, d_model=D_MODEL, nhead=NHEAD, num_layers=6,
+                               dim_feedforward=2048, output_dim=OUTPUT_DIMENSION, max_len=SEQ_LEN, mode=0)
         test_model = TransformerModel(input_dim=INPUT_DIMENSION, d_model=D_MODEL, nhead=NHEAD, 
                                     num_layers=6, dim_feedforward=2048, output_dim=OUTPUT_DIMENSION, max_len=SEQ_LEN, mode=1)
+        test_model._init_args = dict(input_dim=INPUT_DIMENSION, d_model=D_MODEL, nhead=NHEAD, num_layers=6,
+                                    dim_feedforward=2048, output_dim=OUTPUT_DIMENSION, max_len=SEQ_LEN, mode=1)
         save_path = transformer_path
         criterion = nn.MSELoss()
     elif model_mode == "HYBRID":
@@ -693,11 +725,13 @@ def main():
             output_dim=OUTPUT_DIMENSION,
             predict_steps=hybrid_steps,
         )
+        model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=hybrid_steps)
         test_model = TemporalHybridNet(
             input_dim=INPUT_DIMENSION,
             output_dim=OUTPUT_DIMENSION,
             predict_steps=hybrid_steps,
         )
+        test_model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=hybrid_steps)
         save_path = str(config.get_model_path("HYBRID", symbol))
         criterion = nn.MSELoss()
     elif model_mode == "PTFT_VSSM":
@@ -707,17 +741,21 @@ def main():
             output_dim=OUTPUT_DIMENSION,
             predict_steps=ensemble_steps,
         )
+        model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=ensemble_steps)
         test_model = PTFTVSSMEnsemble(
             input_dim=INPUT_DIMENSION,
             output_dim=OUTPUT_DIMENSION,
             predict_steps=ensemble_steps,
         )
+        test_model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=ensemble_steps)
         save_path = str(config.get_model_path("PTFT_VSSM", symbol))
         criterion = PTFTVSSMLoss(model, mse_weight=1.0, kl_weight=1e-3)
     elif model_mode == "CNNLSTM":
         assert abs(abs(int(args.predict_days))) > 0, "Error: predict_days must be greater than 0"
         model = CNNLSTM(input_dim=INPUT_DIMENSION, num_classes=OUTPUT_DIMENSION, predict_days=abs(int(args.predict_days)))
+        model._init_args = dict(input_dim=INPUT_DIMENSION, num_classes=OUTPUT_DIMENSION, predict_days=abs(int(args.predict_days)))
         test_model = CNNLSTM(input_dim=INPUT_DIMENSION, num_classes=OUTPUT_DIMENSION, predict_days=abs(int(args.predict_days)))
+        test_model._init_args = dict(input_dim=INPUT_DIMENSION, num_classes=OUTPUT_DIMENSION, predict_days=abs(int(args.predict_days)))
         save_path = cnnlstm_path
         criterion = nn.MSELoss()
     else:

@@ -221,8 +221,15 @@ class Stock_Data(Dataset):
                 data = np.loadtxt(f, delimiter=",")
         else:
             data = dataFrame.values
-
-        return data[:, 0:INPUT_DIMENSION]
+        
+        # 提取输入维度的数据
+        data = data[:, 0:INPUT_DIMENSION]
+        
+        # 处理 NaN 和 Inf 值
+        if np.isnan(data).any() or np.isinf(data).any():
+            data = np.nan_to_num(data, nan=0.0, posinf=0.0, neginf=0.0)
+        
+        return data
 
     def normalize_data(self):
         if self.mode in [0, 2]:
@@ -230,19 +237,47 @@ class Stock_Data(Dataset):
             std_list.clear()
             for i in range(len(self.data[0])):
                 if self.mode in [0, 2]:
-                    mean_list.append(np.mean(self.data[:, i]))
-                    std_list.append(np.std(self.data[:, i]))
-
-                self.data[:, i] = (self.data[:, i] - mean_list[i]) / (std_list[i] + 1e-8)
+                    col_data = self.data[:, i]
+                    # 检查并处理 nan/inf
+                    if np.isnan(col_data).any() or np.isinf(col_data).any():
+                        col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
+                        self.data[:, i] = col_data
+                    
+                    mean_val = np.mean(col_data)
+                    std_val = np.std(col_data)
+                    
+                    # 确保 mean 和 std 是有效的数值
+                    if np.isnan(mean_val) or np.isinf(mean_val):
+                        mean_val = 0.0
+                    if np.isnan(std_val) or np.isinf(std_val) or std_val < 1e-8:
+                        std_val = 1.0
+                    
+                    mean_list.append(mean_val)
+                    std_list.append(std_val)
+                    self.data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
         else:
             test_mean_list.clear()
             test_std_list.clear()
             for i in range(len(self.data[0])):
                 if self.mode not in [0, 2]:
-                    test_mean_list.append(np.mean(self.data[:, i]))
-                    test_std_list.append(np.std(self.data[:, i]))
-
-                self.data[:, i] = (self.data[:, i] - test_mean_list[i]) / (test_std_list[i] + 1e-8)
+                    col_data = self.data[:, i]
+                    # 检查并处理 nan/inf
+                    if np.isnan(col_data).any() or np.isinf(col_data).any():
+                        col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
+                        self.data[:, i] = col_data
+                    
+                    mean_val = np.mean(col_data)
+                    std_val = np.std(col_data)
+                    
+                    # 确保 mean 和 std 是有效的数值
+                    if np.isnan(mean_val) or np.isinf(mean_val):
+                        mean_val = 0.0
+                    if np.isnan(std_val) or np.isinf(std_val) or std_val < 1e-8:
+                        std_val = 1.0
+                    
+                    test_mean_list.append(mean_val)
+                    test_std_list.append(std_val)
+                    self.data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
         return self.data
 
     def generate_value_label_tensors(self, label_num):
@@ -318,7 +353,12 @@ class stock_queue_dataset(Dataset):
             except queue.Empty:
                 return None
             dataFrame.drop(['ts_code', 'Date'], axis=1, inplace=True)
+            # 更强健的 NaN 处理
             dataFrame = dataFrame.fillna(dataFrame.median(numeric_only=True))
+            # 如果中位数也是 NaN（所有数据都是 NaN），用 0 填充
+            dataFrame = dataFrame.fillna(0)
+            # 替换 inf 值
+            dataFrame = dataFrame.replace([np.inf, -np.inf], 0)
             data = dataFrame.values[:, 0:INPUT_DIMENSION]
             return data
 
@@ -328,19 +368,47 @@ class stock_queue_dataset(Dataset):
             std_list.clear()
             for i in range(len(data[0])):
                 if self.mode in [0, 2]:
-                    mean_list.append(np.mean(data[:, i]))
-                    std_list.append(np.std(data[:, i]))
-
-                data[:, i] = (data[:, i] - mean_list[i]) / (std_list[i] + 1e-8)
+                    col_data = data[:, i]
+                    # 检查并处理 nan/inf
+                    if np.isnan(col_data).any() or np.isinf(col_data).any():
+                        col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
+                        data[:, i] = col_data
+                    
+                    mean_val = np.mean(col_data)
+                    std_val = np.std(col_data)
+                    
+                    # 确保 mean 和 std 是有效的数值
+                    if np.isnan(mean_val) or np.isinf(mean_val):
+                        mean_val = 0.0
+                    if np.isnan(std_val) or np.isinf(std_val) or std_val < 1e-8:
+                        std_val = 1.0
+                    
+                    mean_list.append(mean_val)
+                    std_list.append(std_val)
+                    data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
         else:
             test_mean_list.clear()
             test_std_list.clear()
             for i in range(len(data[0])):
                 if self.mode not in [0, 2]:
-                    test_mean_list.append(np.mean(data[:, i]))
-                    test_std_list.append(np.std(data[:, i]))
-
-                data[:, i] = (data[:, i] - test_mean_list[i]) / (test_std_list[i] + 1e-8)
+                    col_data = data[:, i]
+                    # 检查并处理 nan/inf
+                    if np.isnan(col_data).any() or np.isinf(col_data).any():
+                        col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
+                        data[:, i] = col_data
+                    
+                    mean_val = np.mean(col_data)
+                    std_val = np.std(col_data)
+                    
+                    # 确保 mean 和 std 是有效的数值
+                    if np.isnan(mean_val) or np.isinf(mean_val):
+                        mean_val = 0.0
+                    if np.isnan(std_val) or np.isinf(std_val) or std_val < 1e-8:
+                        std_val = 1.0
+                    
+                    test_mean_list.append(mean_val)
+                    test_std_list.append(std_val)
+                    data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
         return data
 
     def generate_value_label_tensors(self, data, label_num):
