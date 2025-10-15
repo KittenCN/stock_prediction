@@ -2,15 +2,23 @@ from typing import Dict, Optional
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+
+
+def _kl_divergence_gaussian(
+    mean_q: torch.Tensor,
+    logvar_q: torch.Tensor,
+    mean_p: torch.Tensor,
+    logvar_p: torch.Tensor,
+) -> torch.Tensor:
+    """KL(N_q || N_p) for diagonal Gaussian variables."""
+    var_q = torch.exp(logvar_q)
+    var_p = torch.exp(logvar_p)
+    kl = logvar_p - logvar_q + (var_q + (mean_q - mean_p) ** 2) / (var_p + 1e-8) - 1.0
+    return 0.5 * torch.sum(kl, dim=-1)
 
 
 class VariationalStateSpaceModel(nn.Module):
-    """
-    变分状态空间模型（简化版）。
-    使用 RNN 编码器获得潜变量的均值与方差，通过重参数化采样未来状态，再预测未来价格。
-    额外输出市场状态概率与 KL 项供训练与解释。
-    """
+    """具备时间依赖先验与状态解读能力的变分状态空间模型。"""
 
     def __init__(
         self,
@@ -19,7 +27,7 @@ class VariationalStateSpaceModel(nn.Module):
         state_dim: int = 64,
         regime_classes: int = 4,
         predict_steps: int = 1,
-    ):
+    ) -> None:
         super().__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -27,53 +35,98 @@ class VariationalStateSpaceModel(nn.Module):
         self.regime_classes = regime_classes
         self.predict_steps = max(1, int(predict_steps))
 
-        self.encoder = nn.GRU(input_dim, state_dim, batch_first=True)
-        self.latent_mean = nn.Linear(state_dim, state_dim)
-        self.latent_logvar = nn.Linear(state_dim, state_dim)
+        self.encoder = nn.GRU(input_dim, state_dim, batch_first=True, bidirectional=True)
+        self.posterior_proj = nn.Linear(state_dim * 2, state_dim * 2)
 
-        self.future_proj = nn.Linear(state_dim, state_dim * self.predict_steps)
-        self.decoder = nn.Sequential(
+        self.prior_cell = nn.GRUCell(state_dim, state_dim)
+        self.prior_proj = nn.Linear(state_dim, state_dim * 2)
+
+        self.emission = nn.Sequential(
             nn.LayerNorm(state_dim),
             nn.GELU(),
+            nn.Linear(state_dim, state_dim),
+            nn.GELU(),
+            nn.Linear(state_dim, output_dim),
         )
-        self.obs_head = nn.Linear(state_dim, output_dim)
-        self.regime_head = nn.Linear(state_dim, regime_classes)
+        self.regime_head = nn.Sequential(
+            nn.LayerNorm(state_dim),
+            nn.GELU(),
+            nn.Linear(state_dim, regime_classes),
+        )
 
         self.last_details: Dict[str, torch.Tensor] = {}
 
-    def _sample(self, mean: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
-        std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
-        return mean + eps * std
-
     def forward(self, x: torch.Tensor, predict_steps: Optional[int] = None) -> Dict[str, torch.Tensor]:
+        device = x.device
+        batch, seq_len, _ = x.shape
         steps = self.predict_steps if predict_steps is None else max(1, int(predict_steps))
-        enc_out, _ = self.encoder(x)
-        latent_mean = self.latent_mean(enc_out)
-        latent_logvar = torch.clamp(self.latent_logvar(enc_out), min=-10.0, max=10.0)
-        latent_sample = self._sample(latent_mean, latent_logvar)
 
-        last_state = latent_sample[:, -1, :]  # (batch, state_dim)
-        future_states = self.future_proj(last_state).view(x.size(0), steps, self.state_dim)
-        future_states = self.decoder(future_states)
-        obs = self.obs_head(future_states)  # (batch, steps, output_dim)
-        regime_logits = self.regime_head(future_states)  # (batch, steps, regime_classes)
+        enc_out, _ = self.encoder(x)
+        posterior_params = self.posterior_proj(enc_out)
+        post_mean, post_logvar = torch.chunk(posterior_params, 2, dim=-1)
+        post_logvar = torch.clamp(post_logvar, min=-10.0, max=5.0)
+
+        z_samples = []
+        kl_terms = []
+        prior_hidden = torch.zeros(batch, self.state_dim, device=device)
+        prior_mean = torch.zeros(batch, self.state_dim, device=device)
+        prior_logvar = torch.zeros(batch, self.state_dim, device=device)
+
+        for t in range(seq_len):
+            eps = torch.randn_like(post_mean[:, t, :])
+            std_q = torch.exp(0.5 * post_logvar[:, t, :])
+            z_t = post_mean[:, t, :] + std_q * eps
+            z_samples.append(z_t)
+
+            if t > 0:
+                prior_hidden = self.prior_cell(z_samples[-2], prior_hidden)
+                prior_params = self.prior_proj(prior_hidden)
+                prior_mean, prior_logvar = torch.chunk(prior_params, 2, dim=-1)
+                prior_logvar = torch.clamp(prior_logvar, min=-6.0, max=4.0)
+            else:
+                prior_mean = torch.zeros_like(post_mean[:, t, :])
+                prior_logvar = torch.zeros_like(post_mean[:, t, :])
+
+            kl_t = _kl_divergence_gaussian(
+                mean_q=post_mean[:, t, :],
+                logvar_q=post_logvar[:, t, :],
+                mean_p=prior_mean,
+                logvar_p=prior_logvar,
+            )
+            kl_terms.append(kl_t)
+
+        z_samples_tensor = torch.stack(z_samples, dim=1)
+        kl = torch.mean(torch.stack(kl_terms, dim=1))
+
+        state = z_samples[-1]
+        prior_state = prior_hidden
+        future_states = []
+        future_regimes = []
+        for _ in range(steps):
+            prior_state = self.prior_cell(state, prior_state)
+            prior_params = self.prior_proj(prior_state)
+            state_mean, state_logvar = torch.chunk(prior_params, 2, dim=-1)
+            state_logvar = torch.clamp(state_logvar, min=-6.0, max=4.0)
+            state = state_mean
+            future_states.append(state)
+            future_regimes.append(self.regime_head(state))
+
+        future_states = torch.stack(future_states, dim=1)
+        obs = self.emission(future_states)
+        regime_logits = torch.stack(future_regimes, dim=1)
         regime_probs = torch.softmax(regime_logits, dim=-1)
 
         if steps == 1:
             obs = obs.squeeze(1)
             regime_probs = regime_probs.squeeze(1)
 
-        kl = 0.5 * torch.mean(
-            torch.exp(latent_logvar) + latent_mean.pow(2) - 1.0 - latent_logvar
-        )
-
         self.last_details = {
-            "latent_mean": latent_mean.detach(),
-            "latent_logvar": latent_logvar.detach(),
-            "regime_probs": regime_probs.detach(),
+            "posterior_mean": post_mean.detach(),
+            "posterior_logvar": post_logvar.detach(),
+            "sampled_z": z_samples_tensor.detach(),
+            "kl_terms": torch.stack(kl_terms, dim=1).detach(),
             "kl": kl.detach(),
-            "steps": steps,
+            "regime_probs": regime_probs.detach(),
         }
 
         return {

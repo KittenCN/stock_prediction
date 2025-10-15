@@ -8,31 +8,46 @@ import torch.nn.functional as F
 
 class GatedResidualNetwork(nn.Module):
     """
-    简化版 Gated Residual Network（GRN），用于 Temporal Fusion Transformer 中的门控残差。
+    归一化 + 上下文调制 + 门控残差结构，靠近原 TFT 实现。
     """
 
-    def __init__(self, input_dim: int, hidden_dim: int, dropout: float = 0.1):
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dim: int,
+        context_dim: int | None = None,
+        dropout: float = 0.1,
+    ) -> None:
         super().__init__()
         self.layer_norm = nn.LayerNorm(input_dim)
-        self.linear1 = nn.Linear(input_dim, hidden_dim)
-        self.activation = nn.ELU()
-        self.linear2 = nn.Linear(hidden_dim, input_dim)
+        self.input_proj = nn.Linear(input_dim, hidden_dim)
+        self.context_proj = nn.Linear(context_dim, hidden_dim) if context_dim else None
+        self.activation = nn.GELU()
+        self.hidden_proj = nn.Linear(hidden_dim, hidden_dim)
+        self.dropout = nn.Dropout(dropout)
+        self.output_proj = nn.Linear(hidden_dim, input_dim)
+        self.skip_proj = nn.Linear(input_dim, input_dim) if input_dim != hidden_dim else None
         self.gate = nn.Sequential(
             nn.Linear(input_dim, input_dim),
             nn.Sigmoid(),
         )
-        self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        residual = x
-        x = self.layer_norm(x)
-        x = self.linear1(x)
-        x = self.activation(x)
-        x = self.linear2(x)
-        x = self.dropout(x)
-        gate = self.gate(x)
-        x = gate * x
-        return x + residual
+    def forward(self, x: torch.Tensor, context: torch.Tensor | None = None) -> torch.Tensor:
+        residual = self.skip_proj(x) if self.skip_proj is not None else x
+        x_norm = self.layer_norm(x)
+        h = self.input_proj(x_norm)
+        if context is not None and self.context_proj is not None:
+            context = self.context_proj(context)
+            h = h + context
+        h = self.activation(h)
+        h = self.hidden_proj(h)
+        h = self.activation(h)
+        h = self.dropout(h)
+        h = self.output_proj(h)
+        h = self.dropout(h)
+        gate = self.gate(h)
+        out = gate * h + residual
+        return out
 
 
 class FeatureSelection(nn.Module):
@@ -89,10 +104,10 @@ class ProbTemporalFusionTransformer(nn.Module):
         }
 
         self.feature_selector = FeatureSelection(input_dim, hidden_dim)
-        self.encoder_grn = GatedResidualNetwork(hidden_dim, hidden_dim, dropout)
+        self.encoder_grn = GatedResidualNetwork(hidden_dim, hidden_dim, dropout=dropout)
         self.encoder = nn.GRU(hidden_dim, hidden_dim, batch_first=True)
         self.attention = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=num_heads, dropout=dropout, batch_first=True)
-        self.post_attn_grn = GatedResidualNetwork(hidden_dim, hidden_dim, dropout)
+        self.post_attn_grn = GatedResidualNetwork(hidden_dim, hidden_dim, dropout=dropout)
 
         self.future_proj = nn.Linear(hidden_dim, hidden_dim * self.predict_steps)
         self.context_norm = nn.LayerNorm(hidden_dim)

@@ -1,7 +1,7 @@
 # 系统设计与架构总览
 
-## 1. 架构拓扑
-项目采用“命令行脚本 + 核心包”分层方式，整体数据流如下：
+## 1. 总体架构
+项目采用“命令行脚本 + 包内核心模块”的分层结构，整体数据流如下：
 
 ```mermaid
 flowchart LR
@@ -16,9 +16,8 @@ flowchart LR
     R -->|mode=train/test/predict| Core(predict.py 主流程)
 
     subgraph Package[src/stock_prediction]
-        Core --> Common[common.py\n数据集与训练工具]
+        Core --> Common[common.py\n数据集/可视化/保存]
         Core --> Models[models/\n模型集合]
-| models/ptft.py 等 | PTFT、V-SSM 与双轨融合实现 | 新增 ProbTemporalFusionTransformer / VariationalStateSpaceModel / PTFTVSSMEnsemble |
         Core --> Target[target.py\n指标库]
         Core --> Init[init.py\n全局常量与队列]
         Core --> Config[config.py\n路径配置]
@@ -26,91 +25,80 @@ flowchart LR
         Models --> Common
     end
 
-    Common --> Torch[PyTorch]
+    Models -->|PTFT / VSSM / Ensemble| Prob[概率预测]
+    Common --> Torch[PyTorch 核心库]
     G --> ExternalAPI[(tushare / akshare / yfinance)]
 ```
 
-## 2. 系统分析
-### 2.1 模块职责
+### 1.1 模块职责
 | 模块 | 主要职责 | 备注 |
 | ---- | -------- | ---- |
-| `config.py` | 统一管理目录路径并自动创建输出目录 | 建议引入 `.env`/配置校验 |
-| `init.py` | 训练参数、设备、共享 `queue.Queue` 等全局状态 | 全局变量较多，影响测试 |
-| `common.py` | 数据集、模型工具、技术指标、绘图与模型保存 | 职责繁杂，应拆分子模块 |
-| `models/` | 独立存放模型结构（LSTM、Transformer、TemporalHybridNet 等） | 与 `common.py` 逐步解耦 |
-| `predict.py` | 训练 / 测试 / 预测主流程及 CLI 参数解析 | 顶层仍会解析命令行参数 |
-| `getdata.py` | 通过 `tushare` / `akshare` / `yfinance` 抓取行情 | 缺少速率限制与健壮日志 |
-| `data_preprocess.py` | 读取 CSV、填补指标并序列化至 `train.pkl` | 对 Python 版本高度敏感 |
-| `target.py` | 技术指标函数库 | 可作为特征工程基础 |
-| `utils.py` | 文件、日志等通用函数 | 日志尚未结构化 |
+| `config.py` | 路径与目录管理 | 建议结合 `.env`/`pydantic` 做参数校验 |
+| `init.py` | 超参数、设备、全局队列 | 仍以全局变量为主，后续可拆分 |
+| `common.py` | 数据集、队列操作、绘图、模型保存 | 正在向“数据 / 模型 / 可视化”子模块拆分 |
+| `models/` | 模型集合：LSTM、Transformer、TemporalHybridNet、ProbTFT、VSSM、PTFT_VSSM 等 | 新增模型请在此目录实现 |
+| `predict.py` | CLI 主流程、训练/测试/预测 | 已支持 `main(argv=None)` 与 `create_predictor` |
+| `getdata.py` | 行情采集脚本 | 仍需限速、重试机制 |
+| `data_preprocess.py` | CSV 聚合与 `train.pkl` 序列化 | 对 Python 版本敏感，已提供兼容函数 |
+| `target.py` | 技术指标函数库 | 可直接复用于特征工程 |
+| `utils.py` | 文件、日志等通用工具 | 日志待结构化 |
 
-### 2.2 关键问题与建议
-| 优先级 | 问题 | 建议方案 | 影响范围 |
-| ------ | ---- | -------- | -------- |
-| 高 | `predict.py` 模块导入即解析 `sys.argv`，阻断 `pytest`/脚本复用 | 将 `parse_args()` 收纳至 `main(argv=None)`，顶层只保留 `if __name__ == "__main__"` | 测试、自动化、服务化 |
-| 高 | 命令行脚本期望 `predict.main`，但历史版本未导出 | 暴露 `main()` 或改写脚本调用方式 | CLI、Makefile |
-| 高 | 训练流程大量依赖全局状态（模型/优化器/队列） | 拆分为 `Trainer`/`DataModule` 等对象，显式传参 | 可维护性、并行训练 |
-| 中 | 数据缓存依赖 `queue.Queue` + `dill`，对 Python 版本脆弱 | 迁移至 Arrow/Parquet 等自描述格式或增加版本头 | 迁移成本、跨环境稳定性 |
-| 中 | CPU 模式仍初始化 `GradScaler("cuda")` | 按设备类型初始化 AMP，CPU 直接禁用 | CPU 训练稳定性 |
-| 中 | `common.py` 体积过大，混杂多种职责 | 按数据、模型、可视化等拆分子文件 | 代码阅读、测试 |
-| 中 | 行情抓取缺少限速、重试与配置化 | 增加 retry/backoff、统一日志与 `.env` | 数据稳定性 |
-| 低 | 文档与事实存在偏差 | 建立“变更即更新”流程（PR 模板、pre-commit） | 知识传递 |
-| 低 | BERT/NLP 代码与主流程耦合 | 独立子包或延迟加载 | 依赖体积 |
+### 1.2 近期改动摘要
+- 升级 `GatedResidualNetwork` 支持上下文调制和门控残差，与原 TFT 更接近。
+- 新增 ProbTemporalFusionTransformer（PTFT）与变分状态空间模型（V-SSM），并封装 PTFTVSSMEnsemble。
+- `thread_save_model` 保存 state_dict（自动迁移到 CPU），避免 weight_norm 深拷贝问题。
+- `predict.py` 支持 `--model ptft_vssm`，暴露 `create_predictor()` 方便测试和脚本复用。
 
-### 2.3 后续路线
-1. **基础重构**：修复 CLI 导入副作用，拆分全局状态，引入配置系统。  
-2. **数据与训练**：替换队列序列化、封装训练器、加入 EarlyStopping/Checkpoint。  
-3. **运维自动化**：补齐结构化日志、CI 流程与容器化环境。  
-4. **功能扩展**：提供服务化接口，引入情绪/行业指数等多模态特征。
+## 2. 关键问题与改进方向
+| 优先级 | 问题 | 建议方案 |
+| ------ | ---- | -------- |
+| 高 | CLI 模块仍耦合全局状态 | 引入 `Trainer`/`DataModule`，显式传递配置 |
+| 高 | 数据缓存依赖 `queue.Queue` + `dill` | 迁移至 Arrow/Parquet，或增加版本头和升级脚本 |
+| 高 | 行情采集缺少限速、重试 | 增加 retry/backoff、结构化日志与 `.env` 配置 |
+| 中 | CPU 模式 AMP 警告 | 针对 CPU 完全禁用 AMP 或提供开关 |
+| 中 | 文档更新易遗漏 | 在 PR 模板和 pre-commit 中加入文档校验 |
+| 低 | BERT/NLP 代码仍在主包 | 拆分至独立模块或延迟加载 |
 
-## 3. 核心设计决策
-### 3.1 背景
-- 目标：为股票预测流水线提供统一、可扩展的多尺度模型，实现单步与多步预测一致。  
-- 现状：已有 LSTM/Attention-LSTM/BiLSTM/TCN/MultiBranch/Transformer/CNNLSTM，但缺乏统一的多尺度处理能力。
+## 3. 模型演进
+### 3.1 TemporalHybridNet
+- 多尺度卷积 + Bi-GRU + Multi-Head Attention + 窗口统计特征。
+- 适用于多尺度回归和长短期混合预测，CLI 参数：`--model hybrid`。
 
-### 3.2 诊断结论
-- 特征处理割裂：`add_target` 计算大量指标，却缺乏特征选择与加权策略。  
-- 多尺度能力不足：现有模型只能覆盖单尺度时序信息。  
-- 多步预测路径不一致：仅 CNNLSTM 支持 `predict_days`。  
-- 注意力设计薄弱：缺少门控残差，不利于高噪声序列。
+### 3.2 PTFT（ProbTemporalFusionTransformer）
+- 包含变量选择、门控残差、多头注意力、分位输出。
+- 通过 `quantiles` 参数输出 0.1/0.5/0.9 等分位值，支持概率预测。
 
-### 3.3 决策摘要
-- 引入 `TemporalHybridNet`，结合多尺度卷积、双向 GRU、Multi-Head Attention 与门控残差。  
-- 在模型内部融合窗口均值、标准差、末值等统计特征，弥补数据归一化不足。  
-- 保持现有 CLI 习惯，新增 `--model hybrid` 选项。
+### 3.3 V-SSM（Variational State Space Model）
+- 双向编码器 + 时间依赖先验（GRUCell） + 观测/状态解读。
+- 可输出隐藏状态、KL 项与 regime 概率，用于风险评估。
 
-### 3.4 行动清单
-- [x] 建立设计记录并汇总诊断结论。  
-- [x] 新增 `temporal_hybrid.py` 并接入模型入口。  
-- [x] 更新 `predict.py`、`models/__init__.py`、`scripts/run_all_models.bat` 支持 `hybrid`。  
-- [x] 编写 `tests/test_models.py` 覆盖单步与多步前向。  
-- [x] 同步 README、CHANGELOG、ASSUMPTIONS 等文档。
+### 3.4 PTFT + V-SSM 双轨组合
+- 在 `src/stock_prediction/models/ptft_vssm.py` 实现，融合 PTFT 与 V-SSM 预测，统一损失 `PTFTVSSMLoss`。
+- CLI 参数：`--model ptft_vssm`，适用于对分位预测与状态概率都有需求的场景。
 
-### 3.5 风险与缓解
-- `TemporalHybridNet` 结构复杂，易过拟合 → 默认启用 LayerNorm、Dropout，并通过单元测试把关形状。  
-- 多步输出 reshape 容易出错 → 在模型内部统一处理，并用测试覆盖不同 `predict_days`。
+## 4. 路线图
+| 阶段 | 目标 | 交付 |
+| ---- | ---- | ---- |
+| Phase 0 | 数据校验与配置梳理 | 特征字典、数据质量报告、统一配置文件 |
+| Phase 1 | PTFT 实现与调参 | `models/ptft.py`、训练脚本、指标报告 |
+| Phase 2 | V-SSM 实现 | `models/vssm.py`、状态分析报告 |
+| Phase 3 | 组合与校准 | `models/ptft_vssm.py`、融合实验日志 |
+| Phase 4 | 训练/推理自动化 | CLI/脚本完善、监控指标、容器化方案 |
 
-## 4. 模型与优化策略
-### 4.1 现有模型族
-- **循环类**：LSTM、Attention-LSTM、BiLSTM（擅长短期依赖）。  
-- **卷积类**：TCN、CNNLSTM（侧重局部模式）。  
-- **注意力类**：Transformer（长序列建模）。  
-- **多分支**：MultiBranch（区分价格/指标通道）。  
-- **混合**：TemporalHybridNet（多尺度 + 注意力 + 统计特征）。
+## 5. 风险与缓解
+| 风险 | 影响 | 缓解措施 |
+| ---- | ---- | -------- |
+| 训练数据不足或质量差 | 模型难以收敛 | Phase 0 加强数据校验，缺失数据回填或剔除 |
+| 模型过拟合 | 泛化能力下降 | 交叉验证、正则化、早停、Dropout |
+| 状态解释困难 | 难以给出策略建议 | 使用 SHAP/PCA、指标对比等后验解释工具 |
+| 推理性能 | 延迟高、资源占用大 | 知识蒸馏、异步推理、轻量化版本 |
+| 维护成本高 | 迭代效率低 | 标准化配置、统一训练管线、完善文档 |
 
-### 4.2 TemporalHybridNet 结构
-1. **多尺度卷积分支**：使用不同核大小和 dilation 的深度可分离卷积提取多尺度特征。  
-2. **双向 GRU**：整合前后序列信息。  
-3. **Multi-Head Attention**：重点关注关键时间片段。  
-4. **统计特征融合**：窗口均值、标准差、末值与序列编码拼接。  
-5. **多步输出**：统一生成 `(batch, steps, output_dim)`，兼容单步预测。
-
-### 4.3 演进建议
-1. 引入 Variable Selection Network 等特征选择机制。  
-2. 为混合模型增加多任务头（趋势、波动率等）。  
-3. 补充 EarlyStopping、学习率调度、自动化超参搜索。  
-4. 融合行业指数、新闻情绪等外部信号构建多模态分支。
+## 6. 文档关联
+- `docs/model_strategy.md`：模型策略设计详情与推荐组合。
+- `docs/user_guide.md`：命令行使用、运维和多模型测试流程。
+- `docs/maintenance.md`：关键修复、自动执行与后续建议。
+- `CHANGELOG.md`：记录每次迭代的具体变更。
 
 ---
-以上内容吸收原有的架构图、系统分析、决策记录与模型优化文档，形成按“设计/实现/演进”分类的统一说明。
-*** End Patch
+本文件旨在提供项目最新架构与演进背景，后续设计/实现/实验请持续同步至此文档，并与 `docs/model_strategy.md`、`docs/maintenance.md` 互相引用。 

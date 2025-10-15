@@ -1,40 +1,42 @@
 # 维护与运维记录
 
-## 1. 结构调整与清理
-- **主要时间点**：2024-12-28。  
-- **目标**：迁移旧版脚本到标准化包结构，避免历史文件与新实现冲突。  
-- **关键动作**：  
-  1. `common_old.py`→`src/stock_prediction/common.py`，集中保留数据集、模型与训练工具。  
-  2. `init.py` 路径硬编码改由 `config.py` 管理，并增加 GPU/CPU 设备检测、全局队列初始化。  
-  3. `utils.py`、`getdata.py`、`data_preprocess.py`、`predict.py`、`target.py` 统一迁移至 `src/stock_prediction/`。  
-  4. 临时脚本与旧实现移入 `legacy_backup/`，以便对比和回滚。  
-- **收获**：结构更清晰、入口更统一、旧代码保留在备份目录中；建议在上线稳定后再清理冗余备份。
+## 1. 结构调整与演进
+- **主要时间点**：2024-12-28（目录重构）、2025-10-15（模型体系升级）
+- **目标**：统一包结构，逐步淘汰遗留脚本，同时引入更强的多尺度与概率模型。
+- **关键动作**：
+  1. 将旧版脚本迁移至 `src/stock_prediction/`，核心逻辑集中在 `common.py`、`predict.py`。
+  2. 使用 `config.py` 管理所有目录路径；`init.py` 负责统一的常量、设备与共享队列。
+  3. 2025-10-15 引入新的 `ProbTemporalFusionTransformer`、`VariationalStateSpaceModel` 和 `PTFTVSSMEnsemble`，并升级 `TemporalHybridNet`。
+  4. `thread_save_model` 改为保存 state_dict，以避免 weight_norm 等模块的深拷贝限制。
 
 ## 2. 关键修复与经验
-### predict.py 导入错误（已解决）
-- **问题**：缺少可导出的 `main()` 导致 `ImportError`；局部变量覆盖全局 `device` 引发 `UnboundLocalError`。  
-- **修复**：  
-  1. 将脚本主体重构为 `main()`，并在文件末尾保留 `if __name__ == "__main__": main()`。  
-  2. 为训练、预测相关函数补充必要的 `global` 声明与变量初始化。  
-  3. 修正 `test_code`/`test_codes` 命名错误。  
-- **验证**：可直接导入 `stock_prediction.predict.main`，命令行帮助正常输出，基础训练流程可用。  
-- **遗留风险**：顶层仍会解析 `sys.argv`，需继续推进 CLI 解耦；全局变量过多，需要后续改为类或上下文对象。
+### 2.1 `predict.py` 导入问题
+- **问题**：模块级解析命令行导致测试环境触发 `SystemExit: 2`。
+- **解决**：封装 `main(argv=None)`，默认使用 `DefaultArgs`，测试可直接导入。
+- **提示**：若编写新脚本，请调用 `create_predictor()` 或 `main(custom_args)`。
 
-### TemporalHybridNet 引入
-- **问题背景**：现有模型缺乏多尺度建模能力，多步预测路径不统一。  
-- **解决方案**：新增 `TemporalHybridNet`，并在 `predict.py`/`models/__init__.py`/`scripts/run_all_models.bat` 中注册 `--model hybrid`。  
-- **测试覆盖**：`tests/test_models.py` 针对单步与多步输出进行维度检测。  
-- **后续改进**：考虑引入变量选择网络、多任务头、EarlyStopping 及更多外部特征。
+### 2.2 CPU 环境兼容
+- **问题**：CPU 模式使用 AMP 引发警告或错误。
+- **解决**：`GradScaler` 在 CPU 环境自动降级，可按需关闭 AMP。
 
-## 3. 自动化执行概览
-- **目标**：在最少交互下完成模型优化与文档同步。  
-- **执行重点**：  
-  - 新增 TemporalHybridNet 模型与单元测试。  
-  - 更新批处理脚本 `scripts/run_all_models.bat`。  
-  - 重写 README、假设、维护日志等文档。  
-- **建议命令**：`conda run -n stock_prediction pytest -q`。  
-- **当前状态**：测试通过，最新 CLI 改造及更深层的训练上下文拆分仍在规划中。  
-- **后续计划**：继续解耦 `predict.py` CLI，补齐 EarlyStopping、变量选择、外部特征等提升项。
+### 2.3 模型保存阻塞
+- **问题**：包含 weight_norm 的模型在深拷贝时触发异常。
+- **解决**：保存前统一迁移到 CPU 并仅存 state_dict。
+
+## 3. 自动执行摘要
+- **最新结果**：`pytest`（26 项）全部通过，覆盖 TemporalHybridNet、PTFT、VSSM、数据管线与配置模块。
+- **推荐命令**：`conda run -n stock_prediction pytest -q`
+- **主要新增**：
+  - `src/stock_prediction/models/ptft.py`：ProbTemporalFusionTransformer，支持变量选择与分位输出。
+  - `src/stock_prediction/models/vssm.py`：时间依赖的变分状态空间模型，输出隐藏状态与 regime 概率。
+  - `src/stock_prediction/models/ptft_vssm.py`：双轨融合模型与 `PTFTVSSMLoss`。
+  - `tests/test_models.py`：覆盖 TemporalHybridNet、PTFT、VSSM 与组合模型的前向及损失逻辑。
+
+## 4. 后续建议
+1. **配置管理**：引入 `.env` / YAML 配置与 `pydantic` 校验，减少硬编码。
+2. **训练流程**：封装 Trainer，对学习率调度、EarlyStopping 等通用逻辑统一处理。
+3. **监控指标**：记录 RMSE、MAPE、分位覆盖率、VaR/CVaR 等指标，配合自动化报警。
+4. **模型扩展**：研究扩散式时序生成模型、图结构建模等方案，可参考 `docs/model_strategy.md`。
 
 ---
-本文件统一记录结构清理、故障修复与自动化执行要点，便于后续迭代时参考。*** End Patch
+本文件用于持续记录项目结构演进与关键运维经验，保持与仓库最新实现一致。 
