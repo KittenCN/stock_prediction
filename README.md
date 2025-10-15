@@ -114,6 +114,7 @@ python -m pytest tests\test_models.py -v
 - `docs/system_design.md`：架构拓扑、系统分析与核心设计决策
 - `docs/user_guide.md`：命令行/模块用法、运维要点与多模型测试流程
 - `docs/maintenance.md`：结构清理、关键修复与自动化执行摘要
+- `docs/model_strategy.md`：零基思考的股票预测模型方案与推荐组合
 - `ASSUMPTIONS.md`：默认假设与约束条件
 - `CHANGELOG.md`：遵循 SemVer 的变更记录
 
