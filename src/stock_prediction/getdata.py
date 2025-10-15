@@ -1,5 +1,6 @@
 import datetime
 import argparse
+import random
 
 # 处理相对导入问题
 try:
@@ -162,7 +163,7 @@ def get_stock_data(ts_code="", save=True, start_code="", save_path="", datediff=
                         print(f"{code} {e}")
                     continue
                 
-                time.sleep(0.1)
+                time.sleep(random.uniform(0.1, 0.9))  # 避免频率过快
 
                 if save:
                     df.to_csv(save_path+f"/{code}.csv", index=False)
@@ -238,9 +239,12 @@ def get_stock_data(ts_code="", save=True, start_code="", save_path="", datediff=
                         pbar.update(1)
                     else:
                         print(f"{code} {e}")
-                    continue
+                    if e.args[0].args[0] == 'Connection aborted.' or e.args[0].args[1].args[0] == 'Remote end closed connection without response':
+                        break
+                    else:
+                        continue
 
-                time.sleep(0.1)
+                time.sleep(random.uniform(0.1, 0.9))  # 避免频率过快
 
                 if save:
                     df.to_csv(save_path+f"/{code}.csv", index=False)
