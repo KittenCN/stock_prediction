@@ -30,13 +30,24 @@ parser.add_argument('--predict_days', default=0, type=int, help="number of the p
 parser.add_argument('--api', default="akshare", type=str, help="api-interface, tushare, akshare or yfinance")
 parser.add_argument('--trend', default=0, type=int, help="predict the trend of stock, not the price")
 args = parser.parse_args()
+
+# 初始化模块级变量
 last_save_time = 0
+iteration = 0
+batch_none = 0
+data_none = 0
+loss = None
+lo_list = []
+loss_list = []
+last_loss = 1e10
+lr_scheduler = None
 
 if device.type == "cuda":
     torch.backends.cudnn.benchmark = True
 
 def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
     global loss, last_save_time, loss_list, iteration, lo_list, batch_none, data_none, last_loss, lr_scheduler
+    global model, optimizer, criterion, save_path
     model.train()
     subbar = tqdm(total=len(dataloader), leave=False, ncols=TQDM_NCOLS)
     test_iner = len(dataloader) // TEST_INTERVAL
@@ -201,6 +212,7 @@ def test(dataset, testmodel=None, dataloader_mode=0):
 
 
 def predict(test_codes):
+    global model_mode
     print("test_code=", test_codes)
     if PKL == 0:
         load_data(test_codes,data_queue=data_queue)
@@ -397,11 +409,12 @@ def predict(test_codes):
         plt.legend()
         now = datetime.now()
         date_string = now.strftime("%Y%m%d%H%M%S")
-        plt.savefig(png_path + "/predict/" + cnname + "_" + str(test_code[0]).split('.')[0] + "_" + model_mode + "_" + name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
+        plt.savefig(png_path + "/predict/" + cnname + "_" + str(test_codes[0]).split('.')[0] + "_" + model_mode + "_" + name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
         pbar.update(1)
     pbar.close()
 
 def loss_curve(loss_list):
+    global model_mode
     try:
         plt.figure()
         x=np.linspace(1,len(loss_list),len(loss_list))
@@ -417,6 +430,7 @@ def loss_curve(loss_list):
         print("Error: loss_curve", e)
 
 def contrast_lines(test_codes):
+    global model_mode
     data = NoneDataFrame
     if PKL is False:
         load_data(test_codes,data_queue=data_queue)
@@ -520,7 +534,7 @@ def contrast_lines(test_codes):
             plt.legend()
             now = datetime.now()
             date_string = now.strftime("%Y%m%d%H%M%S")
-            plt.savefig(png_path + "/test/" + cnname + "_"  + str(test_code[0]).split('.')[0] + "_" + model_mode + "_" + name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
+            plt.savefig(png_path + "/test/" + cnname + "_"  + str(test_codes[0]).split('.')[0] + "_" + model_mode + "_" + name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
             pbar.update(1)
         except Exception as e:
             print("Error: contrast_lines", e)
@@ -529,8 +543,10 @@ def contrast_lines(test_codes):
     pbar.close()
     plt.close()
 
-if __name__=="__main__":
+def main():
+    """主函数:股票预测的训练、测试和预测入口"""
     global last_loss,test_model,model,total_test_length,lr_scheduler,drop_last
+    global criterion, optimizer, model_mode, save_path, device
     # b_size * (p_days * n_head) * (d_model // n_head) = b_size * seq_len * d_model
     # if int(args.predict_days) > 0:
     #     assert BATCH_SIZE * (int(args.predict_days) * NHEAD) * (D_MODEL // NHEAD) == BATCH_SIZE * SEQ_LEN * D_MODEL and D_MODEL % NHEAD == 0, "Error: assert error"
@@ -827,3 +843,5 @@ if __name__=="__main__":
             exit(0)
 
 
+if __name__ == "__main__":
+    main()
