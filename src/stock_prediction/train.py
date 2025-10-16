@@ -35,7 +35,7 @@ except ImportError:
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
-parser.add_argument('--model', default="transformer", type=str, help="lstm/transformer/hybrid 等模型名称")
+parser.add_argument('--model', default="ptft_vssm", type=str, help="lstm/transformer/hybrid 等模型名称")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--cpu', default=0, type=int, help="only use cpu")
 parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of csv file")
@@ -51,7 +51,7 @@ parser.add_argument('--plot_days', default=30, type=int, help="测试/预测图�
 # 创建一个默认 args 对象供测试和导入使用
 class DefaultArgs:
     mode = "train"
-    model = "transformer"
+    model = "ptft_vssm"
     begin_code = ""
     cpu = 0
     pkl = 1

@@ -3,6 +3,7 @@
 import argparse
 import copy
 import os
+import random
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -48,7 +49,7 @@ config = Config()
 train_pkl_path = config.train_pkl_path
 
 parser = argparse.ArgumentParser(description="Stock price inference CLI")
-parser.add_argument('--model', default="transformer", type=str, help="model name, e.g. lstm / transformer / hybrid / ptft_vssm")
+parser.add_argument('--model', default="ptft_vssm", type=str, help="model name, e.g. lstm / transformer / hybrid / ptft_vssm")
 parser.add_argument('--test_code', default="", type=str, help="stock code to predict")
 parser.add_argument('--cpu', default=0, type=int, help="set 1 to run on CPU only")
 parser.add_argument('--pkl', default=1, type=int, help="whether to use preprocessed pkl data (1 means use)")
@@ -59,7 +60,7 @@ parser.add_argument('--trend', default=0, type=int, help="set 1 to predict trend
 parser.add_argument('--test_gpu', default=1, type=int, help="set 1 to run inference on GPU")
 
 class DefaultArgs:
-    model = "transformer"
+    model = "ptft_vssm"
     test_code = ""
     cpu = 0
     pkl = 1
@@ -368,8 +369,21 @@ def main(argv=None):
     PKL = False if args.pkl <= 0 else True
     drop_last = False
     if not args.test_code:
-        raise ValueError('test_code 参数不能为空')
-    # 修复：使用 symbol 作为模型路径，而不是 test_code
+        fallback_path = root_dir / 'test_codes.txt'
+        candidate_code = None
+        if fallback_path.exists():
+            try:
+                lines = fallback_path.read_text(encoding='utf-8').splitlines()
+            except UnicodeDecodeError:
+                lines = fallback_path.read_text(encoding='gbk', errors='ignore').splitlines()
+            candidates = [line.strip() for line in lines if line.strip()]
+            if candidates:
+                candidate_code = random.choice(candidates)
+                print(f'[LOG] 未提供 test_code，随机选择 {candidate_code}')
+        if candidate_code is None:
+            raise ValueError('test_code 参数为空，且未找到有效的 test_codes.txt')
+        args.test_code = candidate_code
+    # �޸���ʹ�� symbol ��Ϊģ��·���������� test_code
     _init_models(symbol)
     predict([args.test_code])
 
