@@ -391,6 +391,30 @@ def predict(test_codes):
                 Path(png_path) / "predict",
                 prefix="predict",
             )
+        # 指标采集
+        import json
+        from stock_prediction.metrics import metrics_report
+        from datetime import datetime
+        print("[DEBUG] Starting metrics collection for predict_days <= 0")
+        metrics_out = {}
+        for col in PLOT_FEATURE_COLUMNS:
+            if col not in history_df.columns:
+                continue
+            history_series = history_df.set_index('Date')[col].astype(float).dropna()
+            prediction_series = pd.Series(dtype=float)
+            if not predicted_df.empty and col in predicted_df.columns:
+                prediction_series = predicted_df.set_index('Date')[col].astype(float).dropna()
+            if len(history_series) == len(prediction_series) and len(history_series) > 0:
+                metrics_out[col] = metrics_report(history_series.values, prediction_series.values)
+        print(f"[DEBUG] metrics_out: {metrics_out}")
+        if metrics_out:
+            output_dir = Path("output")
+            output_dir.mkdir(exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d%H%M%S")
+            metrics_path = output_dir / f"metrics_{symbol_code}_{model_mode}_{ts}.json"
+            with open(metrics_path, "w", encoding="utf-8") as f:
+                json.dump(metrics_out, f, ensure_ascii=False, indent=2)
+            print(f"[LOG] Metrics saved: {metrics_path}")
         return
     else:
         normalized_predict = normalize_date_column(predict_data)
@@ -435,6 +459,28 @@ def predict(test_codes):
                 Path(png_path) / "predict",
                 prefix="predict",
             )
+        # 指标采集
+        import json
+        from stock_prediction.metrics import metrics_report
+        from datetime import datetime
+        metrics_out = {}
+        for col in PLOT_FEATURE_COLUMNS:
+            if col not in actual_df.columns:
+                actual_df[col] = np.nan
+            history_series = actual_df.set_index('Date')[col].astype(float).dropna()
+            prediction_series = pd.Series(dtype=float)
+            if col in pred_df.columns:
+                prediction_series = pred_df.set_index('Date')[col].astype(float).dropna()
+            if len(history_series) == len(prediction_series) and len(history_series) > 0:
+                metrics_out[col] = metrics_report(history_series.values, prediction_series.values)
+        if metrics_out:
+            output_dir = Path("output")
+            output_dir.mkdir(exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d%H%M%S")
+            metrics_path = output_dir / f"metrics_{symbol_code}_{model_mode}_{ts}.json"
+            with open(metrics_path, "w", encoding="utf-8") as f:
+                json.dump(metrics_out, f, ensure_ascii=False, indent=2)
+            print(f"[LOG] Metrics saved: {metrics_path}")
         return
 
 def loss_curve(loss_list):
@@ -621,6 +667,25 @@ def contrast_lines(test_codes):
             Path(png_path) / "test",
             prefix="test",
         )
+    # 指标采集
+    import json
+    from stock_prediction.metrics import metrics_report
+    from datetime import datetime
+    metrics_out = {}
+    for col in PLOT_FEATURE_COLUMNS:
+        if col in real_df.columns and col in pred_df.columns:
+            history_series = real_df.set_index('Date')[col].astype(float).dropna()
+            prediction_series = pred_df.set_index('Date')[col].astype(float).dropna()
+            if len(history_series) == len(prediction_series) and len(history_series) > 0:
+                metrics_out[col] = metrics_report(history_series.values, prediction_series.values)
+    if metrics_out:
+        output_dir = Path("output")
+        output_dir.mkdir(exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d%H%M%S")
+        metrics_path = output_dir / f"metrics_{symbol_code}_{model_mode}_{ts}.json"
+        with open(metrics_path, "w", encoding="utf-8") as f:
+            json.dump(metrics_out, f, ensure_ascii=False, indent=2)
+        print(f"[LOG] Metrics saved: {metrics_path}")
     return
 
 def main():
@@ -976,6 +1041,27 @@ def main():
         print("Start create image for pred-real")
         test_index = random.randint(0, len(test_codes) - 1)
         test_code = [test_codes[test_index]]
+        # 采集并保存指标
+        try:
+            import json
+            from stock_prediction.metrics import metrics_report
+            from datetime import datetime
+            # 只采集 test_code 的 close 列，实际可扩展
+            pred_result = contrast_lines(test_code)
+            # contrast_lines 内部已绘图，需返回预测与真实值
+            # 这里假设 contrast_lines 返回 (y_true, y_pred) 或 None
+            if isinstance(pred_result, tuple) and len(pred_result) == 2:
+                y_true, y_pred = pred_result
+                metrics_out = {"close": metrics_report(y_true, y_pred)}
+                output_dir = Path("output")
+                output_dir.mkdir(exist_ok=True)
+                ts = datetime.now().strftime("%Y%m%d%H%M%S")
+                metrics_path = output_dir / f"metrics_train_{test_code[0]}_{model_mode}_{ts}.json"
+                with open(metrics_path, "w", encoding="utf-8") as f:
+                    json.dump(metrics_out, f, ensure_ascii=False, indent=2)
+                print(f"[LOG] Train metrics saved: {metrics_path}")
+        except Exception as e:
+            print(f"[WARN] Train metrics collection failed: {e}")
         while contrast_lines(test_code) == -1:
             test_index = random.randint(0, len(test_codes) - 1)
             test_code = [test_codes[test_index]]

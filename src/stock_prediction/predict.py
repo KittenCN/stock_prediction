@@ -340,6 +340,11 @@ def predict(test_codes):
         pred_df['Date'] = actual_df['Date'].iloc[:len(pred_df)].values
 
         symbol_code = str(test_codes[0]).split('.')[0].zfill(6)
+        import json
+        from datetime import datetime
+        from stock_prediction.metrics import metrics_report
+        # 采集并保存指标
+        metrics_out = {}
         for col in PLOT_FEATURE_COLUMNS:
             if col not in actual_df.columns:
                 actual_df[col] = np.nan
@@ -347,6 +352,7 @@ def predict(test_codes):
             prediction_series = pd.Series(dtype=float)
             if col in pred_df.columns:
                 prediction_series = pred_df.set_index('Date')[col].astype(float).dropna()
+            # 绘图
             plot_feature_comparison(
                 symbol_code,
                 model_mode,
@@ -356,6 +362,18 @@ def predict(test_codes):
                 Path(png_path) / "predict",
                 prefix="predict",
             )
+            # 指标采集
+            if len(history_series) == len(prediction_series) and len(history_series) > 0:
+                metrics_out[col] = metrics_report(history_series.values, prediction_series.values)
+        # 保存指标到 output/metrics_xxx.json
+        if metrics_out:
+            output_dir = Path("output")
+            output_dir.mkdir(exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d%H%M%S")
+            metrics_path = output_dir / f"metrics_{symbol_code}_{model_mode}_{ts}.json"
+            with open(metrics_path, "w", encoding="utf-8") as f:
+                json.dump(metrics_out, f, ensure_ascii=False, indent=2)
+            print(f"[LOG] Metrics saved: {metrics_path}")
         return predict_list
 
 
