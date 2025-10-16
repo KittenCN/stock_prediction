@@ -336,8 +336,10 @@ def predict(test_codes):
                     break
             except queue.Empty:
                 break
-        data_queue = queue.Queue()
-        data = copy.deepcopy(_data)
+    data_queue = queue.Queue()
+    data = copy.deepcopy(_data)
+
+    data = normalize_date_column(data)
 
     if data.empty or data["ts_code"][0] == "None":
         print("Error: data is empty or ts_code is None")
@@ -352,63 +354,59 @@ def predict(test_codes):
         print("Error: train_size is too small or too large")
         return
 
-    predict_data = copy.deepcopy(data)
-    spliced_data = copy.deepcopy(data)
-    show_days = 7
-    real_list = []
-    prediction_list = []
-    if predict_data.empty or predict_data is None:
+    predict_data = normalize_date_column(copy.deepcopy(data))
+    spliced_data = normalize_date_column(copy.deepcopy(data))
+    history_window = max(SEQ_LEN * 8, 40)
+    predicted_rows: list[dict] = []
+    if predict_data.empty:
         print("Error: Train_data or Test_data is None")
         return
-    current_date = predict_data["Date"][0]
+    symbol_code = str(test_codes[0]).split('.')[0].zfill(6)
     if int(args.predict_days) <= 0:
-        predict_days = abs(int(args.predict_days))
+        predict_days = abs(int(args.predict_days)) or 1
         pbar = tqdm(total=predict_days, leave=False, ncols=TQDM_NCOLS)
         while predict_days > 0:
-            lastdate = predict_data["Date"][0].strftime("%Y%m%d")
+            lastdate = pd.to_datetime(predict_data["Date"].iloc[0])
             if args.api == "tushare":
-                lastclose = predict_data["Close"][0]
-            predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
-            # predict_data = predict_data.dropna()
-            # predict_data = predict_data.fillna(-0.0)
-            predict_data = predict_data.fillna(predict_data.median(numeric_only=True))
-            accuracy_list, predict_list = [], []
-            test_loss, predict_list, _ = test(predict_data,dataloader_mode=2)
+                lastclose = float(predict_data["Close"].iloc[0])
+            feature_frame = predict_data.drop(columns=['ts_code', 'Date']).copy()
+            feature_frame = feature_frame.fillna(feature_frame.median(numeric_only=True))
+            test_loss, predict_list, _ = test(feature_frame, dataloader_mode=2)
             if test_loss == -1 and predict_list == -1:
                 return
-            _tmp = []
-            prediction_list = []
+            rows = []
             for items in predict_list:
-                items=items.to("cpu", non_blocking=True)
+                items = items.to("cpu", non_blocking=True)
                 for idxs in items:
-                    _tmp = []
+                    row = []
                     for index, item in enumerate(idxs):
                         if use_list[index] == 1:
-                            _tmp.append((item*std_list[index]+mean_list[index]).detach().numpy())
-            date_str = lastdate
-            date_obj = datetime.strptime(date_str, "%Y%m%d")
-            new_date_obj = date_obj + timedelta(days=1)
-            # date_string = new_date_obj.strftime("%Y%m%d")
-            _tmpdata = [test_codes[0], new_date_obj]
-            _tmpdata = _tmpdata + copy.deepcopy(_tmp)
-            _splice_data = copy.deepcopy(spliced_data).drop(['ts_code', 'Date'], axis=1)
+                            row.append(float((item * std_list[index] + mean_list[index]).detach().numpy()))
+                    if row:
+                        rows.append(row)
+            date_obj = lastdate + timedelta(days=1)
+            tmp_data = [test_codes[0], date_obj]
+            if rows:
+                tmp_data.extend(rows[0])
+            _splice_data = copy.deepcopy(spliced_data).drop(columns=['ts_code', 'Date'])
             df_mean = _splice_data.mean().tolist()
             if args.api == "tushare":
-                for index in range(len(_tmpdata) - 2, len(df_mean)-1):
-                    _tmpdata.append(df_mean[index])
-                _tmpdata.append(lastclose)
-            elif args.api == "akshare" or args.api == "yfinance":
-                for index in range(len(_tmpdata) - 2, len(df_mean)):
-                    _tmpdata.append(-0.0)
-            _tmpdata = pd.DataFrame(_tmpdata).T
-            _tmpdata.columns = spliced_data.columns
-            predict_data = pd.concat([_tmpdata, spliced_data], axis=0, ignore_index=True)
-            spliced_data = copy.deepcopy(predict_data)
+                for index in range(len(tmp_data) - 2, len(df_mean) - 1):
+                    tmp_data.append(df_mean[index])
+                tmp_data.append(lastclose)
+            else:
+                for index in range(len(tmp_data) - 2, len(df_mean)):
+                    tmp_data.append(-0.0)
+            tmp_df = pd.DataFrame([tmp_data], columns=spliced_data.columns)
+            predicted_rows.append(tmp_df.iloc[0].to_dict())
+            predict_data = pd.concat([tmp_df, spliced_data], axis=0, ignore_index=True)
+            spliced_data = normalize_date_column(copy.deepcopy(predict_data))
             predict_data['Date'] = pd.to_datetime(predict_data['Date'])
 
-            if args.api == "akshare" or args.api == "yfinance":
-                ## use akshare data or yfinance data
-                predict_data[['Open', 'High', 'Low', 'Close', 'change', 'pct_change', 'Volume', 'amount', 'amplitude', 'exchange_rate']] = predict_data[['Open', 'High', 'Low', 'Close', 'change', 'pct_change', 'Volume', 'amount', 'amplitude', 'exchange_rate']].astype('float64')
+            if args.api in ("akshare", "yfinance"):
+                predict_data[['Open', 'High', 'Low', 'Close', 'change', 'pct_change', 'Volume', 'amount', 'amplitude', 'exchange_rate']] = (
+                    predict_data[['Open', 'High', 'Low', 'Close', 'change', 'pct_change', 'Volume', 'amount', 'amplitude', 'exchange_rate']].astype('float64')
+                )
                 predict_data['Date'] = predict_data['Date'].dt.strftime('%Y%m%d')
                 predict_data.rename(
                     columns={
@@ -416,22 +414,16 @@ def predict(test_codes):
                         'High': 'high', 'Low': 'low',
                         'Close': 'close', 'Volume': 'vol'},
                     inplace=True)
-                predict_data = predict_data.loc[:,["ts_code",
-                    "trade_date",
-                    "open",
-                    "high",
-                    "low",
-                    "close",
-                    "change",
-                    "pct_change",
-                    "vol",
-                    "amount",
-                    "amplitude",
-                    "exchange_rate"]]
+                predict_data = predict_data.loc[:, [
+                    "ts_code", "trade_date", "open", "high", "low", "close",
+                    "change", "pct_change", "vol", "amount", "amplitude", "exchange_rate"
+                ]]
             elif args.api == "tushare":
-                ## Use tushare data
                 predict_data['Date'] = predict_data['Date'].dt.strftime('%Y%m%d')
-                predict_data = predict_data.loc[:,["ts_code","Date","Open","Close","High","Low","Volume","amount","amplitude","pct_change","change","exchange_rate"]]
+                predict_data = predict_data.loc[:, [
+                    "ts_code", "Date", "Open", "Close", "High", "Low",
+                    "Volume", "amount", "amplitude", "pct_change", "change", "exchange_rate"
+                ]]
                 predict_data.rename(
                     columns={
                         'Date': 'trade_date', 'Open': 'open',
@@ -439,11 +431,12 @@ def predict(test_codes):
                         'Close': 'close', 'Volume': 'vol'},
                     inplace=True)
 
-            predict_data.to_csv(test_path,sep=',',index=False,header=True)
-            load_data([test_codes[0]],None,test_path,data_queue=data_queue)
-            while data_queue.empty() == False:
-                try: 
+            predict_data.to_csv(test_path, sep=',', index=False, header=True)
+            load_data([test_codes[0]], None, test_path, data_queue=data_queue)
+            while data_queue.empty() is False:
+                try:
                     predict_data = data_queue.get(timeout=30)
+                    predict_data = normalize_date_column(predict_data)
                     break
                 except queue.Empty:
                     break
@@ -452,82 +445,92 @@ def predict(test_codes):
             pbar.update(1)
         pbar.close()
 
-        datalist = predict_data.iloc[:, 2:2+OUTPUT_DIMENSION].values.tolist()[::-1]
-        real_list = datalist[len(datalist)-abs(int(args.predict_days))-show_days:len(datalist)-abs(int(args.predict_days))]
-        prediction_list = datalist[len(datalist)-abs(int(args.predict_days))-1:]
+        full_df = spliced_data.copy()
+        full_df['Date'] = pd.to_datetime(full_df['Date'])
+        predicted_df = pd.DataFrame(predicted_rows)
+        if not predicted_df.empty:
+            predicted_df['Date'] = pd.to_datetime(predicted_df['Date'])
+        history_df = full_df.iloc[len(predicted_rows):len(predicted_rows) + history_window].copy()
+        history_df['Date'] = pd.to_datetime(history_df['Date'])
+
+        for col in PLOT_FEATURE_COLUMNS:
+            if col not in history_df.columns:
+                continue
+            history_series = history_df.set_index('Date')[col].astype(float).dropna()
+            prediction_series = pd.Series(dtype=float)
+            if not predicted_df.empty and col in predicted_df.columns:
+                prediction_series = predicted_df.set_index('Date')[col].astype(float).dropna()
+            plot_feature_comparison(
+                symbol_code,
+                model_mode,
+                col,
+                history_series,
+                prediction_series,
+                Path(png_path) / "predict",
+                prefix="predict",
+            )
+        return
     else:
-        predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
-        predict_data = predict_data.fillna(predict_data.median(numeric_only=True))
-        accuracy_list, predict_list = [], []
-        test_loss, predict_list, dataloader = test(predict_data, dataloader_mode=2)
+        normalized_predict = normalize_date_column(predict_data)
+        feature_frame = normalized_predict.drop(columns=['ts_code', 'Date']).copy()
+        feature_frame = feature_frame.fillna(feature_frame.median(numeric_only=True))
+        test_loss, predict_list, _ = test(feature_frame, dataloader_mode=2)
+        predictions = []
         for items in predict_list:
             items = items.to("cpu", non_blocking=True)
             for idxs in items:
-                for idx in idxs:
-                    _tmp = []
-                    for index, item in enumerate(idx):
-                        if show_list[index] == 1:
-                            _tmp.append(item*std_list[index]+mean_list[index])
-                    prediction_list.append(np.array(_tmp))
-        _data_real =  predict_data.head(show_days).sort_values(by=['Date'], ascending=True).values.tolist()
-        for idx in range(len(_data_real)):
-            _tmp = []
-            for index in range(len(show_list)):
-                if show_list[index] == 1:
-                    _tmp.append(_data_real[idx][index])
-            real_list.append(np.array(_tmp))
-        prediction_list = [real_list[-1]] + prediction_list
-        # for i,(_,label) in enumerate(dataloader):
-        #     for idx in range(label.shape[0]):
-        #         _tmp = []
-        #         for index in range(OUTPUT_DIMENSION):
-        #             if use_list[index] == 1:
-        #                 _tmp.append(label[idx][0][index]*std_list[index]+mean_list[index])
-        #         real_list.append(np.array(_tmp))
-        # real_list = real_list[len(real_list) - show_days:]
-    # compounding_factor = cal_compounding_factor(test_codes[0])
-    # real_list = np.array(real_list) * compounding_factor
-    # prediction_list = np.array(prediction_list) * compounding_factor
-    pbar = tqdm(total=sum(show_list), leave=False, ncols=TQDM_NCOLS)
-    for i in range(sum(show_list)):
-        _real_list = np.transpose(real_list)[i]
-        _prediction_list = np.transpose(prediction_list)[i]
-        assert len(_real_list) >= show_days, "The length of real_list is less than show_days"
-        plt.figure()
-        x1 = np.linspace(len(_real_list) - show_days, len(_real_list), show_days)
-        x2 = np.linspace(len(_real_list), len(_real_list) + len(_prediction_list), len(_prediction_list))
-        # x1 = generate_dates(current_date.strftime("%Y%m%d"), -1 * (show_days - 1))
-        # x2 = np.concatenate((np.array([""]),generate_dates((current_date + timedelta(days=1)).strftime("%Y%m%d"), len(_prediction_list) - 2)),axis=0)
-        plt.plot(x1, np.array(_real_list), label=current_date.strftime("%Y%m%d")+"_real_"+name_list[i])
-        plt.plot(x2, np.array(_prediction_list), label=current_date.strftime("%Y%m%d")+"_prediction_"+name_list[i], linewidth=0.75, linestyle='--')
-        for item in range(len(_real_list)):
-            plt.text(item, _real_list[item], '%.2f' % _real_list[item], ha='center', va='bottom', fontsize=10)
-        for item in range(1, len(_prediction_list)):
-            plt.text(item + len(_real_list), _prediction_list[item], '%.2f' % _prediction_list[item], ha='center', va='bottom', fontsize=10)
-        plt.legend()
-        now = datetime.now()
-        date_string = now.strftime("%Y%m%d%H%M%S")
-        plt.savefig(png_path + "/predict/" + cnname + "_" + str(test_codes[0]).split('.')[0] + "_" + model_mode + "_" + name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
-        pbar.update(1)
-    pbar.close()
+                row = []
+                for index, item in enumerate(idxs):
+                    if show_list[index] == 1:
+                        row.append(float(item * std_list[index] + mean_list[index]))
+                if row:
+                    predictions.append(row)
+
+        selected_features = [name_list[idx] for idx, flag in enumerate(show_list) if flag == 1]
+        rename_map = {"open": "Open", "high": "High", "low": "Low", "close": "Close"}
+        pred_columns = [rename_map.get(name, name.title()) for name in selected_features]
+        pred_df = pd.DataFrame(predictions, columns=pred_columns)
+        actual_df = normalize_date_column(predict_data).head(len(pred_df))
+        actual_df['Date'] = pd.to_datetime(actual_df['Date'])
+        pred_df['Date'] = actual_df['Date'].iloc[:len(pred_df)].values
+
+        for col in PLOT_FEATURE_COLUMNS:
+            if col not in actual_df.columns:
+                actual_df[col] = np.nan
+            history_series = actual_df.set_index('Date')[col].astype(float).dropna()
+            prediction_series = pd.Series(dtype=float)
+            if col in pred_df.columns:
+                prediction_series = pred_df.set_index('Date')[col].astype(float).dropna()
+            plot_feature_comparison(
+                symbol_code,
+                model_mode,
+                col,
+                history_series,
+                prediction_series,
+                Path(png_path) / "predict",
+                prefix="predict",
+            )
+        return
 
 def loss_curve(loss_list):
     global model_mode
     try:
-        import os
-        save_dir = os.path.join(png_path, "train_loss")
-        os.makedirs(save_dir, exist_ok=True)
-        plt.figure()
-        x=np.linspace(1,len(loss_list),len(loss_list))
-        x=20*x
-        plt.plot(x,np.array(loss_list),label="train_loss")
-        plt.ylabel("MSELoss")
-        plt.xlabel("iteration")
-        now = datetime.now()
-        date_string = now.strftime("%Y%m%d%H%M%S")
-        img_path = os.path.join(save_dir, f"{cnname}_{model_mode}_{date_string}_train_loss.png")
-        plt.savefig(img_path, dpi=600)
-        plt.close()
+        if not loss_list:
+            print("[WARN] loss_curve: loss_list is empty, skip plotting")
+            return
+        save_dir = Path(png_path) / "train_loss"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        fig, ax = plt.subplots(figsize=(12, 6))
+        steps = np.arange(1, len(loss_list) + 1)
+        ax.plot(steps, np.array(loss_list), label="训练损失", linewidth=1.2)
+        ax.set_ylabel("MSELoss")
+        ax.set_xlabel("iteration")
+        ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.4)
+        ax.legend()
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        img_path = save_dir / f"{cnname}_{model_mode}_{timestamp}_train_loss.png"
+        fig.savefig(img_path, dpi=600)
+        plt.close(fig)
         print(f"[LOG] 训练损失图片已保存: {img_path}")
     except Exception as e:
         print("Error: loss_curve", e)
@@ -557,25 +560,26 @@ def contrast_lines(test_codes):
             print("Error: data is None")
             return
         data_queue = queue.Queue()
-        data.drop(['ts_code','Date'],axis=1,inplace = True)  
-    
-    # data = data.dropna()
-    # data = data.fillna(-0.0)
-    data = data.fillna(data.median(numeric_only=True))
+
+    data = normalize_date_column(data)
+    feature_data = data.drop(columns=['ts_code', 'Date'], errors='ignore').copy()
+    feature_data = feature_data.fillna(feature_data.median(numeric_only=True))
     print("test_code=", test_codes)
-    if data.empty or (PKL is False and data["ts_code"][0] == "None"):
+    if feature_data.empty:
         print("Error: data is empty or ts_code is None")
         return -1
 
-    if PKL is False:
-        data.drop(['ts_code', 'Date'], axis=1, inplace=True)
-    train_size = int(TRAIN_WEIGHT * (data.shape[0]))
-    if train_size < SEQ_LEN or train_size + SEQ_LEN > data.shape[0]:
+    if PKL is False and ('ts_code' in data.columns and data["ts_code"][0] == "None"):
+        print("Error: data is empty or ts_code is None")
+        return -1
+
+    train_size = int(TRAIN_WEIGHT * (feature_data.shape[0]))
+    if train_size < SEQ_LEN or train_size + SEQ_LEN > feature_data.shape[0]:
         print("Error: train_size is too small or too large")
         return -1
 
-    Train_data = copy.deepcopy(data)
-    Test_data = copy.deepcopy(data)
+    Train_data = copy.deepcopy(feature_data)
+    Test_data = copy.deepcopy(feature_data)
     if Train_data.empty or Test_data.empty or Train_data is None or Test_data is None:
         print("Error: Train_data or Test_data is None")
         return -1
@@ -623,34 +627,53 @@ def contrast_lines(test_codes):
                     if show_list[index] == 1:
                         _tmp.append(item*test_std_list[index]+test_mean_list[index])
                 prediction_list.append(np.array(_tmp))
-    pbar = tqdm(total=sum(show_list), ncols=TQDM_NCOLS)
-    for i in range(sum(show_list)):
-        try:
-            pbar.set_description(f"{name_list[i]}")
-            _real_list = np.transpose(real_list)[i]
-            _prediction_list = np.transpose(prediction_list)[i]
-            plt.figure()
-            x1 = np.linspace(0, len(_real_list), len(_real_list))
-            x2 = np.linspace(0, len(_prediction_list), len(_prediction_list))
-            plt.plot(x1, np.array(_real_list), label="real_"+name_list[i])
-            plt.plot(x2, np.array(_prediction_list), label="prediction_"+name_list[i], linewidth=0.75, linestyle='--')
-            plt.legend()
-            now = datetime.now()
-            date_string = now.strftime("%Y%m%d%H%M%S")
-            plt.savefig(png_path + "/test/" + cnname + "_"  + str(test_codes[0]).split('.')[0] + "_" + model_mode + "_" + name_list[i] + "_" + date_string + "_Pre.png", dpi=600)
-            pbar.update(1)
-        except Exception as e:
-            print("Error: contrast_lines", e)
-            pbar.update(1)
+    selected_features = [name_list[idx] for idx, flag in enumerate(show_list) if flag == 1]
+    rename_map = {"open": "Open", "high": "High", "low": "Low", "close": "Close"}
+    real_array = np.array(real_list)
+    pred_array = np.array(prediction_list)
+    min_len = min(len(real_array), len(pred_array))
+    if min_len == 0:
+        print("Error: 无有效预测结果用于绘图")
+        return
+    real_array = real_array[:min_len]
+    pred_array = pred_array[:min_len]
+    column_names = [rename_map.get(name, name.title()) for name in selected_features]
+    real_df = pd.DataFrame(real_array, columns=column_names)
+    pred_df = pd.DataFrame(pred_array, columns=column_names)
+    if data is not None and "Date" in data.columns:
+        date_series = pd.to_datetime(data['Date']).iloc[:min_len]
+    else:
+        print("Error: contrast_lines 无法找到日期列")
+        return -1
+    real_df['Date'] = date_series.values
+    pred_df['Date'] = date_series.values
+    real_df.sort_values('Date', inplace=True)
+    pred_df.sort_values('Date', inplace=True)
+    symbol_code = str(test_codes[0]).split('.')[0].zfill(6)
+    for col in PLOT_FEATURE_COLUMNS:
+        if col not in real_df.columns:
             continue
-    pbar.close()
-    plt.close()
+        history_series = real_df.set_index('Date')[col].astype(float).dropna()
+        prediction_series = pd.Series(dtype=float)
+        if col in pred_df.columns:
+            prediction_series = pred_df.set_index('Date')[col].astype(float).dropna()
+        plot_feature_comparison(
+            symbol_code,
+            model_mode,
+            col,
+            history_series,
+            prediction_series,
+            Path(png_path) / "test",
+            prefix="test",
+        )
+    return
 
 def main():
     """主函数:股票预测的训练、测试和预测入口"""
     global args
     global last_loss,test_model,model,total_test_length,lr_scheduler,drop_last
     global criterion, optimizer, model_mode, save_path, device, last_save_time
+    global lo_list
     
     # 解析命令行参数(仅在直接运行时执行)
     args = parser.parse_args()
@@ -833,7 +856,7 @@ def main():
     random.shuffle(test_codes)
 
     if mode == 'train':
-        lo_list=[]
+        lo_list.clear()
         data_len=0
         total_length = 0
         total_test_length = 0

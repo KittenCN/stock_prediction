@@ -10,6 +10,7 @@ import torch.nn as nn
 from cycler import cycler
 from prefetch_generator import BackgroundGenerator
 from datetime import datetime, timedelta
+from pathlib import Path
 from torchvision.models import resnet101  # 未使用，保留占位
 
 from .models.lstm_basic import LSTM
@@ -862,6 +863,112 @@ def pad_input(input_data, max_features=INPUT_DIMENSION):
         padding = torch.full((data.size(0), max_features - data.shape[-1]), -0.0).to(input_data.device)
         padded_data.append(torch.cat((data, padding), dim=-1))
     return torch.stack(padded_data)
+
+
+# 需要重点展示的价格字段及其中文说明
+PLOT_FEATURE_COLUMNS = ["Open", "High", "Low", "Close"]
+PLOT_FEATURE_LABELS = {
+    "Open": "开盘价 (Open)",
+    "High": "最高价 (High)",
+    "Low": "最低价 (Low)",
+    "Close": "收盘价 (Close)",
+}
+
+
+def plot_feature_comparison(symbol, model_name, feature, history_series, prediction_series,
+                            output_dir, prefix="predict"):
+    """
+    绘制单个价格特征的历史真实值与预测值对比图，方便统一在 train/predict 中复用。
+
+    参数:
+        symbol: 股票代码字符串
+        model_name: 当前模型名称
+        feature: 需要绘制的字段名，大小写需与 DataFrame 列名一致
+        history_series: pandas.Series，index 为日期，value 为真实值
+        prediction_series: pandas.Series，index 为日期，value 为预测值
+        output_dir: 输出目录路径（str 或 Path）
+        prefix: 文件名前缀，用于区分不同调用场景
+    """
+    if isinstance(output_dir, str):
+        output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        plt.rcParams['font.sans-serif'] = [
+            "Microsoft YaHei", "SimHei", "Arial Unicode MS", "DejaVu Sans", "sans-serif"
+        ]
+        plt.rcParams['axes.unicode_minus'] = False
+    except Exception:
+        pass
+
+    # 保证索引为升序，避免出现折线倒置
+    history_series = history_series.dropna().sort_index()
+    prediction_series = prediction_series.dropna().sort_index()
+
+    if history_series.empty and prediction_series.empty:
+        return None
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    if not history_series.empty:
+        ax.plot(
+            history_series.index,
+            history_series.values,
+            marker="o",
+            markersize=3,
+            linewidth=1.0,
+            alpha=0.9,
+            label="真实值",
+        )
+
+    if not prediction_series.empty:
+        # 若预测从历史最后一天之后开始，首点与最后一个真实点衔接，提升可读性
+        plot_index = prediction_series.index
+        plot_values = prediction_series.values
+        if not history_series.empty and prediction_series.index[0] > history_series.index[-1]:
+            plot_index = prediction_series.index.insert(0, history_series.index[-1])
+            plot_values = np.insert(prediction_series.values, 0, history_series.iloc[-1])
+        ax.plot(
+            plot_index,
+            plot_values,
+            marker="o",
+            markersize=3,
+            linestyle="--",
+            linewidth=1.0,
+            alpha=0.9,
+            label="预测值",
+        )
+
+    display_name = PLOT_FEATURE_LABELS.get(feature, feature)
+    ax.set_title(f"{symbol} {display_name} 真实 vs 预测")
+    ax.set_xlabel("日期")
+    ax.set_ylabel(display_name)
+    ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.4)
+    ax.legend()
+    fig.autofmt_xdate()
+
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    safe_symbol = str(symbol).replace(".", "")
+    file_name = f"{safe_symbol}_{model_name}_{prefix}_{feature.lower()}_{timestamp}.png"
+    save_path = output_dir / file_name
+    fig.savefig(save_path, dpi=600)
+    plt.close(fig)
+    return save_path
+
+
+def normalize_date_column(df, inplace=False):
+    """
+    标准化日期列名称为 Date，并转换为 pandas 时间类型。
+    支持原始列名为 Date 或 trade_date 的情况。
+    """
+    if df is None:
+        return None
+    target = df if inplace else df.copy()
+    if "Date" in target.columns:
+        target["Date"] = pd.to_datetime(target["Date"])
+    elif "trade_date" in target.columns:
+        target["Date"] = pd.to_datetime(target["trade_date"])
+    return target
 
 
 def generate_dates(start_date, num_days):

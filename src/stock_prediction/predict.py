@@ -234,22 +234,28 @@ def predict(test_codes):
         print(f"[LOG] 数据为空或 ts_code 无效, data.empty={data.empty}, ts_code={data['ts_code'].iloc[0]}")
         raise RuntimeError("数据为空或 ts_code 无效")
 
-    predict_data = copy.deepcopy(data)
-    spliced_data = copy.deepcopy(data)
+    data = normalize_date_column(data)
+    predict_data = normalize_date_column(copy.deepcopy(data))
+    spliced_data = normalize_date_column(copy.deepcopy(data))
     print(f"[LOG] predict_data.columns: {list(predict_data.columns)}")
     print(f"[LOG] predict_data.shape: {predict_data.shape}")
     if int(args.predict_days) <= 0:
         predict_days = abs(int(args.predict_days)) or 1
         print(f"[LOG] predict_days={predict_days}")
         pbar = tqdm(total=predict_days, leave=False, ncols=TQDM_NCOLS)
+        predicted_rows: list[dict] = []
+        history_window = max(SEQ_LEN * 8, 40)
         while predict_days > 0:
             predict_days -= 1
-            lastdate = predict_data['Date'].iloc[0].strftime('%Y%m%d')
-            print(f"[LOG] lastdate={lastdate}")
-            predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
-            predict_data = predict_data.fillna(predict_data.median(numeric_only=True))
-            _, predict_list, _ = test(predict_data, dataloader_mode=2)
+            lastdate = pd.to_datetime(predict_data['Date'].iloc[0])
+            print(f"[LOG] lastdate={lastdate.strftime('%Y%m%d')}")
+
+            normalized_predict = normalize_date_column(predict_data)
+            features_df = normalized_predict.drop(columns=['ts_code', 'Date']).copy()
+            features_df = features_df.fillna(features_df.median(numeric_only=True))
+            _, predict_list, _ = test(features_df, dataloader_mode=2)
             print(f"[LOG] predict_list len: {len(predict_list)}")
+
             rows = []
             for items in predict_list:
                 items = items.to('cpu')
@@ -257,53 +263,98 @@ def predict(test_codes):
                     row = []
                     for index, item in enumerate(idxs):
                         if use_list[index] == 1:
-                            row.append((item * std_list[index] + mean_list[index]).detach().numpy())
-                    rows.append(row)
-            print(f"[LOG] rows[0] len: {len(rows[0]) if rows else 0}")
-            date_obj = datetime.strptime(lastdate, '%Y%m%d') + timedelta(days=1)
+                            row.append(float((item * std_list[index] + mean_list[index]).detach().numpy()))
+                    if row:
+                        rows.append(row)
+
+            if not rows:
+                print("[LOG] 无有效预测结果，提前结束。")
+            date_obj = lastdate + timedelta(days=1)
             new_row = [test_codes[0], date_obj]
             if rows:
                 new_row.extend(rows[0])
-            print(f"[LOG] new_row len: {len(new_row)}, columns: {len(spliced_data.columns)}")
-            # 补齐 new_row 长度到 columns 数量
             while len(new_row) < len(spliced_data.columns):
                 new_row.append(0.0)
-            # 截断多余
             new_row = new_row[:len(spliced_data.columns)]
             new_df = pd.DataFrame([new_row], columns=spliced_data.columns)
-            print(f"[LOG] Saving predict image, DataFrame shape: {new_df.shape}")
-            # 保存图片前加日志
-            try:
-                # 只画 open/high/low/close 四个字段，分别生成四张图片
-                save_dir = root_dir / "png" / "predict"
-                save_dir.mkdir(parents=True, exist_ok=True)
-                plot_cols = ["Open", "High", "Low", "Close"]
-                for col in plot_cols:
-                    if col in new_df.columns:
-                        fig, ax = plt.subplots(figsize=(10, 5))
-                        ax.plot(new_df["Date"], new_df[col], marker='o', label=col)
-                        ax.set_title(f"预测结果: {test_codes[0]} {col} {date_obj.strftime('%Y-%m-%d')}")
-                        ax.set_xlabel("日期")
-                        ax.set_ylabel(f"{col} 预测值")
-                        ax.legend()
-                        img_name = f"{test_codes[0]}_{col}_{date_obj.strftime('%Y%m%d')}_Pre.png"
-                        img_path = save_dir / img_name
-                        plt.tight_layout()
-                        plt.savefig(img_path, dpi=600)
-                        plt.close(fig)
-                        print(f"[LOG] 图片已保存: {img_path}")
-            except Exception as e:
-                print(f"[LOG] Error saving image: {e}")
+            predicted_rows.append(new_df.iloc[0].to_dict())
+
             predict_data = pd.concat([new_df, spliced_data], ignore_index=True)
-            spliced_data = copy.deepcopy(predict_data)
+            spliced_data = normalize_date_column(copy.deepcopy(predict_data))
             predict_data['Date'] = pd.to_datetime(predict_data['Date'])
             pbar.update(1)
         pbar.close()
+
+        # 统一生成 open/high/low/close 对比图
+        full_df = spliced_data.copy()
+        full_df['Date'] = pd.to_datetime(full_df['Date'])
+        predicted_df = pd.DataFrame(predicted_rows)
+        if not predicted_df.empty:
+            predicted_df['Date'] = pd.to_datetime(predicted_df['Date'])
+
+        history_df = full_df.iloc[len(predicted_rows):len(predicted_rows) + history_window].copy()
+        history_df['Date'] = pd.to_datetime(history_df['Date'])
+
+        symbol_code = str(test_codes[0]).split('.')[0].zfill(6)
+        for col in PLOT_FEATURE_COLUMNS:
+            if col not in history_df.columns:
+                continue
+            history_series = history_df.set_index('Date')[col].astype(float).dropna()
+            prediction_series = pd.Series(dtype=float)
+            if not predicted_df.empty and col in predicted_df.columns:
+                prediction_series = predicted_df.set_index('Date')[col].astype(float).dropna()
+            plot_feature_comparison(
+                symbol_code,
+                model_mode,
+                col,
+                history_series,
+                prediction_series,
+                Path(png_path) / "predict",
+                prefix="predict",
+            )
     else:
-        predict_data.drop(['ts_code', 'Date'], axis=1, inplace=True)
-        predict_data = predict_data.fillna(predict_data.median(numeric_only=True))
-        test_loss, predict_list, _ = test(predict_data, dataloader_mode=2)
+        normalized_predict = normalize_date_column(predict_data)
+        feature_frame = normalized_predict.drop(columns=['ts_code', 'Date']).copy()
+        feature_frame = feature_frame.fillna(feature_frame.median(numeric_only=True))
+        test_loss, predict_list, _ = test(feature_frame, dataloader_mode=2)
         print("test loss:", test_loss)
+
+        predictions = []
+        for items in predict_list:
+            items = items.to("cpu")
+            for idxs in items:
+                row = []
+                for index, item in enumerate(idxs):
+                    if show_list[index] == 1:
+                        row.append(float(item * std_list[index] + mean_list[index]))
+                if row:
+                    predictions.append(row)
+
+        selected_features = [name_list[idx] for idx, flag in enumerate(show_list) if flag == 1]
+        rename_map = {"open": "Open", "high": "High", "low": "Low", "close": "Close"}
+        pred_columns = [rename_map.get(name, name.title()) for name in selected_features]
+        pred_df = pd.DataFrame(predictions, columns=pred_columns)
+        actual_df = normalize_date_column(predict_data).head(len(pred_df))
+        actual_df['Date'] = pd.to_datetime(actual_df['Date'])
+        pred_df['Date'] = actual_df['Date'].iloc[:len(pred_df)].values
+
+        symbol_code = str(test_codes[0]).split('.')[0].zfill(6)
+        for col in PLOT_FEATURE_COLUMNS:
+            if col not in actual_df.columns:
+                actual_df[col] = np.nan
+            history_series = actual_df.set_index('Date')[col].astype(float).dropna()
+            prediction_series = pd.Series(dtype=float)
+            if col in pred_df.columns:
+                prediction_series = pred_df.set_index('Date')[col].astype(float).dropna()
+            plot_feature_comparison(
+                symbol_code,
+                model_mode,
+                col,
+                history_series,
+                prediction_series,
+                Path(png_path) / "predict",
+                prefix="predict",
+            )
         return predict_list
 
 
