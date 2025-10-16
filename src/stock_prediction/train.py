@@ -135,30 +135,37 @@ def test(dataset, testmodel=None, dataloader_mode=0):
     global test_model
     predict_list = []
     accuracy_list = []
+    use_gpu = device.type == "cuda" and getattr(args, "test_gpu", 1) == 1 and torch.cuda.is_available()
+    pin_memory = use_gpu
     if dataloader_mode in [0, 2]:
         stock_predict = Stock_Data(mode=dataloader_mode, dataFrame=dataset, label_num=OUTPUT_DIMENSION,predict_days=int(args.predict_days),trend=int(args.trend))
-        dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False, drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=True)
+        dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False, drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=pin_memory)
     elif dataloader_mode in [1]:
         _stock_test_data_queue = deep_copy_queue(dataset)
         stock_test = stock_queue_dataset(mode=1, data_queue=_stock_test_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_test_length,predict_days=int(args.predict_days),trend=int(args.trend))
-        dataloader=DataLoader(dataset=stock_test,batch_size=BATCH_SIZE,shuffle=False,drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
+        dataloader=DataLoader(dataset=stock_test,batch_size=BATCH_SIZE,shuffle=False,drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=pin_memory, collate_fn=custom_collate)
     elif dataloader_mode in [3]:
         stock_predict = Stock_Data(mode=1, dataFrame=dataset, label_num=OUTPUT_DIMENSION,predict_days=int(args.predict_days),trend=int(args.trend))
-        dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False, drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=True)
+        dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False, drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=pin_memory)
 
     if testmodel is None:
-        if int(args.predict_days) > 0:
-            if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Optimizer.pkl"):
-                test_model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Model.pkl"))
-            else:
-                tqdm.write("No model found")
-                return -1, -1, -1
-        else:
-            if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"):
-                test_model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl"))
-            else:
-                tqdm.write("No model found")
-                return -1, -1, -1
+        predict_days = int(args.predict_days)
+        ckpt_prefix = f"{save_path}_out{OUTPUT_DIMENSION}_time{SEQ_LEN}"
+        if predict_days > 0:
+            ckpt_prefix += f"_pre{predict_days}"
+        candidates = [
+            f"{ckpt_prefix}_Model.pkl",
+            f"{ckpt_prefix}_Model_best.pkl",
+        ]
+        loaded = False
+        for candidate in candidates:
+            if os.path.exists(candidate):
+                test_model.load_state_dict(torch.load(candidate))
+                loaded = True
+                break
+        if not loaded:
+            tqdm.write("No model found")
+            return -1, -1, -1
     else:
         test_model = testmodel
     test_model.eval()
@@ -394,7 +401,6 @@ def predict(test_codes):
         # 指标采集
         import json
         from stock_prediction.metrics import metrics_report
-        from datetime import datetime
         print("[DEBUG] Starting metrics collection for predict_days <= 0")
         metrics_out = {}
         for col in PLOT_FEATURE_COLUMNS:
@@ -462,7 +468,6 @@ def predict(test_codes):
         # 指标采集
         import json
         from stock_prediction.metrics import metrics_report
-        from datetime import datetime
         metrics_out = {}
         for col in PLOT_FEATURE_COLUMNS:
             if col not in actual_df.columns:
@@ -505,6 +510,14 @@ def loss_curve(loss_list):
         print(f"[LOG] Training loss figure saved: {img_path}")
     except Exception as e:
         print("Error: loss_curve", e)
+
+
+def ensure_checkpoint_ready() -> None:
+    """同步保存最新权重与最优权重，保证后续可加载。"""
+
+    predict_days = int(getattr(args, "predict_days", 0))
+    save_model(model, optimizer, save_path, False, predict_days)
+    save_model(model, optimizer, save_path, True, predict_days)
 
 def contrast_lines(test_codes):
     global model_mode
@@ -670,7 +683,6 @@ def contrast_lines(test_codes):
     # 指标采集
     import json
     from stock_prediction.metrics import metrics_report
-    from datetime import datetime
     metrics_out = {}
     for col in PLOT_FEATURE_COLUMNS:
         if col in real_df.columns and col in pred_df.columns:
@@ -1013,8 +1025,9 @@ def main():
             iteration=0
             loss_list=[]
             
+            train_pin_memory = torch.cuda.is_available() and device.type == "cuda" and getattr(args, "cpu", 0) == 0
             train_dataloader=DataLoader(dataset=stock_train,batch_size=BATCH_SIZE,shuffle=False,drop_last=drop_last, 
-                                        num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
+                                        num_workers=NUM_WORKERS, pin_memory=train_pin_memory, collate_fn=custom_collate)
             predict_list=[]
             accuracy_list=[]
             train_with_trainer(train_dataloader)
@@ -1029,6 +1042,7 @@ def main():
             last_epoch = epoch
         pbar.close()
         print("Training finished!")
+        ensure_checkpoint_ready()
         # 绘制 Trainer 记录的 loss 曲线
         if hasattr(train_with_trainer, "last_history") and train_with_trainer.last_history is not None:
             train_loss_list = train_with_trainer.last_history.get("batch_loss", [])
@@ -1045,7 +1059,6 @@ def main():
         try:
             import json
             from stock_prediction.metrics import metrics_report
-            from datetime import datetime
             # 只采集 test_code 的 close 列，实际可扩展
             pred_result = contrast_lines(test_code)
             # contrast_lines 内部已绘图，需返回预测与真实值

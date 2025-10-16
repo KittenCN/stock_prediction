@@ -5,8 +5,10 @@
 ## 功能概览
 - **行情采集**：封装 `tushare`/`akshare`/`yfinance` 三类数据源。
 - **数据预处理**：将日线 CSV 聚合为 `pkl_handle/train.pkl` 队列，支持重复加载。
-- **模型训练**：`src/stock_prediction/train.py` 提供统一入口，可选择 LSTM、Transformer、TemporalHybridNet、PTFT_VSSM 等模型。
+- **特征工程**：`feature_engineering.py` 自动生成对数收益率/差分特征，并按配置合并宏观、行业、舆情外生变量，适配多股票联合训练与滑动窗口统计。
+- **模型训练**：`src/stock_prediction/train.py` 提供统一入口，可选择 LSTM、Transformer、TemporalHybridNet、PTFT_VSSM 等模型，支持 Trainer 封装、LR Scheduler、Early Stopping。
 - **推理预测**：`src/stock_prediction/predict.py` 负责加载模型权重并输出预测结果。
+- **评估指标**：`metrics.py` 自动采集 RMSE、MAPE、分位覆盖率、VaR、CVaR 等金融指标，训练/测试后保存至 `output/metrics_*.json`。
 - **技术指标库**：`target.py` 内置常见指标（MACD、KDJ、DMI、ATR 等）。
 
 ## 快速开始
@@ -58,6 +60,14 @@ project-root/
 
 批量对比可执行 `scripts\run_all_models.bat`（默认运行训练+测试模式）。
 
+## 特征工程配置
+- 所有特征加工策略由 `config/config.yaml` 的 `features` 节定义：
+  - `target_mode=log_return`、`return_kind=log`：默认对收盘价生成对数收益率标签。
+  - `difference_columns`、`volatility_columns`：控制差分与滑动窗口统计字段。
+  - `external_sources`：白名单式引入宏观/行业/舆情 CSV，按 `trade_date` 对齐并支持前向填充。
+  - `multi_stock: true`：默认在多股票场景聚合训练样本，自动生成方向标签。
+- 若自定义外生特征，保持日期列为八位字符串（如 `20241203`），并放置在 `config/external/` 下即可。
+
 ## 常用命令
 ```bash
 # 抓取行情
@@ -67,17 +77,20 @@ python scripts/getdata.py --api akshare --code 000001.SZ
 python scripts/data_preprocess.py --pklname train.pkl
 
 # 训练示例
-python scripts/train.py --mode train --model transformer --epoch 2 --pkl 1
+python scripts/train.py --mode train --model transformer --epoch 2
 
 # 推理示例
 python scripts/predict.py --model transformer --test_code 000001 --predict_days 3
 
 # 运行测试
 pytest -q
+
+# 查看训练指标（训练后自动生成）
+cat output/metrics_*.json
 ```
 
 ## 测试与质量
-- `pytest`：26 项测试全部通过，覆盖 TemporalHybridNet、PTFT、VSSM 及数据管线。
+- `pytest`：新增特征工程与 Regime 融合单元测试，目前共 28 项全部通过。
 - 建议在提交前运行 `pytest -q`，并按需执行 `ruff` / `black` / `mypy`。
 - 暴露 `create_predictor()`，便于脚本或测试快速构造预测器。
 

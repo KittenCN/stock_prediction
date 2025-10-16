@@ -66,3 +66,26 @@ def test_ptft_vssm_ensemble_and_loss():
     assert loss.shape == ()
     details = model.get_last_details()
     assert "ptft" in details and "vssm" in details
+    assert "fusion_weights" in details
+
+    fusion_weights = details["fusion_weights"]
+    assert fusion_weights.shape == (2, 2, 4, 2)
+    weight_sum = fusion_weights.sum(dim=-1)
+    assert torch.allclose(weight_sum, torch.ones_like(weight_sum), atol=1e-5)
+
+    loss.backward()
+    grad_exists = any(param.grad is not None for param in model.parameters())
+    assert grad_exists, "梯度应能回传至模型参数"
+
+
+def test_ptft_vssm_mc_dropout_toggle():
+    model = PTFTVSSMEnsemble(input_dim=30, output_dim=4, predict_steps=1, mc_dropout=False)
+    x = torch.randn(1, 5, 30)
+    model.eval()
+    out1 = model(x)
+    assert model.fusion_dropout.mc_dropout is False
+    model.set_mc_dropout(True)
+    assert model.fusion_dropout.mc_dropout is True
+    out2 = model(x)
+    # 启用 MC Dropout 后，两次推理结果应存在差异
+    assert not torch.allclose(out1, out2)

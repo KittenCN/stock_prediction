@@ -25,7 +25,10 @@ except ImportError:  # pragma: no cover
 def preprocess_data(pkl_name: str = "train.pkl") -> int:
     """Convert the prepared daily CSV files into a serialized queue for training."""
 
-    csv_files = glob.glob(str(daily_path / "*.csv"))
+    daily_dir = Path(daily_path)
+    pkl_dir = Path(pkl_path)
+
+    csv_files = [str(path) for path in daily_dir.glob("*.csv")]
     ts_codes: list[str] = []
     dump_queue: queue.Queue[pd.DataFrame] = queue.Queue()
 
@@ -51,7 +54,7 @@ def preprocess_data(pkl_name: str = "train.pkl") -> int:
             pbar.update(1)
             continue
 
-    with open(pkl_path / pkl_name, "wb") as fh:
+    with open(pkl_dir / pkl_name, "wb") as fh:
         dill.dump(dump_queue, fh)
     pbar.close()
     print("dump_queue size:", dump_queue.qsize())

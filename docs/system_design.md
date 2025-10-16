@@ -17,12 +17,15 @@ flowchart LR
     R -->|mode=predict| CorePredict
 
     subgraph Package[src/stock_prediction]
+        Feature[feature_engineering.py\n收益率/外生特征]
         CoreTrain --> Common[common.py\n数据/可视化/保存]
         CorePredict --> Common
         CoreTrain --> Models[models/\n模型集合]
         CorePredict --> Models
         CoreTrain --> Target[target.py\n指标库]
         CorePredict --> Target
+        CoreTrain --> Feature
+        Feature --> Common
         Common --> Init[init.py\n全局常量与队列]
         Common --> Config[config.py\n路径配置]
     end
@@ -37,6 +40,7 @@ flowchart LR
 | `config.py` | 路径与目录管理 | 后续结合 `.env`/`pydantic` 做参数校验 |
 | `init.py` | 超参数、设备、共享队列 | 正在拆分全局状态 |
 | `common.py` | 数据集、队列工具、绘图、模型保存 | 计划拆分为数据/模型/可视化子模块 |
+| `feature_engineering.py` | 收益率/差分建模、外生特征合并、滑动窗口统计 | 由 `AppConfig.features` 驱动，支持多股票联合与缺失值回填 |
 | `models/` | 模型集合（LSTM、Transformer、TemporalHybridNet、ProbTFT、VSSM、PTFT_VSSM 等） | 新模型在此注册 |
 | `train.py` | 训练/测试 CLI 主流程 | `scripts/train.py` 提供命令行封装 |
 | `predict.py` | 推理入口 | 暴露 `create_predictor()` 供外部复用 |
@@ -50,6 +54,7 @@ flowchart LR
 - 新增 ProbTemporalFusionTransformer、Variational SSM、PTFTVSSMEnsemble，并扩展 CLI。  
 - 训练/推理流程拆分，推理支持多模型热插拔。  
 - `thread_save_model` 仅保存 state_dict，解决 weight_norm 深拷贝阻塞。  
+- 引入 `feature_engineering.py` 与 `FeatureSettings`，统一收益率建模、外生特征、滑动窗口配置。  
 
 ## 2. 关键问题与改进方向
 | 优先级 | 问题 | 建议方案 |
@@ -75,13 +80,13 @@ flowchart LR
 在 `models/ptft_vssm.py` 实现，融合分位预测与状态概率；`PTFTVSSMLoss` 叠加 KL 正则，推理通过 `--model ptft_vssm`。  
 
 ## 4. PTFT+VSSM 改进路线（依据 `docs/ptft_vssm_analysis_20251015.md`）
-| 阶段 | 开发重点 | 关键事项 | 产出 |
-| ---- | -------- | -------- | ---- |
-| Phase A | 收益率建模 | 在数据预处理阶段生成对数收益率/差分序列；训练脚本增加目标选择 | 收益率数据管线、基准回测脚本 |
-| Phase B | Regime 自适应融合 | 设计 VSSM regime 驱动的动态加权，支持启发式与可学习门控；评估其对 RMSE/方向准确率影响 | 动态融合模块、验证报告 |
-| Phase C | 模型瘦身与正则 | 调整隐藏维度/层数，引入贝叶斯 Dropout、L2 正则；加入 regime 辅助分类损失 | 轻量化模型配置、过拟合评估 |
-| Phase D | 特征与数据扩充 | 引入宏观/行业/舆情特征，尝试多股票联合训练与滑动窗口集成策略 | 特征字典、联合训练实验日志 |
-| Phase E | 金融目标函数 | 在损失中加入方向性奖励、夏普/最大回撤代理，优化分位区间使用 | 金融指标对齐的训练方案、策略回测结果 |
+| 阶段 | 状态 | 开发重点 | 关键事项 | 产出 |
+| ---- | ---- | -------- | -------- | ---- |
+| Phase A | ✅ | 收益率建模 | 在数据预处理阶段生成对数收益率/差分序列；训练脚本增加目标选择 | 收益率数据管线、基准回测脚本 |
+| Phase B | ✅ | Regime 自适应融合 | 设计 VSSM regime 驱动的动态加权，支持启发式与可学习门控；评估其对 RMSE/方向准确率影响 | 动态融合模块、验证报告 |
+| Phase C | ✅ | 模型瘦身与正则 | 调整隐藏维度/层数，引入贝叶斯 Dropout、L2 正则；加入 regime 辅助分类损失 | 轻量化模型配置、过拟合评估 |
+| Phase D | ✅ | 特征与数据扩充 | 引入宏观/行业/舆情特征，尝试多股票联合训练与滑动窗口集成策略 | 特征字典、联合训练实验日志 |
+| Phase E | ✅ | 金融目标函数 | 在损失中加入方向性奖励、夏普/最大回撤代理，优化分位区间使用 | 金融指标对齐的训练方案、策略回测结果 |
 
 > 各阶段执行情况需同步至 `docs/maintenance.md`，并在完成后迭代更新本路线图。  
 

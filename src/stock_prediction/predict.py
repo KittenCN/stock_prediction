@@ -139,11 +139,13 @@ def test(dataset, testmodel=None, dataloader_mode=0):
     global test_model
     predict_list = []
     accuracy_list = []
+    use_gpu = device.type == "cuda" and getattr(args, "test_gpu", 1) == 1 and torch.cuda.is_available()
+    pin_memory = use_gpu
     if dataloader_mode in [0, 2]:
         stock_predict = Stock_Data(mode=dataloader_mode, dataFrame=dataset, label_num=OUTPUT_DIMENSION,
                                    predict_days=int(args.predict_days), trend=int(args.trend))
         dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False,
-                                drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=True)
+                                drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=pin_memory)
     elif dataloader_mode in [1]:
         _stock_test_data_queue = deep_copy_queue(dataset)
         total_test_length = _stock_test_data_queue.qsize()
@@ -151,21 +153,27 @@ def test(dataset, testmodel=None, dataloader_mode=0):
                                          buffer_size=BUFFER_SIZE, total_length=total_test_length,
                                          predict_days=int(args.predict_days), trend=int(args.trend))
         dataloader = DataLoader(dataset=stock_test, batch_size=BATCH_SIZE, shuffle=False, drop_last=drop_last,
-                                num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
+                                num_workers=NUM_WORKERS, pin_memory=pin_memory, collate_fn=custom_collate)
     else:
         raise ValueError("Unsupported dataloader mode")
 
     if testmodel is None:
-        if int(args.predict_days) > 0:
-            model_path = f"{save_path}_out{OUTPUT_DIMENSION}_time{SEQ_LEN}_pre{args.predict_days}_Model.pkl"
-            if not os.path.exists(model_path):
-                raise FileNotFoundError(model_path)
-            test_model.load_state_dict(torch.load(model_path, map_location=device))
-        else:
-            model_path = f"{save_path}_out{OUTPUT_DIMENSION}_time{SEQ_LEN}_Model.pkl"
-            if not os.path.exists(model_path):
-                raise FileNotFoundError(model_path)
-            test_model.load_state_dict(torch.load(model_path, map_location=device))
+        predict_days = int(args.predict_days)
+        ckpt_prefix = f"{save_path}_out{OUTPUT_DIMENSION}_time{SEQ_LEN}"
+        if predict_days > 0:
+            ckpt_prefix += f"_pre{predict_days}"
+        candidates = [
+            f"{ckpt_prefix}_Model.pkl",
+            f"{ckpt_prefix}_Model_best.pkl",
+        ]
+        loaded = False
+        for candidate in candidates:
+            if os.path.exists(candidate):
+                test_model.load_state_dict(torch.load(candidate, map_location=device))
+                loaded = True
+                break
+        if not loaded:
+            raise FileNotFoundError(candidates[0])
     else:
         test_model = testmodel
 

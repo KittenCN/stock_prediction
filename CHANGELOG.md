@@ -2,6 +2,27 @@
 
 本文件遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与语义化版本（SemVer）。
 
+## [未发布] - 2025-10-20
+### Added
+- `feature_engineering.py` 与 `FeatureSettings`：支持对数收益率/差分特征生成、外生特征白名单合并、多股票联合训练与滑动窗口统计。
+- `regularization.BayesianDropout` 以及 Regime 感知 Soft Gating，实现 PTFT+VSSM 自适应融合权重并支持 MC Dropout 推理。
+- 金融指标驱动训练：`PTFTVSSMLoss` 中新增方向性、Sharpe、最大回撤、分位 Pinball 与 Regime 辅助分类损失。
+- 配套测试：`tests/test_feature_engineering.py`、`tests/test_models.py` Regime 融合测试，确保收益率特征与权重学习可用。
+- 文档更新：`README.md`、`docs/maintenance.md`、`docs/system_design.md`、`docs/model_strategy.md`、`docs/user_guide.md`、`docs/agent_report.md` 全面记录改进结果。
+- `Trainer` 类封装：统一训练循环，支持 LR Scheduler、Early Stopping、批次损失记录与回调机制。
+- `metrics.py` 模块：自动采集 RMSE、MAPE、分位覆盖率、VaR、CVaR 等指标，训练/测试后保存至 `output/metrics_*.json`。
+- 配置解耦：`app_config.py` 使用 Pydantic 验证，支持 YAML + .env 配置，包含特征工程与训练选项。
+
+### Changed
+- `PTFTVSSMEnsemble` 默认隐藏维度降至 128/48，引入 Regime 感知融合门与贝叶斯 Dropout。
+- `common.Stock_Data` 与 `stock_queue_dataset` 使用特征工程模块，使收益率/外生特征在训练与预测阶段保持一致。
+- `config/config.yaml` 增加 `features` 配置节，提供滑动窗口、外生特征与金融损失权重示例。
+- `train.py` 重构为使用 `Trainer` 类，保持 CLI 兼容性，批次损失用于绘制训练曲线。
+- `predict.py` 与 `contrast_lines` 集成 metrics 采集，自动保存指标文件。
+
+### Tests
+- `pytest -q`：共 28 项（新增 2 项）全部通过。
+
 ## [未发布] - 2025-10-15
 ### 修复
 - **UnboundLocalError: last_save_time 变量作用域错误**

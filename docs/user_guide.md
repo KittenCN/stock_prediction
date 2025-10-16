@@ -2,18 +2,20 @@
 
 ## 1. 命令行速查
 | 命令 | 作用 | 备注 |
-| ---- | ---- | ---- |
+| ---- | ---- | -------- |
 | `python scripts/getdata.py --api akshare --code 000001.SZ` | 抓取指定股票日线数据写入 `stock_daily/` | 运行前请激活 `conda activate stock_prediction` 并确保安装数据源依赖 |
 | `python scripts/data_preprocess.py --pklname train.pkl` | 将 `stock_daily/` 下的 CSV 聚合为 `pkl_handle/train.pkl` | 依赖 `stock_prediction.init` 中的共享队列与 `dill` |
 | `python scripts/train.py --mode train --model ptft_vssm --predict_days 3` | 训练 PTFT + VSSM 双轨模型 | 其他模型：`lstm`、`attention_lstm`、`bilstm`、`tcn`、`multibranch`、`transformer`、`cnnlstm`、`hybrid` |
 | `python scripts/predict.py --model ptft_vssm --test_code 000001` | 推理指定股票的未来走势 | 支持设置 `--predict_days` 输出多日区间 |
 | `pytest -q` | 运行全部测试 | CLI 已解耦导入副作用，可直接执行 |
+| `cat output/metrics_*.json` | 查看训练/测试后的评估指标 | 包含 RMSE、MAPE、VaR、CVaR 等 |
 
 ## 2. 包内复用能力
 | 模块 | 能力 | 使用方式 |
 | ---- | ---- | ---- |
 | `stock_prediction.config` | `Config` 类及常用路径 | `from stock_prediction.config import config, train_pkl_path` |
 | `stock_prediction.common` | 数据集、可视化、模型保存工具 | 导入前确保 `init.py` 已初始化全局状态 |
+| `stock_prediction.feature_engineering` | 收益率/差分特征、外生变量融合、滑动窗口聚合 | `FeatureEngineer(AppConfig.from_env_and_yaml(...).features)` |
 | `stock_prediction.models` | 模型集合（TemporalHybridNet、ProbTFT、VSSM、PTFT_VSSM 等） | `from stock_prediction.models import PTFTVSSMEnsemble` |
 | `stock_prediction.getdata` | 行情采集函数 `set_adjust` / `get_stock_list` / `get_stock_data` | 可按需组合 |
 | `stock_prediction.data_preprocess` | 批量预处理接口 `preprocess_data()` | 生成新的序列化队列 |
@@ -25,7 +27,8 @@
 1. 确认 `stock_daily/`、`pkl_handle/train.pkl` 等数据已准备完毕。
 2. 执行批处理脚本：
    ```bat
-   scriptsun_all_models.bat
+   scripts
+un_all_models.bat
    ```
 3. 观察 `output/`、`png/` 目录中的日志与图表。
 
@@ -66,6 +69,7 @@
 2. **脚本导入**：CLI 已解耦，测试环境可直接导入；推荐在脚本中使用 `create_predictor()`。
 3. **API 限流**：`getdata.py` 暂未内建限速和重试，批量下载时需关注速率。
 4. **设备切换**：`--cpu 1` 会自动降级 AMP；如需完全关闭可在配置中禁用 `GradScaler`。
+5. **外生特征文件**：默认读取 `config/external/*.csv`，保持 `trade_date` 为八位字符串（如 `20241203`），缺失值会按配置自动前向填充。需在 `config/config.yaml` 的 `features.external_sources` 指定白名单路径。
 
 ---
 如需更多背景与规划，请参考 `docs/system_design.md` 与 `docs/model_strategy.md`。

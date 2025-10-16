@@ -38,10 +38,12 @@ except ImportError:
 
 
 from stock_prediction.app_config import AppConfig
+from stock_prediction.feature_engineering import FeatureEngineer
 config = AppConfig.from_env_and_yaml(str(root_dir / 'config' / 'config.yaml'))
 train_pkl_path = config.train_pkl_path
 png_path = config.png_path
 model_path = config.model_path
+feature_engineer = FeatureEngineer.from_app_config(config)
 
 
 class DataLoaderX(DataLoader):
@@ -229,13 +231,23 @@ class Stock_Data(Dataset):
 
         if dataFrame is None:
             with open(path) as f:
-                data = np.loadtxt(f, delimiter=",")
+                raw = np.loadtxt(f, delimiter=",")
+            data_df = pd.DataFrame(raw)
+        elif isinstance(dataFrame, pd.DataFrame):
+            data_df = dataFrame.copy()
         else:
-            data = dataFrame.values
-        
+            data_df = pd.DataFrame(dataFrame)
 
-        data = data[:, 0:INPUT_DIMENSION]
-        
+        try:
+            data_df = feature_engineer.transform(data_df)
+        except Exception as exc:  # pragma: no cover - logging fallback
+            tqdm.write(f"feature engineering failed: {exc}")
+            data_df = data_df.fillna(0.0)
+
+        data = data_df.values
+
+        if data.shape[1] > INPUT_DIMENSION:
+            data = data[:, :INPUT_DIMENSION]
 
         if np.isnan(data).any() or np.isinf(data).any():
             data = np.nan_to_num(data, nan=0.0, posinf=0.0, neginf=0.0)
@@ -363,14 +375,22 @@ class stock_queue_dataset(Dataset):
                 dataFrame = self.data_queue.get(timeout=30)
             except queue.Empty:
                 return None
-            dataFrame.drop(['ts_code', 'Date'], axis=1, inplace=True)
+            frame = dataFrame.copy()
+            if "trade_date" not in frame.columns and "Date" in frame.columns:
+                frame = frame.rename(columns={"Date": "trade_date"})
+            try:
+                frame = feature_engineer.transform(frame)
+            except Exception as exc:  # pragma: no cover - defensive logging
+                tqdm.write(f"queue feature engineering failed: {exc}")
+                frame = frame.fillna(frame.median(numeric_only=True)).fillna(0.0)
 
-            dataFrame = dataFrame.fillna(dataFrame.median(numeric_only=True))
-
-            dataFrame = dataFrame.fillna(0)
-
-            dataFrame = dataFrame.replace([np.inf, -np.inf], 0)
-            data = dataFrame.values[:, 0:INPUT_DIMENSION]
+            numeric_frame = frame.select_dtypes(include=[np.number])
+            if numeric_frame.empty:
+                return None
+            data = numeric_frame.values
+            if data.shape[1] > INPUT_DIMENSION:
+                data = data[:, :INPUT_DIMENSION]
+            data = np.nan_to_num(data, nan=0.0, posinf=0.0, neginf=0.0)
             return data
 
     def normalize_data(self, data):

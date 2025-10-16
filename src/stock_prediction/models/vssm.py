@@ -128,11 +128,13 @@ class VariationalStateSpaceModel(nn.Module):
             "kl_terms": torch.stack(kl_terms, dim=1).detach(),
             "kl": kl.detach(),
             "regime_probs": regime_probs.detach(),
+            "regime_logits": regime_logits.detach(),
         }
 
         return {
             "prediction": obs,
             "regime_probs": regime_probs,
+            "regime_logits": regime_logits,
             "kl": kl,
         }
 
