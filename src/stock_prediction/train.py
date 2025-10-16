@@ -46,6 +46,7 @@ parser.add_argument('--predict_days', default=0, type=int, help="number of the p
 parser.add_argument('--api', default="akshare", type=str, help="api-interface, tushare, akshare or yfinance")
 parser.add_argument('--trend', default=0, type=int, help="predict the trend of stock, not the price")
 parser.add_argument('--epoch', default=2, type=int, help="训练轮数")
+parser.add_argument('--plot_days', default=30, type=int, help="测试/预测图像展示的历史天数")
 
 # 创建一个默认 args 对象供测试和导入使用
 class DefaultArgs:
@@ -61,6 +62,7 @@ class DefaultArgs:
     api = "akshare"
     trend = 0
     epoch = 2
+    plot_days = 30
 
 args = DefaultArgs()
 
@@ -356,7 +358,7 @@ def predict(test_codes):
 
     predict_data = normalize_date_column(copy.deepcopy(data))
     spliced_data = normalize_date_column(copy.deepcopy(data))
-    history_window = max(SEQ_LEN * 8, 40)
+    history_window = max(1, int(getattr(args, "plot_days", 30)))
     predicted_rows: list[dict] = []
     if predict_data.empty:
         print("Error: Train_data or Test_data is None")
@@ -452,6 +454,7 @@ def predict(test_codes):
             predicted_df['Date'] = pd.to_datetime(predicted_df['Date'])
         history_df = full_df.iloc[len(predicted_rows):len(predicted_rows) + history_window].copy()
         history_df['Date'] = pd.to_datetime(history_df['Date'])
+        history_df = history_df.sort_values('Date').tail(history_window)
 
         for col in PLOT_FEATURE_COLUMNS:
             if col not in history_df.columns:
@@ -490,8 +493,11 @@ def predict(test_codes):
         rename_map = {"open": "Open", "high": "High", "low": "Low", "close": "Close"}
         pred_columns = [rename_map.get(name, name.title()) for name in selected_features]
         pred_df = pd.DataFrame(predictions, columns=pred_columns)
-        actual_df = normalize_date_column(predict_data).head(len(pred_df))
+        actual_df = normalize_date_column(predict_data)
         actual_df['Date'] = pd.to_datetime(actual_df['Date'])
+        actual_df = actual_df.sort_values('Date').tail(max(1, int(getattr(args, "plot_days", 30))))
+        if not pred_df.empty:
+            pred_df = pred_df.tail(len(actual_df))
         pred_df['Date'] = actual_df['Date'].iloc[:len(pred_df)].values
 
         for col in PLOT_FEATURE_COLUMNS:
@@ -635,13 +641,14 @@ def contrast_lines(test_codes):
     if min_len == 0:
         print("Error: 无有效预测结果用于绘图")
         return
-    real_array = real_array[:min_len]
-    pred_array = pred_array[:min_len]
+    plot_window = max(1, int(getattr(args, "plot_days", 30)))
+    real_array = real_array[:min_len][-plot_window:]
+    pred_array = pred_array[:min_len][-plot_window:]
     column_names = [rename_map.get(name, name.title()) for name in selected_features]
     real_df = pd.DataFrame(real_array, columns=column_names)
     pred_df = pd.DataFrame(pred_array, columns=column_names)
     if data is not None and "Date" in data.columns:
-        date_series = pd.to_datetime(data['Date']).iloc[:min_len]
+        date_series = pd.to_datetime(data['Date']).iloc[:min_len][-plot_window:]
     else:
         print("Error: contrast_lines 无法找到日期列")
         return -1
@@ -1005,15 +1012,12 @@ def main():
                 last_save_time = time.time()
             if args.pkl_queue == 0:
                 code_bar.close()
-            if len(lo_list) > 0:
-                tqdm.write("Start create image for loss")
-                loss_curve(lo_list)
             pbar.update(1)
             last_epoch = epoch
         pbar.close()
         print("Training finished!")
         if len(lo_list) > 0:
-            print("Start create image for loss")
+            print("Start create image for loss (final)")
             loss_curve(lo_list)
         print("Start create image for pred-real")
         test_index = random.randint(0, len(test_codes) - 1)
