@@ -85,7 +85,7 @@ device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
 if device.type == "cuda":
     torch.backends.cudnn.benchmark = True
 
-# 导入配置模块
+# Import configuration module
 from .config import (
     config, root_path, train_path, test_path, train_pkl_path, png_path,
     daily_path, handle_path, pkl_path, bert_data_path, data_path,

@@ -1,0 +1,7 @@
+# config.yaml 示例
+train_pkl_path: ./pkl_handle/train.pkl
+png_path: ./png
+model_path: ./models
+batch_size: 32
+epoch: 2
+api: akshare

@@ -17,9 +17,10 @@ class Attention(nn.Module):
 
 
 class CNNLSTM(nn.Module):
+    
+    """CNN + LSTM + attention hybrid rewritten from the historical implementation.
     """
-    卷积 + LSTM + 注意力结构，沿用原 common.py 中实现。
-    """
+
 
     def __init__(self, input_dim: int, num_classes: int = 2, predict_days: int = 1, dropout_rate: float = 0.5) -> None:
         super().__init__()

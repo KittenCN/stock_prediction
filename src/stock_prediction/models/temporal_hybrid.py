@@ -55,7 +55,7 @@ class TemporalHybridNet(nn.Module):
         predict_steps: int = 1,
     ):
         super().__init__()
-        assert len(conv_kernel_sizes) == len(conv_dilations), "卷积核尺寸与膨胀系数长度需一致"
+        assert len(conv_kernel_sizes) == len(conv_dilations), "kernel sizes and dilations must have matching length"
 
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -89,7 +89,7 @@ class TemporalHybridNet(nn.Module):
         self.attn_dropout = nn.Dropout(dropout)
         self.attn_norm = nn.LayerNorm(hidden_dim * 2)
 
-        # 统计特征映射：窗口均值、标准差、末尾值
+        # Temporal feature transformation: rolling mean, standard deviation, tail values
         self.stat_proj = nn.Sequential(
             nn.Linear(input_dim * 3, hidden_dim * 2),
             nn.GELU(),
@@ -108,9 +108,9 @@ class TemporalHybridNet(nn.Module):
 
     def forward(self, x: torch.Tensor, predict_days: int | None = None) -> torch.Tensor:
         """
-        :param x: 输入张量，形状 (batch, seq_len, input_dim)
-        :param predict_days: 若指定，将覆盖初始化时的默认预测步数
-        :return: 单步输出 (batch, output_dim) 或多步输出 (batch, steps, output_dim)
+        :param x: Input tensor shaped (batch, seq_len, input_dim)
+        :param predict_days: Optional override for forecast horizon
+        :return: Tuple of point forecasts (batch, output_dim) and multi-step forecasts (batch, steps, output_dim)
         """
         steps = self._normalize_predict_steps(predict_days)
 

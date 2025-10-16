@@ -8,12 +8,14 @@ from .vssm import VariationalStateSpaceModel
 
 
 class PTFTVSSMEnsemble(nn.Module):
+    
+    """PTFT + V-SSM dual-track ensemble model.
+
+    - PTFT provides point and quantile forecasts with attention insights.
+    - V-SSM models latent regimes and state-space dynamics.
+    - Fusion layer aggregates both outputs to generate final predictions.
     """
-    主推方案：PTFT + V-SSM 双轨融合模型。
-    - PTFT 提供分位预测与特征注意力信息
-    - V-SSM 输出状态空间预测与市场状态概率
-    - 通过融合层综合两者结果，产出最终价格预测
-    """
+
 
     _global_last_details: Dict[str, torch.Tensor] | None = None
 
@@ -81,9 +83,10 @@ class PTFTVSSMEnsemble(nn.Module):
 
 
 class PTFTVSSMLoss(nn.Module):
+    
+    """Combined MSE + KL divergence loss for training the ensemble.
     """
-    MSE + KL 复合损失，用于训练双轨组合模型。
-    """
+
 
     def __init__(self, model: PTFTVSSMEnsemble, mse_weight: float = 1.0, kl_weight: float = 1e-3) -> None:
         super().__init__()

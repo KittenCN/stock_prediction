@@ -5,9 +5,10 @@ from stock_prediction.init import OUTPUT_DIMENSION
 
 
 class LSTM(nn.Module):
+    
+    """Baseline multi-layer LSTM extracted from the legacy implementation.
     """
-    基础 LSTM 模型，沿用原 common.py 中的结构。
-    """
+
 
     def __init__(self, input_dim: int, output_dim: int = OUTPUT_DIMENSION) -> None:
         super().__init__()

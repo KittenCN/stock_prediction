@@ -2,11 +2,11 @@
 import math
 import pandas as pd
 
-# 处理相对导入问题
+
 try:
     from .init import *
 except ImportError:
-    # 如果直接运行此文件，使用绝对导入
+
     import sys
     from pathlib import Path
     current_dir = Path(__file__).resolve().parent
@@ -16,78 +16,78 @@ except ImportError:
         sys.path.insert(0, str(src_dir))
     from stock_prediction.init import *
 
-np.seterr(divide='ignore', invalid='ignore')  # 忽略除数为0的警告
-
-#------------------ 0级：核心工具函数 --------------------------------------------      
-def RD(N,D=3):   return np.round(N,D)        #四舍五入取3位小数 
-def RET(S,N=1):  return np.array(S)[-N]      #返回序列倒数第N个值,默认返回最后一个
-def ABS(S):      return np.abs(S)            #返回N的绝对值
-def LN(S):       return np.log(S)            #求底是e的自然对数,
-def POW(S,N):    return np.power(S,N)        #求S的N次方
-def SQRT(S):     return np.sqrt(S)           #求S的平方根
-def MAX(S1,S2):  return np.maximum(S1,S2)    #序列max
-def MIN(S1,S2):  return np.minimum(S1,S2)    #序列min
-def IF(S,A,B):   return np.where(S,A,B)      #序列布尔判断 return=A  if S==True  else  B
+np.seterr(divide='ignore', invalid='ignore')
 
 
-def REF(S, N=1):          #对序列整体下移动N,返回序列(shift后会产生NAN)    
+def RD(N,D=3):   return np.round(N,D)
+def RET(S,N=1):  return np.array(S)[-N]
+def ABS(S):      return np.abs(S)
+def LN(S):       return np.log(S)
+def POW(S,N):    return np.power(S,N)
+def SQRT(S):     return np.sqrt(S)
+def MAX(S1,S2):  return np.maximum(S1,S2)
+def MIN(S1,S2):  return np.minimum(S1,S2)
+def IF(S,A,B):   return np.where(S,A,B)
+
+
+def REF(S, N=1):
     return pd.Series(S).shift(N).values    
 
-def DIFF(S, N=1):         #前一个值减后一个值,前面会产生nan 
-    return pd.Series(S).diff(N).values     #np.diff(S)直接删除nan，会少一行
+def DIFF(S, N=1):
+    return pd.Series(S).diff(N).values
 
-def STD(S,N):             #求序列的N日标准差，返回序列    
+def STD(S,N):
     return  pd.Series(S).rolling(N).std(ddof=0).values     
 
-def SUM(S, N):            #对序列求N天累计和，返回序列    N=0对序列所有依次求和         
+def SUM(S, N):
     return pd.Series(S).rolling(N).sum().values if N>0 else pd.Series(S).cumsum().values  
 
-def CONST(S):             #返回序列S最后的值组成常量序列
+def CONST(S):
     return np.full(len(S),S[-1])
   
-def HHV(S,N):             #HHV(C, 5) 最近5天收盘最高价        
+def HHV(S,N):
     return pd.Series(S).rolling(N).max().values     
 
-def LLV(S,N):             #LLV(C, 5) 最近5天收盘最低价     
+def LLV(S,N):             # LLV(C, 5) corresponds to the lowest close in the most recent 5 days     
     return pd.Series(S).rolling(N).min().values    
     
-def HHVBARS(S,N):         #求N周期内S最高值到当前周期数, 返回序列
+def HHVBARS(S,N):
     return pd.Series(S).rolling(N).apply(lambda x: np.argmax(x[::-1]),raw=True).values 
 
-def LLVBARS(S,N):         #求N周期内S最低值到当前周期数, 返回序列
+def LLVBARS(S,N):
     return pd.Series(S).rolling(N).apply(lambda x: np.argmin(x[::-1]),raw=True).values    
   
-def MA(S,N):              #求序列的N日简单移动平均值，返回序列                    
+def MA(S,N):
     return pd.Series(S).rolling(N).mean().values  
   
-def EMA(S,N):             #指数移动平均,为了精度 S>4*N  EMA至少需要120周期     alpha=2/(span+1)    
+def EMA(S,N):
     return pd.Series(S).ewm(span=N, adjust=False).mean().values     
 
-def SMA(S, N, M=1):       #中国式的SMA,至少需要120周期才精确 (雪球180周期)    alpha=1/(1+com)    
+def SMA(S, N, M=1):
     return pd.Series(S).ewm(alpha=M/N,adjust=False).mean().values           #com=N-M/M
 
-def WMA(S, N):            #通达信S序列的N日加权移动平均 Yn = (1*X1+2*X2+3*X3+...+n*Xn)/(1+2+3+...+Xn)
+def WMA(S, N):
     return pd.Series(S).rolling(N).apply(lambda x:x[::-1].cumsum().sum()*2/N/(N+1),raw=True).values 
 
-def DMA(S, A):            #求S的动态移动平均，A作平滑因子,必须 0<A<1  (此为核心函数，非指标）
+def DMA(S, A):
     if isinstance(A,(int,float)):  return pd.Series(S).ewm(alpha=A,adjust=False).mean().values    
     A=np.array(A);   A[np.isnan(A)]=1.0;   Y= np.zeros(len(S));   Y[0]=S[0]     
-    for i in range(1,len(S)): Y[i]=A[i]*S[i]+(1-A[i])*Y[i-1]      #A支持序列 by jqz1226         
+    for i in range(1,len(S)): Y[i]=A[i]*S[i]+(1-A[i])*Y[i-1]
     return Y             
   
-def AVEDEV(S, N):         #平均绝对偏差  (序列与其平均值的绝对差的平均值)   
+def AVEDEV(S, N):
     return pd.Series(S).rolling(N).apply(lambda x: (np.abs(x - x.mean())).mean()).values 
 
-def SLOPE(S, N):          #返S序列N周期回线性回归斜率            
+def SLOPE(S, N):
     return pd.Series(S).rolling(N).apply(lambda x: np.polyfit(range(N),x,deg=1)[0],raw=True).values
 
-def FORCAST(S, N):        #返回S序列N周期回线性回归后的预测值， jqz1226改进成序列出    
+def FORCAST(S, N):
     return pd.Series(S).rolling(N).apply(lambda x:np.polyval(np.polyfit(range(N),x,deg=1),N-1),raw=True).values  
 
-def LAST(S, A, B):        #从前A日到前B日一直满足S_BOOL条件, 要求A>B & A>0 & B>=0 
+def LAST(S, A, B):
     return np.array(pd.Series(S).rolling(A+1).apply(lambda x:np.all(x[::-1][B:]),raw=True),dtype=bool)
   
-#------------------   1级：应用层函数 --------------------------------
+
 def COUNT(S, N):
     return SUM(S,N)    
 
@@ -136,7 +136,7 @@ def LOWRANGE(S):
     for i in range(1,len(S)):  rt[i] = np.argmin(np.flipud(S[:i]>S[i]))
     return rt.astype('int')
   
-#------------------   2级：技术指标函数 ------------------------------
+
 def MACD(CLOSE,SHORT=12,LONG=26,M=9):
     DIF = EMA(CLOSE,SHORT)-EMA(CLOSE,LONG);  
     DEA = EMA(DIF,M);      MACD=(DIF-DEA)*2
@@ -271,7 +271,7 @@ def XSII(CLOSE, HIGH, LOW, N=102, M=7):
     DD =  DMA(CLOSE,CC);    TD3=(1+M/100)*DD;      TD4=(1-M/100)*DD
     return TD1, TD2, TD3, TD4  
     
-def LLV(S, N):   #LLV,支持N为序列版本
+def LLV(S, N):
     if isinstance(N, (int, float)):
         return pd.Series(S).rolling(N).min().values
     else:
@@ -298,7 +298,7 @@ def DSMA(X, N):
     return DMA(X, alpha1)    
 
 def SUMBARSFAST(X, A): 
-    if any(X<=0):   raise ValueError('数组X的每个元素都必须大于0！')
+    if any(X<=0):   raise ValueError('all elements in X must be greater than zero')
     X = np.flipud(X)
     length = len(X)
     if isinstance(A * 1.0, float):  A = np.repeat(A, length)

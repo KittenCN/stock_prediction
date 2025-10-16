@@ -7,9 +7,9 @@ import random
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 from pathlib import Path
+
 import sys
 import queue
-
 import dill
 import numpy as np
 import pandas as pd
@@ -36,17 +36,17 @@ from stock_prediction.models import (
     PTFTVSSMEnsemble,
     PTFTVSSMLoss,
 )
-
 try:
     from .common import *
-    from .config import Config
 except ImportError:
     from stock_prediction.common import *
-    from stock_prediction.config import Config
 
-# 初始化配置
-config = Config()
+# Load shared configuration
+from stock_prediction.app_config import AppConfig
+config = AppConfig.from_env_and_yaml(str(root_dir / 'config' / 'config.yaml'))
 train_pkl_path = config.train_pkl_path
+png_path = config.png_path
+model_path = config.model_path
 
 parser = argparse.ArgumentParser(description="Stock price inference CLI")
 parser.add_argument('--model', default="ptft_vssm", type=str, help="model name, e.g. lstm / transformer / hybrid / ptft_vssm")
@@ -79,7 +79,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 PKL = True
 drop_last = False
 
-# 用于测试的全局变量（正常情况下会在运行时从 common.py 设置）
+# Provide global handles for tests when common.py is unavailable
 total_test_length = 0
 
 
@@ -228,12 +228,12 @@ def predict(test_codes):
                 print(f"[LOG] Found target ts_code: {test_codes[0]}, shape={data.shape}")
                 break
         if data is None:
-            print(f"[LOG] 目标股票 {test_codes[0]} 未在 pkl 队列中找到")
-            raise RuntimeError("目标股票未在 pkl 队列中找到")
+            print(f"[LOG] Target symbol {test_codes[0]} not found inside pkl queue")
+            raise RuntimeError("Target symbol missing from preprocessed queue")
 
     if data.empty or data['ts_code'].iloc[0] == "None":
-        print(f"[LOG] 数据为空或 ts_code 无效, data.empty={data.empty}, ts_code={data['ts_code'].iloc[0]}")
-        raise RuntimeError("数据为空或 ts_code 无效")
+        print(f"[LOG] Data is empty or ts_code invalid, data.empty={data.empty}, ts_code={data['ts_code'].iloc[0]}")
+        raise RuntimeError("Data is empty or ts_code is invalid")
 
     data = normalize_date_column(data)
     predict_data = normalize_date_column(copy.deepcopy(data))
@@ -269,7 +269,7 @@ def predict(test_codes):
                         rows.append(row)
 
             if not rows:
-                print("[LOG] 无有效预测结果，提前结束。")
+                print("[LOG] No valid prediction results, ending early.")
             date_obj = lastdate + timedelta(days=1)
             new_row = [test_codes[0], date_obj]
             if rows:
@@ -286,7 +286,7 @@ def predict(test_codes):
             pbar.update(1)
         pbar.close()
 
-        # 统一生成 open/high/low/close 对比图
+        # Render open/high/low/close comparison charts
         full_df = spliced_data.copy()
         full_df['Date'] = pd.to_datetime(full_df['Date'])
         predicted_df = pd.DataFrame(predicted_rows)
@@ -379,9 +379,9 @@ def main(argv=None):
             candidates = [line.strip() for line in lines if line.strip()]
             if candidates:
                 candidate_code = random.choice(candidates)
-                print(f'[LOG] 未提供 test_code，随机选择 {candidate_code}')
+                print(f'[LOG] test_code not provided; randomly selected {candidate_code}')
         if candidate_code is None:
-            raise ValueError('test_code 参数为空，且未找到有效的 test_codes.txt')
+            raise ValueError('test_code is empty and no valid entries found in test_codes.txt')
         args.test_code = candidate_code
     # �޸���ʹ�� symbol ��Ϊģ��·���������� test_code
     _init_models(symbol)

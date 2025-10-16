@@ -42,9 +42,9 @@ class MLP(nn.Module):
 
 
 class TransformerModel(nn.Module):
-    """
-    经典 Transformer 价格预测模型，从 common.py 中抽取并模块化。
-    """
+    """Classic Transformer model for price forecasting, extracted from the legacy implementation."""
+
+
 
     def __init__(
         self,

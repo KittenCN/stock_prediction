@@ -11,27 +11,37 @@ from cycler import cycler
 from prefetch_generator import BackgroundGenerator
 from datetime import datetime, timedelta
 from pathlib import Path
-from torchvision.models import resnet101  # 未使用，保留占位
+from torchvision.models import resnet101  # unused placeholder import
 
 from .models.lstm_basic import LSTM
 from .models.transformer_classic import TransformerModel
 from .models.cnn_lstm import CNNLSTM
 
-# 处理相对导入问题
+
+
+
+import sys
+from pathlib import Path
+current_dir = Path(__file__).resolve().parent
+root_dir = current_dir.parent.parent
+src_dir = root_dir / "src"
+if str(src_dir) not in sys.path:
+    sys.path.insert(0, str(src_dir))
+
+
 try:
     from .init import *
     from . import target
 except ImportError:
-    # 如果直接运行此文件，使用绝对导入
-    import sys
-    from pathlib import Path
-    current_dir = Path(__file__).resolve().parent
-    root_dir = current_dir.parent.parent
-    src_dir = root_dir / "src"
-    if str(src_dir) not in sys.path:
-        sys.path.insert(0, str(src_dir))
     from stock_prediction.init import *
     import stock_prediction.target as target
+
+
+from stock_prediction.app_config import AppConfig
+config = AppConfig.from_env_and_yaml(str(root_dir / 'config' / 'config.yaml'))
+train_pkl_path = config.train_pkl_path
+png_path = config.png_path
+model_path = config.model_path
 
 
 class DataLoaderX(DataLoader):
@@ -51,7 +61,7 @@ class CustomSchedule(object):
         arg1 = self.steps ** -0.5
         arg2 = self.steps * (self.warmup_steps ** -1.5)
         self.steps += 1.0
-        # 计算为 Python float，避免将 tensor 赋给 optimizer 学习率
+
         lr = float((self.d_model.item() ** -0.5) * min(arg1, arg2))
         for p in self.optimizer.param_groups:
             p['lr'] = lr
@@ -108,7 +118,7 @@ class BertDataSet(torch.utils.data.Dataset):
 
         with open(bert_data_path+'/data'+'/Train_DataSet.csv', encoding='UTF-8') as f:
             for i in range(self.data_num+1):
-                line = f.readline()[:-1] + '这是一个中性的数据'
+                line = f.readline()[:-1] + 'This is a neutral data sample'
                 data_one_str = line.split(',')[len(line.split(','))-2]
                 data_two_str = line.split(',')[len(line.split(','))-1]
                 if len(data_one_str) < 6:
@@ -201,7 +211,7 @@ class Stock_Data(Dataset):
             assert mode in [0, 1, 2]
             self.mode = mode
             self.predict_days = predict_days
-            self.trend = trend  # 修复：trend 必须在 generate_value_label_tensors 之前赋值
+            self.trend = trend
             self.data = self.load_data(dataFrame)
             self.normalize_data()
             self.value, self.label = self.generate_value_label_tensors(label_num)
@@ -223,10 +233,10 @@ class Stock_Data(Dataset):
         else:
             data = dataFrame.values
         
-        # 提取输入维度的数据
+
         data = data[:, 0:INPUT_DIMENSION]
         
-        # 处理 NaN 和 Inf 值
+
         if np.isnan(data).any() or np.isinf(data).any():
             data = np.nan_to_num(data, nan=0.0, posinf=0.0, neginf=0.0)
         
@@ -239,7 +249,7 @@ class Stock_Data(Dataset):
             for i in range(len(self.data[0])):
                 if self.mode in [0, 2]:
                     col_data = self.data[:, i]
-                    # 检查并处理 nan/inf
+
                     if np.isnan(col_data).any() or np.isinf(col_data).any():
                         col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
                         self.data[:, i] = col_data
@@ -247,7 +257,7 @@ class Stock_Data(Dataset):
                     mean_val = np.mean(col_data)
                     std_val = np.std(col_data)
                     
-                    # 确保 mean 和 std 是有效的数值
+
                     if np.isnan(mean_val) or np.isinf(mean_val):
                         mean_val = 0.0
                     if np.isnan(std_val) or np.isinf(std_val) or std_val < 1e-8:
@@ -262,7 +272,7 @@ class Stock_Data(Dataset):
             for i in range(len(self.data[0])):
                 if self.mode not in [0, 2]:
                     col_data = self.data[:, i]
-                    # 检查并处理 nan/inf
+
                     if np.isnan(col_data).any() or np.isinf(col_data).any():
                         col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
                         self.data[:, i] = col_data
@@ -270,7 +280,7 @@ class Stock_Data(Dataset):
                     mean_val = np.mean(col_data)
                     std_val = np.std(col_data)
                     
-                    # 确保 mean 和 std 是有效的数值
+
                     if np.isnan(mean_val) or np.isinf(mean_val):
                         mean_val = 0.0
                     if np.isnan(std_val) or np.isinf(std_val) or std_val < 1e-8:
@@ -354,11 +364,11 @@ class stock_queue_dataset(Dataset):
             except queue.Empty:
                 return None
             dataFrame.drop(['ts_code', 'Date'], axis=1, inplace=True)
-            # 更强健的 NaN 处理
+
             dataFrame = dataFrame.fillna(dataFrame.median(numeric_only=True))
-            # 如果中位数也是 NaN（所有数据都是 NaN），用 0 填充
+
             dataFrame = dataFrame.fillna(0)
-            # 替换 inf 值
+
             dataFrame = dataFrame.replace([np.inf, -np.inf], 0)
             data = dataFrame.values[:, 0:INPUT_DIMENSION]
             return data
@@ -370,7 +380,7 @@ class stock_queue_dataset(Dataset):
             for i in range(len(data[0])):
                 if self.mode in [0, 2]:
                     col_data = data[:, i]
-                    # 检查并处理 nan/inf
+
                     if np.isnan(col_data).any() or np.isinf(col_data).any():
                         col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
                         data[:, i] = col_data
@@ -378,7 +388,7 @@ class stock_queue_dataset(Dataset):
                     mean_val = np.mean(col_data)
                     std_val = np.std(col_data)
                     
-                    # 确保 mean 和 std 是有效的数值
+
                     if np.isnan(mean_val) or np.isinf(mean_val):
                         mean_val = 0.0
                     if np.isnan(std_val) or np.isinf(std_val) or std_val < 1e-8:
@@ -393,7 +403,7 @@ class stock_queue_dataset(Dataset):
             for i in range(len(data[0])):
                 if self.mode not in [0, 2]:
                     col_data = data[:, i]
-                    # 检查并处理 nan/inf
+
                     if np.isnan(col_data).any() or np.isinf(col_data).any():
                         col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
                         data[:, i] = col_data
@@ -401,7 +411,7 @@ class stock_queue_dataset(Dataset):
                     mean_val = np.mean(col_data)
                     std_val = np.std(col_data)
                     
-                    # 确保 mean 和 std 是有效的数值
+
                     if np.isnan(mean_val) or np.isinf(mean_val):
                         mean_val = 0.0
                     if np.isnan(std_val) or np.isinf(std_val) or std_val < 1e-8:
@@ -496,7 +506,7 @@ class stock_queue_dataset(Dataset):
 
 
 def is_number(num):
-    """检查字符串是否为有效数字（整数或浮点数）"""
+    """Check whether the provided string is a valid number (int or float)"""
     try:
         float(num)
         return True
@@ -827,7 +837,7 @@ def deep_copy_queue(q):
 
 
 def ensure_queue_compatibility(q_obj):
-    """为旧版序列化的 queue.Queue 补齐缺失属性，保证在新版本 Python 中可用。"""
+    """Fill missing attributes on legacy serialized queue.Queue objects so they remain usable on newer Python versions."""
     if isinstance(q_obj, queue.Queue) and not hasattr(q_obj, "is_shutdown"):
         q_obj.is_shutdown = False
     return q_obj
@@ -865,29 +875,29 @@ def pad_input(input_data, max_features=INPUT_DIMENSION):
     return torch.stack(padded_data)
 
 
-# 需要重点展示的价格字段及其中文说明
+
 PLOT_FEATURE_COLUMNS = ["Open", "High", "Low", "Close"]
 PLOT_FEATURE_LABELS = {
-    "Open": "开盘价 (Open)",
-    "High": "最高价 (High)",
-    "Low": "最低价 (Low)",
-    "Close": "收盘价 (Close)",
+    "Open": "Open Price (Open)",
+    "High": "High Price (High)",
+    "Low": "Low Price (Low)",
+    "Close": "Close Price (Close)",
 }
 
 
 def plot_feature_comparison(symbol, model_name, feature, history_series, prediction_series,
                             output_dir, prefix="predict"):
     """
-    绘制单个价格特征的历史真实值与预测值对比图，方便统一在 train/predict 中复用。
+    Plot a single price feature comparing historical actual values with predictions, shared by train/predict.
 
-    参数:
-        symbol: 股票代码字符串
-        model_name: 当前模型名称
-        feature: 需要绘制的字段名，大小写需与 DataFrame 列名一致
-        history_series: pandas.Series，index 为日期，value 为真实值
-        prediction_series: pandas.Series，index 为日期，value 为预测值
-        output_dir: 输出目录路径（str 或 Path）
-        prefix: 文件名前缀，用于区分不同调用场景
+    Args:
+        symbol: Stock symbol string.
+        model_name: Name of the current model.
+        feature: Feature name to plot (case sensitive, must match the DataFrame column).
+        history_series: pandas.Series，index is the date and the value represents the actual observation
+        prediction_series: pandas.Series，index is the date and the value represents the forecast
+        output_dir: Output directory path (str or Path).
+        prefix: Filename prefix to distinguish different call sites.
     """
     if isinstance(output_dir, str):
         output_dir = Path(output_dir)
@@ -901,7 +911,7 @@ def plot_feature_comparison(symbol, model_name, feature, history_series, predict
     except Exception:
         pass
 
-    # 保证索引为升序，避免出现折线倒置
+    # Ensure the index is sorted ascending to avoid inverted line plots.
     history_series = history_series.dropna().sort_index()
     prediction_series = prediction_series.dropna().sort_index()
 
@@ -918,11 +928,11 @@ def plot_feature_comparison(symbol, model_name, feature, history_series, predict
             markersize=3,
             linewidth=1.0,
             alpha=0.9,
-            label="真实值",
+            label="Actual",
         )
 
     if not prediction_series.empty:
-        # 若预测从历史最后一天之后开始，首点与最后一个真实点衔接，提升可读性
+        # If predictions start after the last historical point, attach the first forecast to the last actual value for continuity.
         plot_index = prediction_series.index
         plot_values = prediction_series.values
         if not history_series.empty and prediction_series.index[0] > history_series.index[-1]:
@@ -936,12 +946,12 @@ def plot_feature_comparison(symbol, model_name, feature, history_series, predict
             linestyle="--",
             linewidth=1.0,
             alpha=0.9,
-            label="预测值",
+            label="Forecast",
         )
 
     display_name = PLOT_FEATURE_LABELS.get(feature, feature)
-    ax.set_title(f"{symbol} {display_name} 真实 vs 预测")
-    ax.set_xlabel("日期")
+    ax.set_title(f"{symbol} {display_name} Actual vs Forecast")
+    ax.set_xlabel("Date")
     ax.set_ylabel(display_name)
     ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.4)
     ax.legend()
@@ -958,8 +968,8 @@ def plot_feature_comparison(symbol, model_name, feature, history_series, predict
 
 def normalize_date_column(df, inplace=False):
     """
-    标准化日期列名称为 Date，并转换为 pandas 时间类型。
-    支持原始列名为 Date 或 trade_date 的情况。
+    Normalize date columns by ensuring a Date field and converting it to pandas datetime.
+    Supports inputs where the column is named either Date or trade_date.
     """
     if df is None:
         return None

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
+
 import random
 import argparse
 import matplotlib.pyplot as plt
@@ -8,7 +9,7 @@ import numpy as np
 import sys
 from pathlib import Path
 
-# 确保能导入 stock_prediction 包
+# Ensure the stock_prediction package is importable
 current_dir = Path(__file__).resolve().parent
 root_dir = current_dir.parent.parent
 src_dir = root_dir / "src"
@@ -30,12 +31,18 @@ from stock_prediction.models import (
 try:
     from .common import *
 except ImportError:
-    # 如果直接运行此文件，使用绝对导入
     from stock_prediction.common import *
+
+# Load shared configuration
+from stock_prediction.app_config import AppConfig
+config = AppConfig.from_env_and_yaml(str(root_dir / 'config' / 'config.yaml'))
+train_pkl_path = config.train_pkl_path
+png_path = config.png_path
+model_path = config.model_path
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
-parser.add_argument('--model', default="ptft_vssm", type=str, help="lstm/transformer/hybrid 等模型名称")
+parser.add_argument('--model', default="ptft_vssm", type=str, help="available model names (e.g. lstm, transformer, hybrid, ptft_vssm)")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--cpu', default=0, type=int, help="only use cpu")
 parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of csv file")
@@ -45,10 +52,10 @@ parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu
 parser.add_argument('--predict_days', default=0, type=int, help="number of the predict days,Positive numbers use interval prediction algorithm, 0 and negative numbers use date prediction algorithm")
 parser.add_argument('--api', default="akshare", type=str, help="api-interface, tushare, akshare or yfinance")
 parser.add_argument('--trend', default=0, type=int, help="predict the trend of stock, not the price")
-parser.add_argument('--epoch', default=2, type=int, help="训练轮数")
-parser.add_argument('--plot_days', default=30, type=int, help="测试/预测图像展示的历史天数")
+parser.add_argument('--epoch', default=2, type=int, help="training epochs")
+parser.add_argument('--plot_days', default=30, type=int, help="history days to display in test/predict plots")
 
-# 创建一个默认 args 对象供测试和导入使用
+# Default args reused by tests and direct imports
 class DefaultArgs:
     mode = "train"
     model = "ptft_vssm"
@@ -66,7 +73,7 @@ class DefaultArgs:
 
 args = DefaultArgs()
 
-# 初始化模块级变量
+# Initialise module-level state
 last_save_time = 0
 iteration = 0
 batch_none = 0
@@ -102,7 +109,7 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
                 subbar.update(1)
                 continue
             data, label = data.to(device, non_blocking=True), label.to(device, non_blocking=True)
-            # 检查数据是否有nan/inf
+            # Ensure data tensors do not contain NaN or inf
             if torch.isnan(data).any() or torch.isinf(data).any():
                 tqdm.write(f"code: {ts_code}, train error: data has nan or inf, skip batch")
                 subbar.update(1)
@@ -134,7 +141,7 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
                         tqdm.write(f"code: {ts_code}, train error: outputs.shape != label.shape")
                         subbar.update(1)
                         continue
-            # 检查loss是否为nan/inf
+            # Ensure loss is finite
             if not torch.isfinite(loss):
                 tqdm.write(f"code: {ts_code}, train warning: loss is not finite (nan/inf), skip batch")
                 subbar.update(1)
@@ -142,14 +149,14 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
             optimizer.zero_grad()
             if device.type == "cuda" and is_number(str(loss.item())):
                 scaler.scale(loss).backward()
-                # 梯度裁剪
+                # Gradient clipping
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 lr_scheduler.step()
                 scaler.step(optimizer)
                 scaler.update()
             elif is_number(str(loss.item())):
                 loss.backward()
-                # 梯度裁剪
+                # Gradient clipping
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 lr_scheduler.step()
                 optimizer.step()
@@ -166,7 +173,7 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
             subbar.update(1)
             continue
         if (TEST_INTERVAL > 0 and iteration % test_iner == 0):
-            # 修复 PyTorch 2.x deepcopy 报错，改为新建同类型模型并加载 state_dict
+            # Workaround for PyTorch 2.x deepcopy issue by recreating the model before loading state_dict
             if isinstance(model, torch.nn.DataParallel):
                 model_to_copy = model.module
             else:
@@ -191,7 +198,7 @@ def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
     if (epoch % SAVE_NUM_EPOCH == 0 or epoch == args.epoch-1) and time.time() - last_save_time >= SAVE_INTERVAL and safe_save == True:
         thread_save_model(model, optimizer, save_path, False, int(args.predict_days))
         last_save_time = time.time()
-    # 修复 PyTorch 2.x deepcopy 报错，改为新建同类型模型并加载 state_dict
+    # Workaround for PyTorch 2.x deepcopy issue by recreating the model before loading state_dict
     if isinstance(model, torch.nn.DataParallel):
         model_to_copy = model.module
     else:
@@ -261,7 +268,7 @@ def test(dataset, testmodel=None, dataloader_mode=0):
                     data, label = data.to(device, non_blocking=True), label.to(device, non_blocking=True)
                 else:
                     data, label = data.to("cpu", non_blocking=True), label.to("cpu", non_blocking=True)
-                # 检查数据是否有nan/inf
+                # Ensure data tensors do not contain NaN or inf
                 if torch.isnan(data).any() or torch.isinf(data).any():
                     tqdm.write(f"test error: data has nan or inf, skip batch")
                     pbar.update(1)
@@ -286,7 +293,7 @@ def test(dataset, testmodel=None, dataloader_mode=0):
                 predict_list.append(predict)
                 if(predict.shape == label.shape):
                     accuracy = accuracy_fn(predict, label)
-                    # 检查accuracy是否为nan/inf
+                    # Ensure accuracy is finite
                     if not torch.isfinite(accuracy):
                         tqdm.write(f"test warning: accuracy is not finite (nan/inf), skip batch")
                         pbar.update(1)
@@ -528,7 +535,7 @@ def loss_curve(loss_list):
         save_dir.mkdir(parents=True, exist_ok=True)
         fig, ax = plt.subplots(figsize=(12, 6))
         steps = np.arange(1, len(loss_list) + 1)
-        ax.plot(steps, np.array(loss_list), label="训练损失", linewidth=1.2)
+        ax.plot(steps, np.array(loss_list), label="Training Loss", linewidth=1.2)
         ax.set_ylabel("MSELoss")
         ax.set_xlabel("iteration")
         ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.4)
@@ -537,7 +544,7 @@ def loss_curve(loss_list):
         img_path = save_dir / f"{cnname}_{model_mode}_{timestamp}_train_loss.png"
         fig.savefig(img_path, dpi=600)
         plt.close(fig)
-        print(f"[LOG] 训练损失图片已保存: {img_path}")
+        print(f"[LOG] Training loss figure saved: {img_path}")
     except Exception as e:
         print("Error: loss_curve", e)
 
@@ -591,47 +598,76 @@ def contrast_lines(test_codes):
         return -1
 
     accuracy_list, predict_list = [], []
+    real_list = []
+    prediction_list = []
     test_loss, predict_list, dataloader = test(Test_data, dataloader_mode=3)
     if test_loss == -1 and predict_list == -1:
         print("Error: No model excist")
-        exit(0)
-    print("test_data MSELoss:(pred-real)/real=", test_loss)
-
-    real_list = []
-    prediction_list = []
-    if int(args.predict_days) <= 0:
-        for i,(_,label) in enumerate(dataloader):
-            for idx in range(label.shape[0]):
-                _tmp = []
-                for index in range(len(show_list)):
-                    if show_list[index] == 1:
-                        _tmp.append(label[idx][index]*test_std_list[index]+test_mean_list[index])
-                real_list.append(np.array(_tmp))
-
-        for items in predict_list:
-            items=items.to("cpu", non_blocking=True)
-            for idxs in items:
-                _tmp = []
-                for index, item in enumerate(idxs):
-                    if show_list[index] == 1:
-                        _tmp.append(item*test_std_list[index]+test_mean_list[index])
-                prediction_list.append(np.array(_tmp))
+        try:
+            import os
+            import matplotlib
+            # Configure fonts to avoid missing glyph warnings across operating systems
+            import platform
+            sys_plat = platform.system()
+            # Use only English/Western fonts to avoid Chinese glyph warnings
+            matplotlib.rcParams['font.sans-serif'] = ['Arial', 'DejaVu Sans', 'Liberation Sans', 'sans-serif']
+            matplotlib.rcParams['axes.unicode_minus'] = False
+            save_dir = os.path.join(png_path, "train_loss")
+            os.makedirs(save_dir, exist_ok=True)
+            plt.figure()
+            x=np.linspace(1,len(loss_list),len(loss_list))
+            x=20*x
+            plt.plot(x,np.array(loss_list),label="train_loss")
+            plt.ylabel("MSELoss")
+            plt.xlabel("iteration")
+            now = datetime.now()
+            date_string = now.strftime("%Y%m%d%H%M%S")
+            img_path = os.path.join(save_dir, f"{cnname}_{model_mode}_{date_string}_train_loss.png")
+            plt.savefig(img_path, dpi=600)
+            plt.close()
+            print(f"[LOG] Training loss figure saved: {img_path}")
+        except Exception as e:
+            print("Error: loss_curve", e)
     else:
-        for i,(_,label) in enumerate(dataloader):
+
+        for i, (_, label) in enumerate(dataloader):
             for idx in range(label.shape[0]):
                 _tmp = []
                 for index in range(len(show_list)):
+                    value = label[idx]
+                    # Support both scalar and higher-dimensional tensors
+                    if hasattr(value, 'dim'):
+                        if value.dim() == 0:
+                            v = value.item()
+                        elif value.dim() == 1:
+                            v = value[index].item() if index < value.shape[0] else value[-1].item()
+                        else:
+                            v = value[0][index].item() if index < value.shape[-1] else value[0][-1].item()
+                    else:
+                        v = value
                     if show_list[index] == 1:
-                        _tmp.append(label[idx][0][index]*test_std_list[index]+test_mean_list[index])
+                        _tmp.append(v * test_std_list[index] + test_mean_list[index])
                 real_list.append(np.array(_tmp))
 
         for items in predict_list:
-            items=items.to("cpu", non_blocking=True)
+            items = items.to("cpu", non_blocking=True)
             for idxs in items:
                 _tmp = []
-                for index, item in enumerate(idxs[0]):
+                # Handle idxs tensors with dimension 0/1/2
+                if hasattr(idxs, 'dim'):
+                    if idxs.dim() == 0:
+                        values = [idxs.item()]
+                    elif idxs.dim() == 1:
+                        values = idxs.tolist()
+                    elif idxs.dim() == 2:
+                        values = idxs[0].tolist()
+                    else:
+                        values = idxs.flatten().tolist()
+                else:
+                    values = [idxs]
+                for index, item in enumerate(values):
                     if show_list[index] == 1:
-                        _tmp.append(item*test_std_list[index]+test_mean_list[index])
+                        _tmp.append(item * test_std_list[index] + test_mean_list[index])
                 prediction_list.append(np.array(_tmp))
     selected_features = [name_list[idx] for idx, flag in enumerate(show_list) if flag == 1]
     rename_map = {"open": "Open", "high": "High", "low": "Low", "close": "Close"}
@@ -639,7 +675,7 @@ def contrast_lines(test_codes):
     pred_array = np.array(prediction_list)
     min_len = min(len(real_array), len(pred_array))
     if min_len == 0:
-        print("Error: 无有效预测结果用于绘图")
+        print("Error: No valid prediction results for plotting.")
         return
     plot_window = max(1, int(getattr(args, "plot_days", 30)))
     real_array = real_array[:min_len][-plot_window:]
@@ -650,7 +686,7 @@ def contrast_lines(test_codes):
     if data is not None and "Date" in data.columns:
         date_series = pd.to_datetime(data['Date']).iloc[:min_len][-plot_window:]
     else:
-        print("Error: contrast_lines 无法找到日期列")
+        print("Error: contrast_lines cannot find date column.")
         return -1
     real_df['Date'] = date_series.values
     pred_df['Date'] = date_series.values
@@ -676,13 +712,13 @@ def contrast_lines(test_codes):
     return
 
 def main():
-    """主函数:股票预测的训练、测试和预测入口"""
+    """Main entry point: training, testing, and prediction."""
     global args
     global last_loss,test_model,model,total_test_length,lr_scheduler,drop_last
     global criterion, optimizer, model_mode, save_path, device, last_save_time
     global lo_list
     
-    # 解析命令行参数(仅在直接运行时执行)
+    # Parse command-line arguments only when executed as a script
     args = parser.parse_args()
     # b_size * (p_days * n_head) * (d_model // n_head) = b_size * seq_len * d_model
     # if int(args.predict_days) > 0:
@@ -1048,16 +1084,10 @@ def main():
 
 
 def create_predictor(model_type="lstm", device_type="cpu"):
-    """
-    创建预测器实例(用于测试和外部调用)
     
-    Args:
-        model_type: 模型类型 (lstm, transformer, attention_lstm 等)
-        device_type: 设备类型 (cpu 或 cuda)
-    
-    Returns:
-        一个包含模型和配置的预测器对象
-    """
+    """Create a predictor instance (used by tests and external callers)."""
+
+
     class Predictor:
         def __init__(self, model_type, device_type):
             self.model_type = model_type.upper()

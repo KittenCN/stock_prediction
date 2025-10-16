@@ -42,6 +42,6 @@ class TCN(nn.Module):
         # x: (batch, seq_len, input_dim)
         x = x.transpose(1, 2)  # (batch, input_dim, seq_len)
         y = self.network(x)  # (batch, channels, seq_len)
-        y = y[:, :, -1]  # 取最后时刻
+        y = y[:, :, -1]
         out = self.fc(y)
         return out

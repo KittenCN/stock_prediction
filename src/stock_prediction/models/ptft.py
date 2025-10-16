@@ -7,9 +7,10 @@ import torch.nn.functional as F
 
 
 class GatedResidualNetwork(nn.Module):
+    
+    """Layer-normalised residual block with contextual gating, mirroring TFT.
     """
-    归一化 + 上下文调制 + 门控残差结构，靠近原 TFT 实现。
-    """
+
 
     def __init__(
         self,
@@ -51,9 +52,10 @@ class GatedResidualNetwork(nn.Module):
 
 
 class FeatureSelection(nn.Module):
+    
+    """Learnable feature gating network used within PTFT.
     """
-    基于可学习门控的特征选择模块，为每个时间步动态调节各特征的权重。
-    """
+
 
     def __init__(self, input_dim: int, hidden_dim: int):
         super().__init__()
@@ -67,17 +69,18 @@ class FeatureSelection(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x: (batch, seq, input_dim)
-        gates = self.gate_network(x)  # 同形状
+        gates = self.gate_network(x)
         selected = x * gates
         embedded = self.projection(selected)
         return embedded, gates
 
 
 class ProbTemporalFusionTransformer(nn.Module):
+    
+    """Probabilistic Temporal Fusion Transformer implementation.
+    Provides quantile forecasts with variable selection and attention.
     """
-    概率型 Temporal Fusion Transformer 简化实现。
-    返回预测结果、分位数、注意力与特征选择权重等信息，便于解释与融合。
-    """
+
 
     def __init__(
         self,
@@ -119,18 +122,24 @@ class ProbTemporalFusionTransformer(nn.Module):
         self.last_details: Dict[str, torch.Tensor] = {}
 
     def forward(self, x: torch.Tensor, predict_steps: int | None = None) -> Dict[str, torch.Tensor]:
+        
+        """Forward pass producing point forecasts and attention diagnostics.
+
+        Args:
+            x: Input tensor shaped (batch, sequence, input_dim).
+            predict_steps: Optional override for forecast horizon.
+
+        Returns:
+            Dictionary containing point forecasts and auxiliary details.
         """
-        :param x: (batch, seq, input_dim)
-        :param predict_steps: 可覆盖初始化时的默认预测步数
-        :return: 包含 point/quantiles/attention/feature_gates 等信息
-        """
+
         steps = self.predict_steps if predict_steps is None else max(1, int(predict_steps))
         features, gates = self.feature_selector(x)
         features = self.encoder_grn(features)
         enc_out, _ = self.encoder(features)
         attn_out, attn_weights = self.attention(enc_out, enc_out, enc_out, need_weights=True)
         fused = self.post_attn_grn(attn_out + enc_out)
-        context = self.context_norm(fused[:, -1, :])  # 取序列末端的上下文
+        context = self.context_norm(fused[:, -1, :])
 
         future_base = self.future_proj(context).view(x.size(0), steps, self.hidden_dim)
         future_base = torch.tanh(future_base)
@@ -148,7 +157,7 @@ class ProbTemporalFusionTransformer(nn.Module):
                 quantile_outputs[key] = quantile_outputs[key].squeeze(1)
 
         self.last_details = {
-            "feature_gates": gates.mean(dim=1),  # 平均到时间维度用于可视化
+            "feature_gates": gates.mean(dim=1),
             "attention": attn_weights.detach(),
             "quantiles": quantile_outputs,
             "steps": steps,

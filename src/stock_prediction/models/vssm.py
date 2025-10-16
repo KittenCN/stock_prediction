@@ -10,7 +10,7 @@ def _kl_divergence_gaussian(
     mean_p: torch.Tensor,
     logvar_p: torch.Tensor,
 ) -> torch.Tensor:
-    """KL(N_q || N_p) for diagonal Gaussian variables."""
+    """KL divergence between diagonal Gaussian distributions."""
     var_q = torch.exp(logvar_q)
     var_p = torch.exp(logvar_p)
     kl = logvar_p - logvar_q + (var_q + (mean_q - mean_p) ** 2) / (var_p + 1e-8) - 1.0
@@ -18,7 +18,8 @@ def _kl_divergence_gaussian(
 
 
 class VariationalStateSpaceModel(nn.Module):
-    """具备时间依赖先验与状态解读能力的变分状态空间模型。"""
+    """Variational state-space model capturing latent temporal regimes."""
+
 
     def __init__(
         self,

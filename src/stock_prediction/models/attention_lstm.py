@@ -2,11 +2,13 @@ import torch
 import torch.nn as nn
 
 class AttentionLSTM(nn.Module):
+    
+    """LSTM plus attention architecture for time-series forecasting.
+
+    Input shape: (batch, seq_len, input_dim)
+    Output shape: (batch, output_dim)
     """
-    LSTM + Attention 结构，适合时序金融预测。
-    输入: (batch, seq_len, input_dim)
-    输出: (batch, output_dim)
-    """
+
     def __init__(self, input_dim, hidden_dim, num_layers, output_dim, dropout=0.2):
         super().__init__()
         self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers=num_layers, batch_first=True, dropout=dropout)
