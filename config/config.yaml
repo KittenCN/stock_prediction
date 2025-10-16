@@ -1,3 +1,10 @@
+training:
+  scheduler_type: none   # none|step|plateau
+  scheduler_step_size: 10
+  scheduler_gamma: 0.1
+  early_stopping_patience: 5
+  early_stopping_min_delta: 0.0001
+  seed: 42
 # config.yaml 示例
 train_pkl_path: ./pkl_handle/train.pkl
 png_path: ./png

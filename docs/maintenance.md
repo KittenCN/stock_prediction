@@ -29,8 +29,8 @@
 - **主要新增**：完成 PTFT/VSSM 双轨模型、CLI 拆分与测试用例扩充。  
 
 ## 4. 后续建议与路线
-1. 引入 `.env` / YAML 配置并结合 `pydantic` 校验，减少硬编码。  
-2. 封装 Trainer、学习率调度与 EarlyStopping，提升训练可重复性。  
+1. [已完成] 引入 `.env` / YAML 配置并结合 `pydantic` 校验，减少硬编码。  
+2. [已完成] 封装 Trainer、学习率调度与 EarlyStopping，提升训练可重复性。
 3. 建立 RMSE、MAPE、分位覆盖率、VaR/CVaR 等指标的自动采集与监控。  
 4. 探索扩散模型、图结构建模等方向，作为多资产预测的预研储备。  
 5. **PTFT+VSSM 改进计划（源自 `docs/ptft_vssm_analysis_20251015.md`）**：  

@@ -8,6 +8,8 @@ from datetime import datetime, timedelta
 import numpy as np
 import sys
 from pathlib import Path
+import torch
+from stock_prediction.trainer import Trainer, EarlyStopping, EarlyStoppingConfig
 
 # Ensure the stock_prediction package is importable
 current_dir = Path(__file__).resolve().parent
@@ -87,135 +89,45 @@ lr_scheduler = None
 if device.type == "cuda":
     torch.backends.cudnn.benchmark = True
 
-def train(epoch, dataloader, scaler, ts_code="", data_queue=None):
-    global loss, last_save_time, loss_list, iteration, lo_list, batch_none, data_none, last_loss, lr_scheduler
-    global model, optimizer, criterion, save_path
-    model.train()
-    subbar = tqdm(total=len(dataloader), leave=False, ncols=TQDM_NCOLS)
-    test_iner = len(dataloader) // TEST_INTERVAL
-    safe_save = False
-    for batch in dataloader:
-        try:
-            safe_save = False
-            iteration += 1
-            if batch is None:
-                batch_none += 1
-                subbar.set_description(f"{ts_code}, e:{epoch}, bn:{batch_none}, loss:{loss.item():.2e}")
-                subbar.update(1)
-                continue
-            data, label = batch
-            if data is None or label is None:
-                tqdm.write(f"code: {ts_code}, train error: data is None or label is None")
-                subbar.update(1)
-                continue
-            data, label = data.to(device, non_blocking=True), label.to(device, non_blocking=True)
-            # Ensure data tensors do not contain NaN or inf
-            if torch.isnan(data).any() or torch.isinf(data).any():
-                tqdm.write(f"code: {ts_code}, train error: data has nan or inf, skip batch")
-                subbar.update(1)
-                continue
-            if torch.isnan(label).any() or torch.isinf(label).any():
-                tqdm.write(f"code: {ts_code}, train error: label has nan or inf, skip batch")
-                subbar.update(1)
-                continue
-            with autocast(device_type='cuda'):
-                if model_mode == "MULTIBRANCH":
-                    price_dim = INPUT_DIMENSION // 2
-                    tech_dim = INPUT_DIMENSION - price_dim
-                    price_x = data[:, :, :price_dim]
-                    tech_x = data[:, :, price_dim:]
-                    outputs = model(price_x, tech_x)
-                elif model_mode == "TRANSFORMER":
-                    data = pad_input(data)
-                    outputs = model(data, label, predict_days=int(args.predict_days))
-                else:
-                    data = pad_input(data)
-                    outputs = model(data)
-                if outputs.shape == label.shape:
-                    loss = criterion(outputs, label)
-                else:
-                    _label = label.reshape(outputs.shape)
-                    if outputs.shape == _label.shape:
-                        loss = criterion(outputs, _label)
-                    else:
-                        tqdm.write(f"code: {ts_code}, train error: outputs.shape != label.shape")
-                        subbar.update(1)
-                        continue
-            # Ensure loss is finite
-            if not torch.isfinite(loss):
-                tqdm.write(f"code: {ts_code}, train warning: loss is not finite (nan/inf), skip batch")
-                subbar.update(1)
-                continue
-            optimizer.zero_grad()
-            if device.type == "cuda" and is_number(str(loss.item())):
-                scaler.scale(loss).backward()
-                # Gradient clipping
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                lr_scheduler.step()
-                scaler.step(optimizer)
-                scaler.update()
-            elif is_number(str(loss.item())):
-                loss.backward()
-                # Gradient clipping
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                lr_scheduler.step()
-                optimizer.step()
-            if is_number(str(loss.item())):
-                loss_list.append(loss.item())
-                lo_list.append(loss.item())
 
-            subbar.set_description(f"{ts_code}, e:{epoch}, bn:{batch_none}, loss:{loss.item():.2e}")
-            subbar.update(1)
-            safe_save = True
-        except Exception as e:
-            print(f"code: {ts_code}, train error: {e}")
-            safe_save = False
-            subbar.update(1)
-            continue
-        if (TEST_INTERVAL > 0 and iteration % test_iner == 0):
-            # Workaround for PyTorch 2.x deepcopy issue by recreating the model before loading state_dict
-            if isinstance(model, torch.nn.DataParallel):
-                model_to_copy = model.module
-            else:
-                model_to_copy = model
-            testmodel = type(model_to_copy)(**model_to_copy._init_args)
-            testmodel.load_state_dict(copy.deepcopy(model_to_copy.state_dict()))
-            if isinstance(model, torch.nn.DataParallel):
-                testmodel = torch.nn.DataParallel(testmodel)
-            testmodel = testmodel.to(device, non_blocking=True)
-            test_loss, predict_list, _ = test(data_queue, testmodel, dataloader_mode=1)
-            if last_loss > test_loss:
-                last_loss = test_loss
-                thread_save_model(model, optimizer, save_path, True, int(args.predict_days))
-                with open('loss.txt', 'w') as file:
-                    file.write(str(last_loss))
-
-        if (iteration % SAVE_NUM_ITER == 0 and time.time() - last_save_time >= SAVE_INTERVAL)  and safe_save == True:
-            thread_save_model(model, optimizer, save_path, False, int(args.predict_days))
-            last_save_time = time.time()
-        
-
-    if (epoch % SAVE_NUM_EPOCH == 0 or epoch == args.epoch-1) and time.time() - last_save_time >= SAVE_INTERVAL and safe_save == True:
-        thread_save_model(model, optimizer, save_path, False, int(args.predict_days))
-        last_save_time = time.time()
-    # Workaround for PyTorch 2.x deepcopy issue by recreating the model before loading state_dict
-    if isinstance(model, torch.nn.DataParallel):
-        model_to_copy = model.module
+# --- Trainer integration ---
+def build_scheduler(cfg, optimizer):
+    if cfg.scheduler_type == "step":
+        return torch.optim.lr_scheduler.StepLR(optimizer, step_size=cfg.scheduler_step_size, gamma=cfg.scheduler_gamma)
+    elif cfg.scheduler_type == "plateau":
+        return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=cfg.early_stopping_patience, factor=cfg.scheduler_gamma)
     else:
-        model_to_copy = model
-    testmodel = type(model_to_copy)(**model_to_copy._init_args)
-    testmodel.load_state_dict(copy.deepcopy(model_to_copy.state_dict()))
-    if isinstance(model, torch.nn.DataParallel):
-        testmodel = torch.nn.DataParallel(testmodel)
-    testmodel = testmodel.to(device, non_blocking=True)
-    test_loss, predict_list, _ = test(data_queue, testmodel, dataloader_mode=1)
-    if last_loss > test_loss:
-        last_loss = test_loss
-        thread_save_model(model, optimizer, save_path, True, int(args.predict_days))
-        with open('loss.txt', 'w') as file:
-            file.write(str(last_loss))
+        return None
 
-    subbar.close()
+def build_early_stopping(cfg):
+    return EarlyStopping(EarlyStoppingConfig(patience=cfg.early_stopping_patience, min_delta=cfg.early_stopping_min_delta, mode="min"))
+
+def save_best_callback(context):
+    # context: {"epoch", "best", "train_loss", "val_loss"}
+    thread_save_model(model, optimizer, save_path, True, int(args.predict_days))
+    with open('loss.txt', 'w') as file:
+        file.write(str(context["best"]))
+
+def train_with_trainer(train_loader, val_loader=None):
+    scheduler = build_scheduler(config, optimizer)
+    early_stopping = build_early_stopping(config)
+    trainer = Trainer(
+        model=model,
+        optimizer=optimizer,
+        criterion=criterion,
+        device=device,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        scheduler=scheduler,
+        early_stopping=early_stopping,
+        epoch_count=args.epoch,
+        scaler=None,
+        use_amp=False,
+        callbacks={"on_improve": save_best_callback}
+    )
+    history = trainer.fit()
+    train_with_trainer.last_history = history  # 挂载 loss 记录，供全局访问
+    return history
 
 
 def test(dataset, testmodel=None, dataloader_mode=0):
@@ -1040,7 +952,7 @@ def main():
                                         num_workers=NUM_WORKERS, pin_memory=True, collate_fn=custom_collate)
             predict_list=[]
             accuracy_list=[]
-            train(epoch+1, train_dataloader, scaler, ts_code, test_queue)
+            train_with_trainer(train_dataloader)
             if args.pkl_queue == 0:
                 code_bar.update(1)
             if (time.time() - last_save_time >= SAVE_INTERVAL or index == len(ts_codes) - 1) and safe_save == True:
@@ -1052,7 +964,13 @@ def main():
             last_epoch = epoch
         pbar.close()
         print("Training finished!")
-        if len(lo_list) > 0:
+        # 绘制 Trainer 记录的 loss 曲线
+        if hasattr(train_with_trainer, "last_history") and train_with_trainer.last_history is not None:
+            train_loss_list = train_with_trainer.last_history.get("batch_loss", [])
+            if train_loss_list:
+                print("Start create image for loss (final)")
+                loss_curve(train_loss_list)
+        elif len(lo_list) > 0:
             print("Start create image for loss (final)")
             loss_curve(lo_list)
         print("Start create image for pred-real")

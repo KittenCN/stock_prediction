@@ -29,6 +29,13 @@ class AppConfig(BaseModel):
     batch_size: int = Field(32, description="Mini-batch size")
     epoch: int = Field(2, description="Number of training epochs")
     api: str = Field("akshare", description="Upstream data API source")
+    # Training related
+    scheduler_type: str = Field("none", description="LR scheduler type: none|step|plateau")
+    scheduler_step_size: int = Field(10, description="StepLR step_size")
+    scheduler_gamma: float = Field(0.1, description="LR decay factor")
+    early_stopping_patience: int = Field(5, description="EarlyStopping patience")
+    early_stopping_min_delta: float = Field(1e-4, description="EarlyStopping min improvement")
+    seed: int = Field(42, description="Global random seed")
 
     @validator("batch_size", "epoch")
     def validate_positive(cls, value: int) -> int:
@@ -52,11 +59,22 @@ class AppConfig(BaseModel):
             "batch_size": os.getenv("BATCH_SIZE"),
             "epoch": os.getenv("EPOCH"),
             "api": os.getenv("API"),
+            "scheduler_type": os.getenv("SCHEDULER_TYPE"),
+            "scheduler_step_size": os.getenv("SCHEDULER_STEP_SIZE"),
+            "scheduler_gamma": os.getenv("SCHEDULER_GAMMA"),
+            "early_stopping_patience": os.getenv("EARLY_STOPPING_PATIENCE"),
+            "early_stopping_min_delta": os.getenv("EARLY_STOPPING_MIN_DELTA"),
+            "seed": os.getenv("SEED"),
         }
         for key, value in env_map.items():
             if value is None:
                 continue
-            config_dict[key] = int(value) if key in {"batch_size", "epoch"} else value
+            if key in {"batch_size", "epoch", "scheduler_step_size", "early_stopping_patience", "seed"}:
+                config_dict[key] = int(value)
+            elif key in {"scheduler_gamma", "early_stopping_min_delta"}:
+                config_dict[key] = float(value)
+            else:
+                config_dict[key] = value
 
         return cls(**config_dict)
 
