@@ -41,7 +41,7 @@ flowchart LR
 | `init.py` | 超参数、设备、共享队列 | 正在拆分全局状态 |
 | `common.py` | 数据集、队列工具、绘图、模型保存 | 计划拆分为数据/模型/可视化子模块 |
 | `feature_engineering.py` | 收益率/差分建模、外生特征合并、滑动窗口统计 | 由 `AppConfig.features` 驱动，支持多股票联合与缺失值回填 |
-| `models/` | 模型集合（LSTM、Transformer、TemporalHybridNet、ProbTFT、VSSM、PTFT_VSSM 等） | 新模型在此注册 |
+| `models/` | 模型集合（LSTM、Transformer、TemporalHybridNet、ProbTFT、Diffusion、Graph 等） | 新模型在此注册 |
 | `train.py` | 训练/测试 CLI 主流程 | `scripts/train.py` 提供命令行封装 |
 | `predict.py` | 推理入口 | 暴露 `create_predictor()` 供外部复用 |
 | `getdata.py` | 行情采集 | 后续增加限速、重试与日志 |
@@ -55,6 +55,7 @@ flowchart LR
 - 训练/推理流程拆分，推理支持多模型热插拔。  
 - `thread_save_model` 仅保存 state_dict，解决 weight_norm 深拷贝阻塞。  
 - 引入 `feature_engineering.py` 与 `FeatureSettings`，统一收益率建模、外生特征、滑动窗口配置。  
+- 新增 DiffusionForecaster 与 GraphTemporalModel 原型，扩展多资产/情景分析能力。  
 
 ## 2. 关键问题与改进方向
 | 优先级 | 问题 | 建议方案 |
@@ -79,6 +80,10 @@ flowchart LR
 ### 3.4 PTFT + V-SSM 双轨组合
 在 `models/ptft_vssm.py` 实现，融合分位预测与状态概率；`PTFTVSSMLoss` 叠加 KL 正则，推理通过 `--model ptft_vssm`。  
 
+### 3.5 扩散与图模型（实验特性）
+- **DiffusionForecaster**：模拟扩散噪声迭代的轻量化实现，强调情景生成与尾部风险度量，命令行使用 `--model diffusion`。  
+- **GraphTemporalModel**：学习对称邻接矩阵以捕捉特征之间的关联，适用于多资产联合预测，命令行使用 `--model graph`。  
+- 详细预研路线参见 `docs/research_diffusion_graph.md`。  
 ## 4. PTFT+VSSM 改进路线（依据 `docs/ptft_vssm_analysis_20251015.md`）
 | 阶段 | 状态 | 开发重点 | 关键事项 | 产出 |
 | ---- | ---- | -------- | -------- | ---- |

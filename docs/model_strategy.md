@@ -97,7 +97,8 @@
 3. **监控指标**：记录 RMSE、MAPE、分位覆盖率、VaR/CVaR 等指标，并接入报警系统。
 4. **文档维护**：实现与实验完成后更新 `docs/maintenance.md`、`docs/system_design.md`，并在此补充结论。
 5. **扩展方向**：探索扩散模型用于情景分析，或构建图结构以支持多资产预测。
-   - 扩散与图建模预研计划参见 `docs/research_diffusion_graph.md`，包含实验步骤与阶段目标。
+   - 扩散与图建模预研计划参见 `docs/research_diffusion_graph.md`，包含实验步骤与阶段目标；仓库内首版实现可通过 `--model diffusion` 与 `--model graph` 调用。
+   - Hybrid 2.0 总线化设计详见 `docs/hybrid_rearchitecture.md`，作为多分支融合的主路线。
 
 ### 6.1 PTFT+VSSM 改进路线（新增）
 | 优先级 | 状态 | 改进方向 | 关键动作 | 预期收益 |

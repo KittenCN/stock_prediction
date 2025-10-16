@@ -35,6 +35,8 @@ from stock_prediction.models import (
     TemporalHybridNet,
     PTFTVSSMEnsemble,
     PTFTVSSMLoss,
+    DiffusionForecaster,
+    GraphTemporalModel,
 )
 try:
     from .common import *
@@ -49,7 +51,7 @@ png_path = config.png_path
 model_path = config.model_path
 
 parser = argparse.ArgumentParser(description="Stock price inference CLI")
-parser.add_argument('--model', default="ptft_vssm", type=str, help="model name, e.g. lstm / transformer / hybrid / ptft_vssm")
+parser.add_argument('--model', default="ptft_vssm", type=str, help="model name, e.g. lstm / transformer / hybrid / ptft_vssm / diffusion / graph")
 parser.add_argument('--test_code', default="", type=str, help="stock code to predict")
 parser.add_argument('--cpu', default=0, type=int, help="set 1 to run on CPU only")
 parser.add_argument('--pkl', default=1, type=int, help="whether to use preprocessed pkl data (1 means use)")
@@ -124,6 +126,16 @@ def _init_models(symbol: str) -> None:
         model = PTFTVSSMEnsemble(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=ensemble_steps)
         test_model = PTFTVSSMEnsemble(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=ensemble_steps)
         save_path = config.get_model_path("PTFT_VSSM", symbol)
+    elif model_mode == "DIFFUSION":
+        diffusion_steps = abs(int(args.predict_days)) if int(args.predict_days) > 0 else 1
+        model = DiffusionForecaster(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=diffusion_steps)
+        test_model = DiffusionForecaster(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=diffusion_steps)
+        save_path = str(config.get_model_path("DIFFUSION", symbol))
+    elif model_mode == "GRAPH":
+        graph_steps = abs(int(args.predict_days)) if int(args.predict_days) > 0 else 1
+        model = GraphTemporalModel(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=graph_steps)
+        test_model = GraphTemporalModel(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=graph_steps)
+        save_path = str(config.get_model_path("GRAPH", symbol))
     elif model_mode == "CNNLSTM":
         predict_days = max(1, abs(int(args.predict_days)))
         model = CNNLSTM(input_dim=INPUT_DIMENSION, num_classes=OUTPUT_DIMENSION, predict_days=predict_days)

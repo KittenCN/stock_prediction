@@ -29,6 +29,8 @@ from stock_prediction.models import (
     TemporalHybridNet,
     PTFTVSSMEnsemble,
     PTFTVSSMLoss,
+    DiffusionForecaster,
+    GraphTemporalModel,
 )
 try:
     from .common import *
@@ -44,7 +46,7 @@ model_path = config.model_path
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
-parser.add_argument('--model', default="ptft_vssm", type=str, help="available model names (e.g. lstm, transformer, hybrid, ptft_vssm)")
+parser.add_argument('--model', default="ptft_vssm", type=str, help="available model names (e.g. lstm, transformer, hybrid, ptft_vssm, diffusion, graph)")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--cpu', default=0, type=int, help="only use cpu")
 parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of csv file")
@@ -810,6 +812,38 @@ def main():
         test_model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=ensemble_steps)
         save_path = str(config.get_model_path("PTFT_VSSM", symbol))
         criterion = PTFTVSSMLoss(model, mse_weight=1.0, kl_weight=1e-3)
+    elif model_mode == "DIFFUSION":
+        diffusion_steps = abs(int(args.predict_days)) if int(args.predict_days) > 0 else 1
+        model = DiffusionForecaster(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=diffusion_steps,
+        )
+        model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=diffusion_steps)
+        test_model = DiffusionForecaster(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=diffusion_steps,
+        )
+        test_model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=diffusion_steps)
+        save_path = str(config.get_model_path("DIFFUSION", symbol))
+        criterion = nn.MSELoss()
+    elif model_mode == "GRAPH":
+        graph_steps = abs(int(args.predict_days)) if int(args.predict_days) > 0 else 1
+        model = GraphTemporalModel(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=graph_steps,
+        )
+        model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=graph_steps)
+        test_model = GraphTemporalModel(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=graph_steps,
+        )
+        test_model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=graph_steps)
+        save_path = str(config.get_model_path("GRAPH", symbol))
+        criterion = nn.MSELoss()
     elif model_mode == "CNNLSTM":
         assert abs(abs(int(args.predict_days))) > 0, "Error: predict_days must be greater than 0"
         model = CNNLSTM(input_dim=INPUT_DIMENSION, num_classes=OUTPUT_DIMENSION, predict_days=abs(int(args.predict_days)))

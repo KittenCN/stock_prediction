@@ -14,6 +14,8 @@ from stock_prediction.models import (
     VariationalStateSpaceModel,
     PTFTVSSMEnsemble,
     PTFTVSSMLoss,
+    DiffusionForecaster,
+    GraphTemporalModel,
 )
 
 
@@ -89,3 +91,21 @@ def test_ptft_vssm_mc_dropout_toggle():
     out2 = model(x)
     # 启用 MC Dropout 后，两次推理结果应存在差异
     assert not torch.allclose(out1, out2)
+
+
+def test_diffusion_forecaster_shapes():
+    model = DiffusionForecaster(input_dim=30, output_dim=4, predict_steps=3)
+    x = torch.randn(2, 6, 30)
+    out_full = model(x)
+    assert out_full.shape == (2, 3, 4)
+    out_single = model(x, predict_steps=1)
+    assert out_single.shape == (2, 4)
+
+
+def test_graph_temporal_model_shapes():
+    model = GraphTemporalModel(input_dim=30, output_dim=4, predict_steps=2)
+    x = torch.randn(2, 5, 30)
+    out = model(x)
+    assert out.shape == (2, 2, 4)
+    out_single = model(x, predict_steps=1)
+    assert out_single.shape == (2, 4)

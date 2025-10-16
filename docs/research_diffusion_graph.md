@@ -1,6 +1,6 @@
 # 扩散模型与图结构建模预研路线
 
-> 目标：在现有 PTFT + VSSM 组合之外，评估扩散式时间序列模型与图神经网络（GNN）的可行性，为多资产、跨市场预测提供储备能力。
+> 目标：在现有 PTFT + VSSM 组合之外，评估扩散式时间序列模型与图神经网络（GNN）的可行性，为多资产、跨市场预测提供储备能力。当前仓库已集成首版 `DiffusionForecaster` 与 `GraphTemporalModel`（`--model diffusion/graph`），供后续实验快速迭代。
 
 ---
 

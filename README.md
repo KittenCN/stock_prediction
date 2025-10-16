@@ -57,6 +57,8 @@ project-root/
 | `cnnlstm` | CNN + LSTM + Attention | 多步预测（需 `predict_days` > 0）|
 | `hybrid` | TemporalHybridNet（多尺度卷积 + Bi-GRU + 多头注意力）| 多尺度回归 |
 | `ptft_vssm` | PTFT + Variational SSM 双轨组合 | 概率预测与风险评估 |
+| `diffusion` | DiffusionForecaster（扩散式去噪解码） | 情景生成、尾部风险分析 |
+| `graph` | GraphTemporalModel（自适应图结构） | 多资产关联建模 |
 
 批量对比可执行 `scripts\run_all_models.bat`（默认运行训练+测试模式）。
 
@@ -91,6 +93,7 @@ cat output/metrics_*.json
 
 ## 测试与质量
 - `pytest`：新增特征工程与 Regime 融合单元测试，目前共 28 项全部通过。
+  新增扩散/图模型单测，确保形状与接口兼容。
 - 建议在提交前运行 `pytest -q`，并按需执行 `ruff` / `black` / `mypy`。
 - 暴露 `create_predictor()`，便于脚本或测试快速构造预测器。
 
