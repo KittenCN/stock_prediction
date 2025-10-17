@@ -127,3 +127,5 @@
 ## 扩散与图模型迭代（2025-10-20 · 已完成首轮）
 - 扩散/图模型迭代：`DiffusionForecaster` 已支持 `cosine` 调度与上下文条件输入；`GraphTemporalModel` 支持动态邻接混合，可与股票嵌入共用。
 - 下一步：研究可学习噪声调度、动态构图策略以及与 Hybrid 总线的融合。
+
+- Hybrid 分支门控：TemporalHybridNet 支持先验权重与软门控，可配合阶段式训练与蒸馏策略。

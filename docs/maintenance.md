@@ -86,3 +86,9 @@
 - ✅ `tests/test_models.py` 补充扩散/图模型的上下文、动态邻接测试，验证梯度反传稳定。
 - ✅ 相关文档：`docs/research_diffusion_graph.md` 更新阶段成果与后续计划。
 
+### 5.4 Hybrid 分支门控执行总结（2025-10-20）
+- ✅ `branch_config` 支持传入 `{"enabled": bool, "weight": float}`，用于按阶段控制各分支及先验权重。
+- ✅ `TemporalHybridNet` 内部新增软门控向量与温度参数，对 Legacy/PTFT/VSSM/Diffusion/Graph/Regime 特征进行自适应加权。
+- ✅ `get_last_details()` 暴露 `fusion_gate` 及 logits，便于监控各分支贡献度。
+- ✅ 相关单元测试：`tests/test_models.py` 新增 Hybrid 门控测试，覆盖权重归一性与梯度检验。
+

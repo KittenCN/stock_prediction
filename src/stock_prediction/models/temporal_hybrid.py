@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Dict, Optional
 
 import torch
@@ -76,7 +77,26 @@ class TemporalHybridNet(nn.Module):
         self.output_dim = output_dim
         self.hidden_dim = hidden_dim
         self.predict_steps = max(1, int(predict_steps))
-        self.branch_switches = {**self.DEFAULT_BRANCHES, **(branch_config or {})}
+        raw_branch_config = branch_config or {}
+        self.branch_switches: Dict[str, bool] = {}
+        self.branch_priors: Dict[str, float] = {"legacy": 0.0}
+        for name, default_enabled in self.DEFAULT_BRANCHES.items():
+            cfg_value = raw_branch_config.get(name, default_enabled)
+            enabled = default_enabled
+            prior = 1.0
+            if isinstance(cfg_value, dict):
+                enabled = bool(cfg_value.get("enabled", default_enabled))
+                prior = float(cfg_value.get("weight", 1.0))
+            elif isinstance(cfg_value, (int, float)):
+                enabled = bool(cfg_value)
+                prior = float(cfg_value) if not isinstance(cfg_value, bool) else 1.0
+            else:
+                enabled = bool(cfg_value)
+            self.branch_switches[name] = enabled
+            if prior <= 0:
+                prior = 1.0
+            self.branch_priors[name] = math.log(prior)
+        self.branch_priors.setdefault("regime", 0.0)
         self.use_symbol_embedding = bool(use_symbol_embedding)
         self.symbol_embedding_dim = int(symbol_embedding_dim) if self.use_symbol_embedding else 0
         self.max_symbols = max(1, int(max_symbols))
@@ -106,6 +126,7 @@ class TemporalHybridNet(nn.Module):
         self.branch_projs = nn.ModuleDict()
         self.branches: Dict[str, nn.Module] = {}
         self.regime_proj: Optional[nn.Sequential] = None
+        self.active_branch_names: list[str] = []
 
         if self.branch_switches.get("ptft", False):
             self.branches["ptft"] = ProbTemporalFusionTransformer(
@@ -169,6 +190,8 @@ class TemporalHybridNet(nn.Module):
         )
         self.single_step_head = nn.Linear(hidden_dim * 2, output_dim)
         self.multi_step_head = nn.Linear(hidden_dim * 2, output_dim * self.predict_steps)
+        self.gating_vector = nn.Parameter(torch.randn(self.branch_dim))
+        self._gating_temperature_param = nn.Parameter(torch.tensor(0.0))
 
         self.last_attention_weights: Optional[torch.Tensor] = None
         self.last_details: Dict[str, torch.Tensor] = {}
@@ -189,6 +212,7 @@ class TemporalHybridNet(nn.Module):
 
         base_feature = self._legacy_branch(x_augmented)
         branch_features = [base_feature]
+        feature_names = ["legacy"]
         self.last_details = {"base": base_feature.detach()}
         if symbol_embed is not None:
             self.last_details["symbol_embed"] = symbol_embed.detach()
@@ -224,12 +248,32 @@ class TemporalHybridNet(nn.Module):
             tensor = tensor[:, : self.predict_steps, ...]
             flat = tensor.reshape(tensor.size(0), -1)
             branch_features.append(self.branch_projs[name](flat))
+            feature_names.append(name)
 
         if regime_feature is not None and self.regime_proj is not None:
             regime_mean = regime_feature.mean(dim=1) if regime_feature.dim() > 2 else regime_feature
             branch_features.append(self.regime_proj(regime_mean))
+            feature_names.append("regime")
 
-        fused = torch.cat(branch_features, dim=-1)
+        features_tensor = torch.stack(branch_features, dim=1)  # (batch, num_branches, dim)
+        priors = torch.tensor(
+            [self.branch_priors.get(name, 0.0) for name in feature_names],
+            device=features_tensor.device,
+            dtype=features_tensor.dtype,
+        )
+        gating_vector = self.gating_vector.to(features_tensor.device)
+        logits = torch.matmul(features_tensor, gating_vector)
+        temperature = torch.clamp(F.softplus(self._gating_temperature_param) + 1e-3, min=1e-2)
+        logits = logits / temperature
+        logits = logits + priors
+        weights = torch.softmax(logits, dim=1)
+        weighted = features_tensor * weights.unsqueeze(-1)
+        fused = weighted.reshape(weighted.size(0), -1)
+        self.last_details["fusion_gate"] = weights.detach()
+        self.last_details["fusion_gate_logits"] = logits.detach()
+        self.last_details["fusion_gate_prior"] = priors.detach()
+        self.last_details["fusion_gate_temperature"] = temperature.detach()
+
         fused = self.fusion_proj(fused)
 
         if steps == 1:

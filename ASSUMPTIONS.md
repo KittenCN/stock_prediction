@@ -12,3 +12,6 @@
 - 股票嵌入默认容量 4096（可通过环境变量 SYMBOL_EMBED_MAX 调整），eatures.symbol_embedding_dim 控制嵌入维度。
 
 - HybridLoss/PTFTVSSMLoss 默认使用适度的波动度与极值权重（0.02），如需关闭可在训练脚本参数中置 0。
+
+- `branch_config` 支持 bool / float / dict 形式；当提供 `{"enabled": bool, "weight": float}` 时，权重会被转换为门控先验（log-scale），默认值为 1。
+- Hybrid 门控温度通过软正则参数控制，如需固定可在训练脚本中手动设定。

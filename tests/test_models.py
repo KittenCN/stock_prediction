@@ -53,6 +53,22 @@ def test_temporal_hybrid_symbol_embedding():
     assert out.shape == (3, 2, 4)
 
 
+def test_temporal_hybrid_branch_gating():
+    model = TemporalHybridNet(
+        input_dim=30,
+        output_dim=4,
+        predict_steps=2,
+        branch_config={"ptft": {"enabled": True, "weight": 0.5}, "diffusion": False},
+    )
+    x = torch.randn(2, 6, 30)
+    out = model(x, predict_days=2)
+    assert out.shape == (2, 2, 4)
+    details = model.get_last_details()
+    assert "fusion_gate" in details
+    weights = details["fusion_gate"]
+    assert torch.allclose(weights.sum(dim=1), torch.ones_like(weights.sum(dim=1)), atol=1e-5)
+
+
 def test_prob_tft_quantiles():
     model = ProbTemporalFusionTransformer(input_dim=30, output_dim=4, predict_steps=2)
     x = torch.randn(3, 7, 30)

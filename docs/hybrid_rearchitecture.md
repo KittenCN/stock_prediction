@@ -100,3 +100,9 @@ Hybrid 2.0 的实现为后续多模态实验提供统一入口，仍需结合实
 - Legacy 分支前置 `nn.Embedding`，与卷积/GRU/Attention 输入拼接，门控融合时共享符号上下文。
 - 各子分支（PTFT/VSSM/Diffusion/Graph）统一接收扩展后的特征维度，避免重复构造嵌入表。
 - 嵌入与分支开关通过配置 `features.use_symbol_embedding` 控制，可在文档或 CLI 中动态启停。
+
+### Hybrid 2.0 追加说明（分支门控 · 已完成 2025-10-20）
+- `branch_config` 支持 `{"enabled": bool, "weight": float}` 形式，可为 PTFT/VSSM/Diffusion/Graph 分支设置启用与先验权重。
+- 新增软门控向量与温度参数，对 Legacy + 各子分支 + Regime 辅助特征进行加权，再送入融合层。
+- `get_last_details()` 暴露 `fusion_gate`、`fusion_gate_logits` 等诊断信息，便于调试与可视化。
+- 兼容阶段式训练：可通过 `branch_config` 快速冻结或调低分支权重，配合 HybridLoss 调参。
