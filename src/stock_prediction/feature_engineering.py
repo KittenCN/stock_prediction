@@ -1,17 +1,17 @@
 """
-Feature engineering utilities enabling PTFT+VSSM 改进计划中提出的收益率建模、外生特征融合与滑动窗口统计。
+Feature engineering utilities for the stock prediction project.
 
-该模块围绕 FeatureSettings 提供标准化接口，用于：
-1. 基于收盘价等价格字段生成对数收益率或差分序列；
-2. 按照配置引入宏观、行业、舆情等外生特征；
-3. 在多股票场景下支持按股票分组的滑动窗口统计量；
-4. 输出包含缺失值处理和排序后的 DataFrame，供下游 Dataset 使用。
+Key capabilities:
+- Per-symbol return/difference generation.
+- External feature merging (macro/industry/sentiment).
+- Sliding window statistics.
+- Optional per-symbol normalization and symbol embedding index mapping.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, Optional
+from typing import Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -21,7 +21,7 @@ from .app_config import AppConfig, ExternalFeatureConfig, FeatureSettings, Slidi
 
 @dataclass
 class FeatureEngineerCache:
-    """简单的缓存结构，避免多次读取相同外生特征文件。"""
+    """Simple cache to avoid reloading external feature files repeatedly."""
 
     external_frames: Dict[str, pd.DataFrame]
 
@@ -36,26 +36,25 @@ class FeatureEngineerCache:
 
 
 class FeatureEngineer:
-    """负责根据 FeatureSettings 对原始行情数据做增强处理。"""
+    """Apply FeatureSettings-defined transformations to raw daily stock data."""
 
     def __init__(self, settings: FeatureSettings, cache: Optional[FeatureEngineerCache] = None) -> None:
         self.settings = settings
         self.cache = cache or FeatureEngineerCache()
+        self.symbol_stats: Dict[str, Dict[str, Dict[str, float]]] = {}
+        self.symbol_index_map: Dict[str, int] = {}
+        self._symbol_counter = 0
 
     @classmethod
-    def from_app_config(cls, cfg: AppConfig) -> "FeatureEngineer":
+    def from_app_config(cls, cfg: AppConfig) -> FeatureEngineer:
         return cls(cfg.features if hasattr(cfg, "features") else FeatureSettings())
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        """对输入 DataFrame 进行特征工程，返回增强后的 DataFrame。
+        """Return an enhanced DataFrame."""
 
-        要求：
-        - DataFrame 至少包含 trade_date；若存在 ts_code，则默认按股票分组处理；
-        - 返回结果按照 trade_date 升序排列，去除前置 burn-in 行并填充缺失值；
-        """
         if df.empty:
             return df
 
@@ -63,33 +62,33 @@ class FeatureEngineer:
             if "Date" in df.columns:
                 df = df.rename(columns={"Date": "trade_date"})
             else:
-                # 缺少日期列时直接返回原始数据，避免中断训练流程
                 return df
 
         df = df.copy()
+        if self.settings.enable_symbol_normalization:
+            self.symbol_stats = {}
         df["trade_date"] = self._normalise_trade_date(df["trade_date"])
 
+        processed_frames: list[pd.DataFrame] = []
         if self.settings.multi_stock and "ts_code" in df.columns:
-            processed_frames = []
-            for ts_code, group in df.groupby("ts_code"):
+            for ts_code, group in df.groupby("ts_code", as_index=False, group_keys=False):
                 processed = self._process_single_stock(group.copy(), symbol=str(ts_code))
-                processed_frames.append(processed)
-            if not processed_frames:
-                return df
-            result = pd.concat(processed_frames, ignore_index=True)
+                if processed is not None:
+                    processed_frames.append(processed)
         else:
-            result = self._process_single_stock(df, symbol=str(df.get("ts_code", "UNKNOWN").iloc[0]) if "ts_code" in df.columns else None)
+            symbol_key = str(df.get("ts_code", "UNKNOWN").iloc[0]) if "ts_code" in df.columns else "__single__"
+            processed = self._process_single_stock(df.copy(), symbol=symbol_key)
+            if processed is not None:
+                processed_frames.append(processed)
+
+        if not processed_frames:
+            return df
+        result = pd.concat(processed_frames, ignore_index=True)
 
         result = result.replace([np.inf, -np.inf], np.nan)
         if self.settings.align_holiday:
             result = result.sort_values("trade_date")
-            if "ts_code" in result.columns:
-                grouped_frames = []
-                for _, group in result.groupby("ts_code", as_index=False, group_keys=False):
-                    grouped_frames.append(group.ffill().bfill())
-                result = pd.concat(grouped_frames, ignore_index=True) if grouped_frames else result
-            else:
-                result = result.ffill().bfill()
+            result = result.ffill().bfill()
 
         burn_in = max(self.settings.return_lag, self.settings.difference_order)
         if burn_in > 0 and len(result) > burn_in:
@@ -98,7 +97,16 @@ class FeatureEngineer:
             result = result.reset_index(drop=True)
 
         result = result.ffill().bfill().fillna(0.0)
+        result = self._apply_symbol_normalization(result)
+        if self.settings.use_symbol_embedding and "ts_code" in result.columns:
+            result = self._attach_symbol_index(result)
         return result
+
+    def get_symbol_stats(self) -> Dict[str, Dict[str, Dict[str, float]]]:
+        return self.symbol_stats
+
+    def get_symbol_indices(self) -> Dict[str, int]:
+        return self.symbol_index_map
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -132,27 +140,22 @@ class FeatureEngineer:
             df[f"{col}_ret_{lag}"] = returns
             if mode == "hybrid":
                 df[f"{col}_pct_{lag}"] = (df[col] - shifted) / (shifted.abs() + 1e-6)
-
         return df
 
     def _compute_differences(self, df: pd.DataFrame) -> pd.DataFrame:
         if self.settings.difference_order <= 0:
             return df
-
         columns = [col for col in self.settings.difference_columns if col in df.columns]
         if not columns:
             return df
-
         order = self.settings.difference_order
         for col in columns:
-            diff_series = df[col].diff(periods=order)
-            df[f"{col}_diff_{order}"] = diff_series
+            df[f"{col}_diff_{order}"] = df[col].diff(periods=order)
         return df
 
     def _append_sliding_windows(self, df: pd.DataFrame) -> pd.DataFrame:
         if not self.settings.sliding_windows:
             return df
-
         target_columns = [col for col in self.settings.volatility_columns if col in df.columns]
         if not target_columns:
             return df
@@ -228,6 +231,58 @@ class FeatureEngineer:
 
         return df
 
+    def _apply_symbol_normalization(self, df: pd.DataFrame, symbol: Optional[str] = None) -> pd.DataFrame:
+        if not self.settings.enable_symbol_normalization:
+            return df
+        if df.empty:
+            return df
+
+        if "ts_code" in df.columns and self.settings.multi_stock:
+            frames = []
+            for ts_code, group in df.groupby("ts_code", as_index=False, group_keys=False):
+                frames.append(self._normalize_group(group.copy(), str(ts_code)))
+            if not frames:
+                return df
+            return pd.concat(frames, ignore_index=True)
+
+        symbol_key = symbol or "__single__"
+        return self._normalize_group(df.copy(), symbol_key)
+
+    def _normalize_group(self, df: pd.DataFrame, symbol_key: str) -> pd.DataFrame:
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        stats_entry: Dict[str, Dict[str, float]] = {}
+        if len(numeric_cols) == 0:
+            self.symbol_stats[symbol_key] = stats_entry
+            return df
+
+        for col in numeric_cols:
+            series = df[col]
+            if series.empty:
+                continue
+            mean_val = float(series.mean())
+            std_val = float(series.std(ddof=0))
+            if not np.isfinite(std_val) or std_val < 1e-8:
+                std_val = 1.0
+            df[col] = (series - mean_val) / std_val
+            stats_entry[col] = {"mean": mean_val, "std": std_val}
+
+        self.symbol_stats[symbol_key] = stats_entry
+        return df
+
+    def _attach_symbol_index(self, df: pd.DataFrame) -> pd.DataFrame:
+        if "ts_code" not in df.columns:
+            return df
+        df = df.copy()
+        df["_symbol_index"] = df["ts_code"].apply(self._get_symbol_index)
+        return df
+
+    def _get_symbol_index(self, symbol: str) -> int:
+        key = str(symbol)
+        if key not in self.symbol_index_map:
+            self.symbol_index_map[key] = self._symbol_counter
+            self._symbol_counter += 1
+        return self.symbol_index_map[key]
+
     def _load_external(self, config: ExternalFeatureConfig) -> Optional[pd.DataFrame]:
         cached = self.cache.get(config.path)
         if cached is not None:
@@ -248,7 +303,7 @@ class FeatureEngineer:
 
     @staticmethod
     def _normalise_trade_date(series: pd.Series) -> pd.Series:
-        """将 trade_date 转换为统一的字符串格式 YYYYMMDD，兼容 int/str/datetime。"""
+        """Normalise trade_date to YYYYMMDD string representation."""
 
         if series.empty:
             return series
@@ -258,7 +313,6 @@ class FeatureEngineer:
         else:
             normalised = pd.to_datetime(series.astype(str), errors="coerce").dt.strftime("%Y%m%d")
 
-        # 若全部转换失败，退回原始字符串表示
         if normalised.isna().all():
             return series.astype(str)
         return normalised.ffill().bfill()

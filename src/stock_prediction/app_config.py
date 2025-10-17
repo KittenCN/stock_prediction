@@ -64,6 +64,9 @@ class FeatureSettings(BaseModel):
     window_ensemble_ops: List[str] = Field(default_factory=lambda: ["mean", "std"], description="Ops applied when stacking sliding windows")
     align_holiday: bool = Field(True, description="Align external features across holidays by forward filling")
     enable_direction_label: bool = Field(True, description="Generate auxiliary direction/regime labels from targets")
+    enable_symbol_normalization: bool = Field(False, description="Enable per-symbol mean/std normalization with stats retention")
+    use_symbol_embedding: bool = Field(False, description="Embed ts_code into learnable vector for downstream models")
+    symbol_embedding_dim: int = Field(16, ge=1, description="Dimension of symbol embedding when enabled")
 
     @field_validator("target_mode")
     @classmethod

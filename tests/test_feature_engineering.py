@@ -60,3 +60,32 @@ def test_feature_engineer_generates_returns_and_windows(tmp_path):
     # 保证张量转换无报错
     tensor_data = torch.tensor(result.select_dtypes(include="number").values, dtype=torch.float32)
     assert tensor_data.ndim == 2 and tensor_data.shape[1] >= 3
+
+
+def test_symbol_normalization():
+    settings = FeatureSettings(
+        target_mode="difference",
+        difference_order=0,
+        price_columns=[],
+        difference_columns=[],
+        volatility_columns=[],
+        enable_symbol_normalization=True,
+        multi_stock=True,
+    )
+    engineer = FeatureEngineer(settings=settings)
+    df = pd.DataFrame(
+        {
+            "ts_code": ["AAA"] * 5 + ["BBB"] * 5,
+            "trade_date": [20240101 + i for i in range(5)] * 2,
+            "open": list(range(5)) + [10 + i for i in range(5)],
+            "close": list(range(5, 10)) + [20 + i for i in range(5)],
+        }
+    )
+    result = engineer.transform(df)
+    stats = engineer.get_symbol_stats()
+    assert "AAA" in stats and "BBB" in stats
+    for symbol in ("AAA", "BBB"):
+        subset = result[result["ts_code"] == symbol]
+        for col in ["open", "close"]:
+            mean_val = subset[col].mean()
+            assert abs(mean_val) < 1e-6

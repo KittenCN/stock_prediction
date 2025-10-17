@@ -40,7 +40,7 @@ flowchart LR
 | `config.py` | 路径与目录管理 | 后续结合 `.env`/`pydantic` 做参数校验 |
 | `init.py` | 超参数、设备、共享队列 | 正在拆分全局状态 |
 | `common.py` | 数据集、队列工具、绘图、模型保存 | 计划拆分为数据/模型/可视化子模块 |
-| `feature_engineering.py` | 收益率/差分建模、外生特征合并、滑动窗口统计 | 由 `AppConfig.features` 驱动，支持多股票联合与缺失值回填 |
+| `feature_engineering.py` | 收益率/差分建模、外生特征合并、滑动窗口统计 | 由 `AppConfig.features` 驱动，支持多股票联合、缺失值回填及 per-symbol 归一 |
 | `models/` | 模型集合（LSTM、Transformer、TemporalHybridNet、ProbTFT、Diffusion、Graph 等） | 新模型在此注册 |
 | `train.py` | 训练/测试 CLI 主流程 | `scripts/train.py` 提供命令行封装 |
 | `predict.py` | 推理入口 | 暴露 `create_predictor()` 供外部复用 |

@@ -5,7 +5,7 @@
 ## 功能概览
 - **行情采集**：封装 `tushare`/`akshare`/`yfinance` 三类数据源。
 - **数据预处理**：将日线 CSV 聚合为 `pkl_handle/train.pkl` 队列，支持重复加载。
-- **特征工程**：`feature_engineering.py` 自动生成对数收益率/差分特征，并按配置合并宏观、行业、舆情外生变量，适配多股票联合训练与滑动窗口统计。
+- **特征工程**：`feature_engineering.py` 自动生成对数收益率/差分特征，并按配置合并宏观、行业、舆情外生变量，支持 per-symbol 归一 (`enable_symbol_normalization`) 与多股票联合训练的滑动窗口统计。
 - **模型训练**：`src/stock_prediction/train.py` 提供统一入口，可选择 LSTM、Transformer、TemporalHybridNet、PTFT_VSSM、Diffusion、Graph 等模型，支持 Trainer 封装、LR Scheduler、Early Stopping；Hybrid 采用 `HybridLoss` 组合损失（MSE+分位+方向+Regime）。
 - **Hybrid 总线**：`--model hybrid` 聚合卷积/GRU/Attention 与 PTFT、VSSM、Diffusion、Graph 分支输出，可通过配置灵活启用分支。
 - **推理预测**：`src/stock_prediction/predict.py` 负责加载模型权重并输出预测结果。
