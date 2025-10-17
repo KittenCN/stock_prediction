@@ -100,7 +100,7 @@ class Trainer:
                     desc="train-batch",
                 )
         for batch in self.train_loader:
-            # 判空，兼容 legacy 行为
+            # Null check, compatible with legacy behavior
             if batch is None:
                 if batch_bar:
                     batch_bar.update(1)

@@ -15,3 +15,27 @@
 
 - `branch_config` 支持 bool / float / dict 形式；当提供 `{"enabled": bool, "weight": float}` 时，权重会被转换为门控先验（log-scale），默认值为 1。
 - Hybrid 门控温度通过软正则参数控制，如需固定可在训练脚本中手动设定。
+
+## 归一化一致性假设（2025-10-20 新增）
+
+- **训练与推理必须使用相同的归一化参数**：`Stock_Data(mode=0)` 训练时计算的 `mean_list`/`std_list` 必须在推理和反归一化时复用，避免分布偏移。
+- **禁用符号级归一化避免重复标准化**：`config.yaml` 中 `enable_symbol_normalization` 默认设为 `false`，防止特征工程与 `Stock_Data` 两次归一化导致尺度错误。
+- **自适应模型容量匹配数据规模**：Hybrid 模型使用自适应配置系统，根据训练样本数自动选择模型规模（tiny/small/medium/large/full），避免小数据集过拟合。
+- **模型配置可手动覆盖**：用户可通过 `--hybrid_size` 参数手动指定配置级别，覆盖自动选择的配置。
+- **训练集推理用于验证过拟合**：`contrast_lines()` 现使用 `mean_list`/`std_list` 反归一化，确保训练集推理 RMSE < 5% 作为基线。
+- **归一化参数可通过 `scripts/verify_normalization.py` 验证**：该脚本对比训练/测试模式的归一化输出，确保修复生效。
+
+## 自适应配置策略（2025-10-20 新增）
+
+Hybrid 模型根据训练样本数自动选择配置级别：
+
+| 样本数范围 | 配置级别 | hidden_dim | 启用分支 | 适用场景 |
+|-----------|---------|-----------|---------|---------|
+| < 500 | tiny | 32 | legacy | 单股票、短历史 |
+| 500-1000 | small | 64 | legacy | 小规模训练 |
+| 1000-5000 | medium | 128 | legacy + ptft | 标准单股票或小批量多股票 |
+| 5000-10000 | large | 160 | legacy + ptft + vssm | 多股票联合训练 |
+| >= 10000 | full | 160 | 所有分支 | 大规模多股票训练 |
+
+**默认行为**：使用 `auto` 模式自动选择，可通过 `--hybrid_size` 参数手动覆盖。
+

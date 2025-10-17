@@ -38,3 +38,6 @@ features:
   window_ensemble_ops: ["mean", "std"]
   align_holiday: true
   enable_direction_label: true
+  enable_symbol_normalization: false  # 禁用符号级归一化，避免重复标准化
+  use_symbol_embedding: true
+  symbol_embedding_dim: 16

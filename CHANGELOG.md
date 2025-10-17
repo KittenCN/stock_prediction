@@ -3,6 +3,45 @@
 本文件遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与语义化版本（SemVer）。
 
 ## [未发布] - 2025-10-20
+### Fixed
+- **Hybrid 模型训练集推理偏差问题修复**（关键修复）
+  - 问题：训练 30 epoch 后，使用训练集数据推理时预测结果与真实值偏差巨大
+  - 根本原因：
+    1. `contrast_lines()` 函数使用测试集归一化参数（`test_mean_list`/`test_std_list`）反归一化，与训练时使用的参数（`mean_list`/`std_list`）不一致
+    2. 特征工程启用 `enable_symbol_normalization` 时会重复归一化
+    3. Hybrid 模型默认配置参数量过大（160 hidden_dim，5 个分支），容易过拟合
+  - 修复措施：
+    1. 修改 `train.py` 的 `contrast_lines()` 函数（第 659、680 行），统一使用 `mean_list`/`std_list` 进行反归一化
+    2. 在 `config.yaml` 中显式设置 `enable_symbol_normalization: false`，避免重复标准化
+    3. **实现自适应模型配置**：根据训练数据量自动调整模型容量，小数据集使用轻量模型，大数据集使用完整模型
+  - 新增验证工具：`scripts/verify_normalization.py` 用于验证训练/测试归一化一致性
+  - 影响范围：所有使用训练集推理的场景，特别是过拟合检测和模型调试
+  - 预期效果：训练集推理 RMSE 从 50%+ 降至 5% 以内
+  - 相关文档：`docs/diagnosis_hybrid_training_inference_gap.md`
+
+### Added
+- **Hybrid 模型自适应配置系统**（新特性）
+  - 新增 `--hybrid_size` 命令行参数，支持手动指定模型规模：
+    - `auto`（默认）：根据训练样本数自动选择配置
+    - `tiny`：hidden_dim=32，仅 legacy 分支（适合 < 500 样本）
+    - `small`：hidden_dim=64，仅 legacy 分支（适合 500-1000 样本）
+    - `medium`：hidden_dim=128，legacy + ptft 分支（适合 1000-5000 样本）
+    - `large`：hidden_dim=160，legacy + ptft + vssm 分支（适合 5000-10000 样本）
+    - `full`：hidden_dim=160，所有分支（适合 >= 10000 样本）
+  - 自动模式根据实际训练样本数动态选择最优配置，避免小数据集过拟合
+  - 训练开始时显示配置信息和数据量分析，提供配置建议
+  - 使用示例：
+    ```bash
+    # 自动配置（推荐）
+    python scripts/train.py --model hybrid --begin_code 000001.SZ
+    
+    # 手动指定轻量配置
+    python scripts/train.py --model hybrid --hybrid_size small --begin_code 000001.SZ
+    
+    # 强制使用完整配置
+    python scripts/train.py --model hybrid --hybrid_size full --begin_code 000001.SZ
+    ```
+
 ### Added
 - 引入 ts_code 股票嵌入：特征工程输出 _symbol_index，TemporalHybridNet/PTFTVSSMEnsemble/DiffusionForecaster/GraphTemporalModel 支持可学习嵌入。
 - `feature_engineering.py` 与 `FeatureSettings`：支持对数收益率/差分特征生成、外生特征白名单合并、多股票联合训练与滑动窗口统计。

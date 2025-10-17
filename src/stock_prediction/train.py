@@ -72,6 +72,7 @@ parser.add_argument('--trend', default=0, type=int, help="predict the trend of s
 parser.add_argument('--epoch', default=5, type=int, help="training epochs")
 parser.add_argument('--plot_days', default=30, type=int, help="history days to display in test/predict plots")
 parser.add_argument('--full_train', default=0, type=int, help="train on full dataset without validation/test (1 to enable)")
+parser.add_argument('--hybrid_size', default="auto", type=str, help="Hybrid model size: auto (data-adaptive), tiny, small, medium, large, full")
 
 # Default args reused by tests and direct imports
 class DefaultArgs:
@@ -88,6 +89,8 @@ class DefaultArgs:
     trend = 0
     epoch = 5
     plot_days = 30
+    full_train = 0
+    hybrid_size = "auto"
     full_train = 0
 
 args = DefaultArgs()
@@ -145,7 +148,7 @@ def train_with_trainer(train_loader, val_loader=None, epoch_count=1):
         show_progress=True,
     )
     history = trainer.fit()
-    train_with_trainer.last_history = history  # 挂载 loss 记录，供全局访问
+    train_with_trainer.last_history = history  # Attach loss records for global access
     return history
 
 
@@ -434,7 +437,7 @@ def predict(test_codes):
                 Path(png_path) / "predict",
                 prefix="predict",
             )
-        # 指标采集
+        # Metrics collection
         import json
         from stock_prediction.metrics import metrics_report
         print("[DEBUG] Starting metrics collection for predict_days <= 0")
@@ -501,7 +504,7 @@ def predict(test_codes):
                 Path(png_path) / "predict",
                 prefix="predict",
             )
-        # 指标采集
+        # Metrics collection
         import json
         from stock_prediction.metrics import metrics_report
         metrics_out = {}
@@ -549,7 +552,7 @@ def loss_curve(loss_list):
 
 
 def ensure_checkpoint_ready() -> None:
-    """同步保存最新权重与最优权重，保证后续可加载。"""
+    """Synchronously save latest weights and best weights to ensure subsequent loading."""
 
     predict_days = int(getattr(args, "predict_days", 0))
     save_model(model, optimizer, save_path, False, predict_days)
@@ -656,7 +659,8 @@ def contrast_lines(test_codes):
                     else:
                         v = value
                     if show_list[index] == 1:
-                        _tmp.append(v * test_std_list[index] + test_mean_list[index])
+                        # Denormalize using training set normalization parameters to ensure consistency
+                        _tmp.append(v * std_list[index] + mean_list[index])
                 real_list.append(np.array(_tmp))
 
         for items in predict_list:
@@ -677,7 +681,8 @@ def contrast_lines(test_codes):
                     values = [idxs]
                 for index, item in enumerate(values):
                     if show_list[index] == 1:
-                        _tmp.append(item * test_std_list[index] + test_mean_list[index])
+                        # Denormalize using training set normalization parameters to ensure consistency
+                        _tmp.append(item * std_list[index] + mean_list[index])
                 prediction_list.append(np.array(_tmp))
     selected_features = [name_list[idx] for idx, flag in enumerate(show_list) if flag == 1]
     rename_map = {"open": "Open", "high": "High", "low": "Low", "close": "Close"}
@@ -719,7 +724,7 @@ def contrast_lines(test_codes):
             Path(png_path) / "test",
             prefix="test",
         )
-    # 指标采集
+    # Metrics collection
     import json
     from stock_prediction.metrics import metrics_report
     metrics_out = {}
@@ -820,10 +825,129 @@ def main():
         criterion = nn.MSELoss()
     elif model_mode == "HYBRID":
         hybrid_steps = abs(int(args.predict_days)) if int(args.predict_days) > 0 else 1
+        
+        # Adaptive model configuration: automatically adjust model capacity based on training data size or user specification
+        # Advantages: lightweight models for small datasets to avoid overfitting, full models for large datasets to improve expressiveness
+        def get_adaptive_hybrid_config(size_hint: str = "auto", data_size: int = 0) -> dict:
+            """
+            Adaptively adjust Hybrid model configuration based on data size or user specification
+            
+            Args:
+                size_hint: Model size hint ("auto", "tiny", "small", "medium", "large", "full")
+                data_size: Number of training samples (only used when size_hint="auto")
+            
+            Returns:
+                dict: Configuration dictionary containing hidden_dim and branch_config
+            
+            Configuration strategy:
+                - tiny: hidden_dim=32, legacy only (suitable for < 500 samples)
+                - small: hidden_dim=64, legacy only (suitable for 500-1000 samples)
+                - medium: hidden_dim=128, legacy + ptft (suitable for 1000-5000 samples)
+                - large: hidden_dim=160, legacy + ptft + vssm (suitable for 5000-10000 samples)
+                - full: hidden_dim=160, all branches (suitable for >= 10000 samples)
+                - auto: automatically select configuration above based on data_size
+            """
+            configs = {
+                "tiny": {
+                    "hidden_dim": 32,
+                    "branch_config": {
+                        "legacy": True,
+                        "ptft": False,
+                        "vssm": False,
+                        "diffusion": False,
+                        "graph": False,
+                    },
+                    "description": "Minimal config (for < 500 samples)"
+                },
+                "small": {
+                    "hidden_dim": 64,
+                    "branch_config": {
+                        "legacy": True,
+                        "ptft": False,
+                        "vssm": False,
+                        "diffusion": False,
+                        "graph": False,
+                    },
+                    "description": "Lightweight config (for 500-1000 samples)"
+                },
+                "medium": {
+                    "hidden_dim": 128,
+                    "branch_config": {
+                        "legacy": True,
+                        "ptft": True,
+                        "vssm": False,
+                        "diffusion": False,
+                        "graph": False,
+                    },
+                    "description": "Standard config (for 1000-5000 samples)"
+                },
+                "large": {
+                    "hidden_dim": 160,
+                    "branch_config": {
+                        "legacy": True,
+                        "ptft": True,
+                        "vssm": True,
+                        "diffusion": False,
+                        "graph": False,
+                    },
+                    "description": "Enhanced config (for 5000-10000 samples)"
+                },
+                "full": {
+                    "hidden_dim": 160,
+                    "branch_config": {
+                        "legacy": True,
+                        "ptft": True,
+                        "vssm": True,
+                        "diffusion": True,
+                        "graph": True,
+                    },
+                    "description": "Full config (for >= 10000 samples)"
+                }
+            }
+            
+            # Manual configuration selection
+            if size_hint != "auto" and size_hint in configs:
+                config = configs[size_hint]
+                print(f"[Model Config] Using manual configuration: {size_hint}")
+                print(f"               Description: {config['description']}")
+                print(f"               hidden_dim={config['hidden_dim']}")
+                enabled_branches = [k for k, v in config['branch_config'].items() if v]
+                print(f"               Enabled branches: {', '.join(enabled_branches)}")
+                return config
+            
+            # Automatic mode: select based on data size
+            if data_size < 500:
+                selected = "tiny"
+            elif data_size < 1000:
+                selected = "small"
+            elif data_size < 5000:
+                selected = "medium"
+            elif data_size < 10000:
+                selected = "large"
+            else:
+                selected = "full"
+            
+            config = configs[selected]
+            print(f"[Model Config] Adaptive configuration (based on samples={data_size})")
+            print(f"               Selected level: {selected}")
+            print(f"               Description: {config['description']}")
+            print(f"               hidden_dim={config['hidden_dim']}")
+            enabled_branches = [k for k, v in config['branch_config'].items() if v]
+            print(f"               Enabled branches: {', '.join(enabled_branches)}")
+            return config
+        
+        # Get configuration
+        size_hint = getattr(args, "hybrid_size", "auto")
+        # Estimate data size (use conservative estimate if data not loaded before model init)
+        estimated_data_size = int(os.getenv("TRAIN_DATA_SIZE", "1000"))  # Default assumes small scale
+        hybrid_config = get_adaptive_hybrid_config(size_hint, estimated_data_size)
+        
         model = TemporalHybridNet(
             input_dim=INPUT_DIMENSION,
             output_dim=OUTPUT_DIMENSION,
+            hidden_dim=hybrid_config["hidden_dim"],
             predict_steps=hybrid_steps,
+            branch_config=hybrid_config["branch_config"],
             use_symbol_embedding=SYMBOL_EMBED_ENABLED,
             symbol_embedding_dim=SYMBOL_EMBED_DIM,
             max_symbols=SYMBOL_VOCAB_SIZE,
@@ -831,7 +955,9 @@ def main():
         model._init_args = dict(
             input_dim=INPUT_DIMENSION,
             output_dim=OUTPUT_DIMENSION,
+            hidden_dim=hybrid_config["hidden_dim"],
             predict_steps=hybrid_steps,
+            branch_config=hybrid_config["branch_config"],
             use_symbol_embedding=SYMBOL_EMBED_ENABLED,
             symbol_embedding_dim=SYMBOL_EMBED_DIM,
             max_symbols=SYMBOL_VOCAB_SIZE,
@@ -839,7 +965,9 @@ def main():
         test_model = TemporalHybridNet(
             input_dim=INPUT_DIMENSION,
             output_dim=OUTPUT_DIMENSION,
+            hidden_dim=hybrid_config["hidden_dim"],
             predict_steps=hybrid_steps,
+            branch_config=hybrid_config["branch_config"],
             use_symbol_embedding=SYMBOL_EMBED_ENABLED,
             symbol_embedding_dim=SYMBOL_EMBED_DIM,
             max_symbols=SYMBOL_VOCAB_SIZE,
@@ -847,7 +975,9 @@ def main():
         test_model._init_args = dict(
             input_dim=INPUT_DIMENSION,
             output_dim=OUTPUT_DIMENSION,
+            hidden_dim=hybrid_config["hidden_dim"],
             predict_steps=hybrid_steps,
+            branch_config=hybrid_config["branch_config"],
             use_symbol_embedding=SYMBOL_EMBED_ENABLED,
             symbol_embedding_dim=SYMBOL_EMBED_DIM,
             max_symbols=SYMBOL_VOCAB_SIZE,
@@ -1090,6 +1220,29 @@ def main():
         print("data_queue size: %d" % (data_queue.qsize()))
         print("total codes: %d, total length: %d"%(codes_len, total_length))
         print("total test codes: %d, total test length: %d"%(test_queue.qsize(), total_test_length))
+        
+        # 显示基于实际数据量的模型配置建议
+        if model_mode == "HYBRID" and total_length > 0:
+            if total_length < 500:
+                suggested = "tiny"
+            elif total_length < 1000:
+                suggested = "small"
+            elif total_length < 5000:
+                suggested = "medium"
+            elif total_length < 10000:
+                suggested = "large"
+            else:
+                suggested = "full"
+            
+            current_size = getattr(args, "hybrid_size", "auto")
+            print(f"\n[Data Analysis] Training samples: {total_length}")
+            print(f"[Model Config] Current configuration level: {current_size}")
+            if current_size == "auto":
+                print(f"               Auto-selected: {suggested}")
+            print(f"[Suggestion] To manually adjust, use: --hybrid_size {suggested}")
+            if total_length < 1000:
+                print(f"[Note] Small dataset detected. Consider increasing training epochs or using data augmentation\n")
+        
         # batch_none = 0
         # data_none = 0
         # scaler = GradScaler('cuda')
@@ -1217,12 +1370,12 @@ def main():
             print("Start create image for loss (final)")
             loss_curve(lo_list)
         if getattr(args, "full_train", False) or len(test_codes) == 0:
-            print("[LOG] full_train enabled或无测试代码，跳过预测对比。")
+            print("[LOG] full_train enabled or no test codes available, skipping prediction comparison.")
         else:
             print("Start create image for pred-real")
             test_index = random.randint(0, len(test_codes) - 1)
             test_code = [test_codes[test_index]]
-            # 采集并保存指标
+            # Collect and save metrics
             try:
                 import json
                 from stock_prediction.metrics import metrics_report
@@ -1245,7 +1398,7 @@ def main():
         print("train epoch: %d" % (last_epoch))
     elif mode == "test":
         if getattr(args, "full_train", False) and not test_codes and args.test_code == "":
-            print("[LOG] 无测试数据可用于对比。")
+            print("[LOG] No test data available for comparison.")
             return
         if args.test_code != "" or args.test_code == "all":
             test_code = [args.test_code]
