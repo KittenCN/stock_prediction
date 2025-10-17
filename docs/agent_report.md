@@ -42,3 +42,15 @@
   1. 扩充外部信号库（行业指数、新闻情绪、风险因子）并建立特征重要性分析。
   2. 引入回测脚本（如 `make backtest`）校验金融指标损失对策略收益的提升效果。
   3. 考察 Diffusion / Graph 时序模型作为 Regime 识别与情景模拟的补充方案。
+
+### 本次补充（2025-10-17）
+- 完成股票 ID 嵌入：特征工程、数据集、Trainer/预测 CLI 与 Hybrid/PTFT/Diffusion/Graph 模型全部连通。
+- 测试覆盖：	ests/test_models.py 新增 Hybrid/Diffusion/Graph/PTFT 股票嵌入单元测试。
+- 文档更新：README、system_design、maintenance、model_strategy、hybrid_rearchitecture、research_diffusion_graph 均追加嵌入说明。
+
+- 增强损失函数：HybridLoss 与 PTFTVSSMLoss 新增波动度/极值约束，测试覆盖同 步更新。
+
+### 本次补充（2025-10-20）
+- Hybrid 分支门控：ranch_config 支持传入先验权重，TemporalHybridNet 新增软门控向量并暴露 usion_gate 诊断信息。
+- 扩散/图模型：`DiffusionForecaster` 增加 `cosine` 调度与上下文条件输入；`GraphTemporalModel` 支持动态邻接混合，测试与文档同步更新。
+- 增强损失函数：`HybridLoss` 与 `PTFTVSSMLoss` 新增波动度/极值约束，相关测试同步更新。

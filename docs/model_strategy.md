@@ -114,3 +114,18 @@
 
 ---
 本蓝图与 `docs/system_design.md`、`docs/maintenance.md` 配套使用，确保设计方案与实现状态保持同步。 
+
+## 股票 ID 嵌入策略进展（2025-10-17 · 已完成）
+- 已落地 ts_code 嵌入：特征工程产出 `_symbol_index`，Hybrid/PTFT/Diffusion/Graph 模型复用统一嵌入表。
+- 嵌入维度由配置 `features.symbol_embedding_dim` 控制，默认 16，可按模型容量调整。
+- 训练/推理脚本自动传递符号张量，兼容旧模型，不启用嵌入时无性能影响。
+
+## 损失函数强化策略（2025-10-20 · 已完成）
+- HybridLoss 与 PTFTVSSMLoss 已加入波动度/极值约束，训练阶段可通过权重参数调优，缓解预测均值吸附。
+- 建议结合验证集对 olatility_weight、extreme_weight 进行网格搜索，并关注 Sharpe/最大回撤的配套指标。
+
+## 扩散与图模型迭代（2025-10-20 · 已完成首轮）
+- 扩散/图模型迭代：`DiffusionForecaster` 已支持 `cosine` 调度与上下文条件输入；`GraphTemporalModel` 支持动态邻接混合，可与股票嵌入共用。
+- 下一步：研究可学习噪声调度、动态构图策略以及与 Hybrid 总线的融合。
+
+- Hybrid 分支门控：TemporalHybridNet 支持先验权重与软门控，可配合阶段式训练与蒸馏策略。

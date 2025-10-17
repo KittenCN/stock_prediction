@@ -49,6 +49,16 @@ config = AppConfig.from_env_and_yaml(str(root_dir / 'config' / 'config.yaml'))
 train_pkl_path = config.train_pkl_path
 png_path = config.png_path
 model_path = config.model_path
+feature_settings = getattr(config, "features", None)
+SYMBOL_EMBED_ENABLED = bool(getattr(feature_settings, "use_symbol_embedding", False))
+SYMBOL_EMBED_DIM = int(getattr(feature_settings, "symbol_embedding_dim", 16))
+SYMBOL_EMBED_MAX = int(os.getenv("SYMBOL_EMBED_MAX", "4096"))
+_symbol_vocab = len(feature_engineer.get_symbol_indices()) if SYMBOL_EMBED_ENABLED else 0
+if SYMBOL_EMBED_ENABLED:
+    SYMBOL_VOCAB_SIZE = _symbol_vocab if _symbol_vocab > 0 else SYMBOL_EMBED_MAX
+    SYMBOL_VOCAB_SIZE = min(max(SYMBOL_VOCAB_SIZE, 1), SYMBOL_EMBED_MAX)
+else:
+    SYMBOL_VOCAB_SIZE = max(_symbol_vocab, 1)
 
 parser = argparse.ArgumentParser(description="Stock price inference CLI")
 parser.add_argument('--model', default="ptft_vssm", type=str, help="model name, e.g. lstm / transformer / hybrid / ptft_vssm / diffusion / graph")
@@ -118,23 +128,79 @@ def _init_models(symbol: str) -> None:
         save_path = config.get_model_path("TRANSFORMER", symbol)
     elif model_mode == "HYBRID":
         hybrid_steps = abs(int(args.predict_days)) if int(args.predict_days) > 0 else 1
-        model = TemporalHybridNet(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=hybrid_steps)
-        test_model = TemporalHybridNet(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=hybrid_steps)
+        model = TemporalHybridNet(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=hybrid_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
+        )
+        test_model = TemporalHybridNet(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=hybrid_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
+        )
         save_path = config.get_model_path("HYBRID", symbol)
     elif model_mode == "PTFT_VSSM":
         ensemble_steps = abs(int(args.predict_days)) if int(args.predict_days) > 0 else 1
-        model = PTFTVSSMEnsemble(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=ensemble_steps)
-        test_model = PTFTVSSMEnsemble(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=ensemble_steps)
+        model = PTFTVSSMEnsemble(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=ensemble_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
+        )
+        test_model = PTFTVSSMEnsemble(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=ensemble_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
+        )
         save_path = config.get_model_path("PTFT_VSSM", symbol)
     elif model_mode == "DIFFUSION":
         diffusion_steps = abs(int(args.predict_days)) if int(args.predict_days) > 0 else 1
-        model = DiffusionForecaster(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=diffusion_steps)
-        test_model = DiffusionForecaster(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=diffusion_steps)
+        model = DiffusionForecaster(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=diffusion_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
+        )
+        test_model = DiffusionForecaster(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=diffusion_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
+        )
         save_path = str(config.get_model_path("DIFFUSION", symbol))
     elif model_mode == "GRAPH":
         graph_steps = abs(int(args.predict_days)) if int(args.predict_days) > 0 else 1
-        model = GraphTemporalModel(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=graph_steps)
-        test_model = GraphTemporalModel(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=graph_steps)
+        model = GraphTemporalModel(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=graph_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
+        )
+        test_model = GraphTemporalModel(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=graph_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
+        )
         save_path = str(config.get_model_path("GRAPH", symbol))
     elif model_mode == "CNNLSTM":
         predict_days = max(1, abs(int(args.predict_days)))
@@ -197,10 +263,20 @@ def test(dataset, testmodel=None, dataloader_mode=0):
             if batch is None:
                 pbar.update(1)
                 continue
-            data, label = batch
+            if isinstance(batch, (list, tuple)):
+                if len(batch) == 3:
+                    data, label, symbol_idx = batch
+                else:
+                    data, label = batch[0], batch[1]
+                    symbol_idx = None
+            else:
+                data, label = batch
+                symbol_idx = None
             device_target = device if args.test_gpu == 1 else torch.device("cpu")
             data = data.to(device_target, non_blocking=True)
             label = label.to(device_target, non_blocking=True)
+            if symbol_idx is not None:
+                symbol_idx = symbol_idx.to(device_target, non_blocking=True).long()
             data = pad_input(data)
             if model_mode == "MULTIBRANCH":
                 price_dim = INPUT_DIMENSION // 2
@@ -209,7 +285,10 @@ def test(dataset, testmodel=None, dataloader_mode=0):
             elif model_mode == "TRANSFORMER":
                 predict = test_model(data, label, int(args.predict_days))
             else:
-                predict = test_model(data)
+                if symbol_idx is not None:
+                    predict = test_model(data, symbol_index=symbol_idx)
+                else:
+                    predict = test_model(data)
             predict_list.append(predict.to('cpu'))
             if predict.shape == label.shape:
                 loss = criterion(predict, label)

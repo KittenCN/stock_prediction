@@ -5,10 +5,11 @@
 ## 功能概览
 - **行情采集**：封装 `tushare`/`akshare`/`yfinance` 三类数据源。
 - **数据预处理**：将日线 CSV 聚合为 `pkl_handle/train.pkl` 队列，支持重复加载。
-- **特征工程**：`feature_engineering.py` 自动生成对数收益率/差分特征，并按配置合并宏观、行业、舆情外生变量，支持 per-symbol 归一 (`enable_symbol_normalization`) 与多股票联合训练的滑动窗口统计。
-- **模型训练**：`src/stock_prediction/train.py` 提供统一入口，可选择 LSTM、Transformer、TemporalHybridNet、PTFT_VSSM、Diffusion、Graph 等模型，支持 Trainer 封装、LR Scheduler、Early Stopping；Hybrid 采用 `HybridLoss` 组合损失（MSE+分位+方向+Regime）。
-- **Hybrid 总线**：`--model hybrid` 聚合卷积/GRU/Attention 与 PTFT、VSSM、Diffusion、Graph 分支输出，可通过配置灵活启用分支。
-- **推理预测**：`src/stock_prediction/predict.py` 负责加载模型权重并输出预测结果。
+- **特征工程**：
+eature_engineering.py 自动生成对数收益与差分特征，按配置合并宏观、行业、舆情外生变量，支持 per-symbol 归一 (enable_symbol_normalization) 并缓存统计量；启用 use_symbol_embedding 时会输出股票 ID 索引，模型可共享可学习的嵌入向量。
+- **模型训练**：`src/stock_prediction/train.py` 提供统一入口，可选择 LSTM、Transformer、TemporalHybridNet、PTFT_VSSM、Diffusion、Graph 等模型，内置 Trainer/LR Scheduler/Early Stopping；Hybrid 默认使用 `HybridLoss`（MSE+分位+方向+Regime）并扩展波动度/极值约束。
+- **Hybrid 总线**：--model hybrid 聚合卷积/GRU/Attention 与 PTFT、VSSM、Diffusion、Graph 分支输出，可通过 ranch_config 设置分支先验权重，软门控自动调节贡献度，并在多股票场景下共享股票嵌入。
+- **推理预测**：src/stock_prediction/predict.py 负责加载模型权重并输出预测结果，保持与训练阶段一致的特征加工与嵌入策略。
 - **评估指标**：`metrics.py` 自动采集 RMSE、MAPE、分位覆盖率、VaR、CVaR 等金融指标，训练/测试后保存至 `output/metrics_*.json`。
 - **技术指标库**：`target.py` 内置常见指标（MACD、KDJ、DMI、ATR 等）。
 
@@ -93,10 +94,9 @@ cat output/metrics_*.json
 ```
 
 ## 测试与质量
-- `pytest`：新增特征工程与 Regime 融合单元测试，目前共 28 项全部通过。
-  新增扩散/图模型单测，确保形状与接口兼容。
-- 建议在提交前运行 `pytest -q`，并按需执行 `ruff` / `black` / `mypy`。
-- 暴露 `create_predictor()`，便于脚本或测试快速构造预测器。
+- `pytest`：覆盖特征工程、Regime 自适应以及股票嵌入相关单元测试（Diffusion/Graph/Hybrid/PTFT 等），当前 30+ 项均通过。
+- 建议在提交前执行 `pytest -q`，并按需运行 `ruff` / `black` / `mypy`。
+- 暴露 `create_predictor()` 帮助脚本或测试快速构造推理器。
 
 ## 文档索引
 - `docs/system_design.md`：架构拓扑与关键决策

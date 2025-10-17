@@ -27,14 +27,26 @@ class PTFTVSSMEnsemble(nn.Module):
         ensemble_dropout: float = 0.1,
         fusion_hidden_dim: int = 96,
         mc_dropout: bool = False,
+        use_symbol_embedding: bool = False,
+        symbol_embedding_dim: int = 16,
+        max_symbols: int = 4096,
     ) -> None:
         super().__init__()
         self.predict_steps = max(1, int(predict_steps))
         self.output_dim = output_dim
         self.regime_classes = regime_classes
+        self.use_symbol_embedding = bool(use_symbol_embedding)
+        self.symbol_embedding_dim = int(symbol_embedding_dim) if self.use_symbol_embedding else 0
+        self.max_symbols = max(1, int(max_symbols))
+        self.symbol_embedding = (
+            nn.Embedding(self.max_symbols, self.symbol_embedding_dim)
+            if self.use_symbol_embedding and self.symbol_embedding_dim > 0
+            else None
+        )
+        self.model_input_dim = input_dim + self.symbol_embedding_dim
 
         self.ptft = ProbTemporalFusionTransformer(
-            input_dim=input_dim,
+            input_dim=self.model_input_dim,
             output_dim=output_dim,
             hidden_dim=hidden_dim,
             num_heads=4,
@@ -43,7 +55,7 @@ class PTFTVSSMEnsemble(nn.Module):
             quantiles=quantiles,
         )
         self.vssm = VariationalStateSpaceModel(
-            input_dim=input_dim,
+            input_dim=self.model_input_dim,
             output_dim=output_dim,
             state_dim=state_dim,
             regime_classes=regime_classes,
@@ -63,10 +75,16 @@ class PTFTVSSMEnsemble(nn.Module):
         """在推理阶段启用/关闭贝叶斯 Dropout。"""
         self.fusion_dropout.set_mc_dropout(enabled)
 
-    def forward(self, x: torch.Tensor, predict_steps: Optional[int] = None) -> torch.Tensor:
+    def forward(
+        self,
+        x: torch.Tensor,
+        predict_steps: Optional[int] = None,
+        symbol_index: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
         steps = self.predict_steps if predict_steps is None else max(1, int(predict_steps))
-        ptft_result = self.ptft(x, steps)
-        vssm_result = self.vssm(x, steps)
+        x_augmented, symbol_embed = self._augment_with_symbol(x, symbol_index)
+        ptft_result = self.ptft(x_augmented, steps)
+        vssm_result = self.vssm(x_augmented, steps)
 
         ptft_point = self._ensure_step_dim(ptft_result["point"], steps)
         vssm_point = self._ensure_step_dim(vssm_result["prediction"], steps)
@@ -89,6 +107,8 @@ class PTFTVSSMEnsemble(nn.Module):
             "gate_logits": gate_logits,
             "fused": fused,
         }
+        if symbol_embed is not None:
+            self.last_details["symbol_embed"] = symbol_embed.detach()
         PTFTVSSMEnsemble._global_last_details = self.last_details
         return output
 
@@ -109,6 +129,20 @@ class PTFTVSSMEnsemble(nn.Module):
             return tensor.unsqueeze(1) if steps >= 1 else tensor.unsqueeze(0)
         return tensor
 
+    def _augment_with_symbol(
+        self, x: torch.Tensor, symbol_index: Optional[torch.Tensor]
+    ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
+        if self.symbol_embedding is None or symbol_index is None:
+            return x, None
+        if symbol_index.dim() > 1:
+            symbol_index = symbol_index.reshape(symbol_index.size(0), -1)[:, 0]
+        symbol_index = symbol_index.to(dtype=torch.long, device=x.device)
+        symbol_index = torch.clamp(symbol_index, min=0, max=self.max_symbols - 1)
+        embed = self.symbol_embedding(symbol_index)
+        expanded = embed.unsqueeze(1).expand(-1, x.size(1), -1)
+        augmented = torch.cat([x, expanded], dim=-1)
+        return augmented, embed
+
 
 class PTFTVSSMLoss(nn.Module):
     """综合 MSE、KL、方向性、Sharpe/回撤等指标的损失函数。"""
@@ -124,6 +158,8 @@ class PTFTVSSMLoss(nn.Module):
         regime_weight: float = 5e-2,
         quantile_weight: float = 5e-2,
         l2_weight: float = 1e-6,
+        volatility_weight: float = 2e-2,
+        extreme_weight: float = 2e-2,
     ) -> None:
         super().__init__()
         self.model = model
@@ -135,11 +171,14 @@ class PTFTVSSMLoss(nn.Module):
         self.regime_weight = regime_weight
         self.quantile_weight = quantile_weight
         self.l2_weight = l2_weight
+        self.volatility_weight = volatility_weight
+        self.extreme_weight = extreme_weight
         self.mse = nn.MSELoss()
 
     def forward(self, prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        target = target.to(prediction.device)
         prediction_view = self._ensure_three_dim(prediction)
-        target_view = self._ensure_three_dim(target).to(prediction.device)
+        target_view = self._ensure_three_dim(target)
 
         base_loss = self.mse(prediction, target)
         total = self.mse_weight * base_loss
@@ -176,6 +215,14 @@ class PTFTVSSMLoss(nn.Module):
         if self.max_drawdown_weight > 0:
             mdd_loss = F.mse_loss(self._max_drawdown(flat_pred), self._max_drawdown(flat_target))
             total = total + self.max_drawdown_weight * mdd_loss
+
+        if self.volatility_weight > 0:
+            volatility_loss = self._volatility_penalty(prediction_view, target_view)
+            total = total + self.volatility_weight * volatility_loss
+
+        if self.extreme_weight > 0:
+            extreme_loss = self._extreme_penalty(prediction_view, target_view)
+            total = total + self.extreme_weight * extreme_loss
 
         if self.l2_weight > 0:
             l2_penalty = sum(torch.sum(param ** 2) for param in self.model.parameters())
@@ -248,3 +295,19 @@ class PTFTVSSMLoss(nn.Module):
         drawdown = running_max - cumulative
         max_dd, _ = torch.max(drawdown, dim=-1)
         return max_dd
+
+    @staticmethod
+    def _volatility_penalty(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        pred_std = pred.std(dim=1, unbiased=False)
+        target_std = target.std(dim=1, unbiased=False)
+        return F.mse_loss(pred_std, target_std)
+
+    @staticmethod
+    def _extreme_penalty(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        pred_max = pred.amax(dim=1)
+        target_max = target.amax(dim=1)
+        pred_min = pred.amin(dim=1)
+        target_min = target.amin(dim=1)
+        max_loss = F.mse_loss(pred_max, target_max)
+        min_loss = F.mse_loss(pred_min, target_min)
+        return max_loss + min_loss

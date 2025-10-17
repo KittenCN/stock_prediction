@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 
-# 添加 src 目录到 Python 路径
+# 添加 src 目录至 Python 路径
 root_dir = Path(__file__).resolve().parent.parent
 src_dir = root_dir / "src"
 if str(src_dir) not in sys.path:
@@ -36,6 +36,37 @@ def test_temporal_hybrid_multi_step_shape():
 
     out_partial = model(x, predict_days=2)
     assert out_partial.shape == (2, 2, 4)
+
+
+def test_temporal_hybrid_symbol_embedding():
+    model = TemporalHybridNet(
+        input_dim=30,
+        output_dim=4,
+        predict_steps=2,
+        use_symbol_embedding=True,
+        symbol_embedding_dim=8,
+        max_symbols=32,
+    )
+    x = torch.randn(3, 6, 30)
+    symbols = torch.tensor([0, 1, 5])
+    out = model(x, predict_days=2, symbol_index=symbols)
+    assert out.shape == (3, 2, 4)
+
+
+def test_temporal_hybrid_branch_gating():
+    model = TemporalHybridNet(
+        input_dim=30,
+        output_dim=4,
+        predict_steps=2,
+        branch_config={"ptft": {"enabled": True, "weight": 0.5}, "diffusion": False},
+    )
+    x = torch.randn(2, 6, 30)
+    out = model(x, predict_days=2)
+    assert out.shape == (2, 2, 4)
+    details = model.get_last_details()
+    assert "fusion_gate" in details
+    weights = details["fusion_gate"]
+    assert torch.allclose(weights.sum(dim=1), torch.ones_like(weights.sum(dim=1)), atol=1e-5)
 
 
 def test_prob_tft_quantiles():
@@ -81,6 +112,21 @@ def test_ptft_vssm_ensemble_and_loss():
     assert grad_exists, "梯度应能回传至模型参数"
 
 
+def test_ptft_vssm_symbol_embedding():
+    model = PTFTVSSMEnsemble(
+        input_dim=30,
+        output_dim=4,
+        predict_steps=2,
+        use_symbol_embedding=True,
+        symbol_embedding_dim=8,
+        max_symbols=32,
+    )
+    x = torch.randn(2, 6, 30)
+    symbols = torch.tensor([0, 3])
+    output = model(x, predict_steps=2, symbol_index=symbols)
+    assert output.shape == (2, 2, 4)
+
+
 def test_ptft_vssm_mc_dropout_toggle():
     model = PTFTVSSMEnsemble(input_dim=30, output_dim=4, predict_steps=1, mc_dropout=False)
     x = torch.randn(1, 5, 30)
@@ -94,6 +140,31 @@ def test_ptft_vssm_mc_dropout_toggle():
     assert not torch.allclose(out1, out2)
 
 
+def test_ptft_vssm_loss_volatility_extreme_terms():
+    model = PTFTVSSMEnsemble(input_dim=30, output_dim=4, predict_steps=2)
+    criterion = PTFTVSSMLoss(
+        model,
+        mse_weight=1.0,
+        kl_weight=0.0,
+        direction_weight=0.0,
+        sharpe_weight=0.0,
+        max_drawdown_weight=0.0,
+        regime_weight=0.0,
+        quantile_weight=0.0,
+        l2_weight=0.0,
+        volatility_weight=0.1,
+        extreme_weight=0.1,
+    )
+    x = torch.randn(2, 6, 30)
+    target = torch.randn(2, 2, 4)
+    prediction = model(x, predict_steps=2)
+    loss = criterion(prediction, target)
+    assert torch.isfinite(loss)
+    loss.backward()
+    grad_exists = any(param.grad is not None for param in model.parameters())
+    assert grad_exists
+
+
 def test_diffusion_forecaster_shapes():
     model = DiffusionForecaster(input_dim=30, output_dim=4, predict_steps=3)
     x = torch.randn(2, 6, 30)
@@ -101,6 +172,53 @@ def test_diffusion_forecaster_shapes():
     assert out_full.shape == (2, 3, 4)
     out_single = model(x, predict_steps=1)
     assert out_single.shape == (2, 4)
+
+
+def test_diffusion_forecaster_symbol_embedding():
+    model = DiffusionForecaster(
+        input_dim=30,
+        output_dim=4,
+        predict_steps=2,
+        use_symbol_embedding=True,
+        symbol_embedding_dim=8,
+        max_symbols=64,
+    )
+    x = torch.randn(2, 5, 30)
+    symbols = torch.tensor([3, 7])
+    out = model(x, symbol_index=symbols)
+    assert out.shape == (2, 2, 4)
+
+
+def test_diffusion_forecaster_cosine_context():
+    model = DiffusionForecaster(
+        input_dim=30,
+        output_dim=4,
+        predict_steps=2,
+        schedule="cosine",
+        context_dim=8,
+    )
+    x = torch.randn(2, 6, 30)
+    context = torch.randn(2, 6, 8)
+    out = model(x, context=context)
+    assert out.shape == (2, 2, 4)
+
+
+def test_diffusion_forecaster_learnable_schedule_ddim():
+    model = DiffusionForecaster(
+        input_dim=30,
+        output_dim=4,
+        predict_steps=1,
+        learnable_schedule=True,
+        use_ddim=True,
+        ddim_eta=0.5,
+    )
+    assert isinstance(model.beta_schedule, torch.nn.Parameter)
+    x = torch.randn(3, 5, 30)
+    out = model(x)
+    assert out.shape == (3, 4)
+    loss = out.mean()
+    loss.backward()
+    assert model.beta_schedule.grad is not None
 
 
 def test_graph_temporal_model_shapes():
@@ -112,6 +230,34 @@ def test_graph_temporal_model_shapes():
     assert out_single.shape == (2, 4)
 
 
+def test_graph_temporal_model_symbol_embedding():
+    model = GraphTemporalModel(
+        input_dim=30,
+        output_dim=4,
+        predict_steps=1,
+        use_symbol_embedding=True,
+        symbol_embedding_dim=8,
+        max_symbols=32,
+    )
+    x = torch.randn(2, 5, 30)
+    symbols = torch.tensor([2, 15])
+    out = model(x, symbol_index=symbols)
+    assert out.shape == (2, 4)
+
+
+def test_graph_temporal_model_dynamic_adj():
+    model = GraphTemporalModel(
+        input_dim=30,
+        output_dim=4,
+        predict_steps=2,
+        use_dynamic_adj=True,
+        dynamic_alpha=0.6,
+    )
+    x = torch.randn(2, 6, 30)
+    out = model(x)
+    assert out.shape == (2, 2, 4)
+
+
 def test_hybrid_loss_forward():
     model = TemporalHybridNet(input_dim=30, output_dim=4, predict_steps=2)
     criterion = HybridLoss(model, mse_weight=1.0, quantile_weight=0.0, direction_weight=0.1, regime_weight=0.0)
@@ -120,3 +266,24 @@ def test_hybrid_loss_forward():
     prediction = model(x, predict_days=2)
     loss = criterion(prediction, target)
     assert loss.shape == () and torch.isfinite(loss)
+
+
+def test_hybrid_loss_volatility_extreme_terms():
+    model = TemporalHybridNet(input_dim=30, output_dim=4, predict_steps=3)
+    criterion = HybridLoss(
+        model,
+        mse_weight=1.0,
+        quantile_weight=0.0,
+        direction_weight=0.0,
+        regime_weight=0.0,
+        volatility_weight=0.1,
+        extreme_weight=0.1,
+    )
+    x = torch.randn(2, 7, 30)
+    target = torch.randn(2, 3, 4)
+    prediction = model(x, predict_days=3)
+    loss = criterion(prediction, target)
+    assert torch.isfinite(loss)
+    loss.backward()
+    grad_exists = any(param.grad is not None for param in model.parameters())
+    assert grad_exists
