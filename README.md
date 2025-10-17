@@ -6,7 +6,8 @@
 - **行情采集**：封装 `tushare`/`akshare`/`yfinance` 三类数据源。
 - **数据预处理**：将日线 CSV 聚合为 `pkl_handle/train.pkl` 队列，支持重复加载。
 - **特征工程**：`feature_engineering.py` 自动生成对数收益率/差分特征，并按配置合并宏观、行业、舆情外生变量，适配多股票联合训练与滑动窗口统计。
-- **模型训练**：`src/stock_prediction/train.py` 提供统一入口，可选择 LSTM、Transformer、TemporalHybridNet、PTFT_VSSM 等模型，支持 Trainer 封装、LR Scheduler、Early Stopping。
+- **模型训练**：`src/stock_prediction/train.py` 提供统一入口，可选择 LSTM、Transformer、TemporalHybridNet、PTFT_VSSM、Diffusion、Graph 等模型，支持 Trainer 封装、LR Scheduler、Early Stopping。
+- **Hybrid 总线**：`--model hybrid` 聚合卷积/GRU/Attention 与 PTFT、VSSM、Diffusion、Graph 分支输出，可通过配置灵活启用分支。
 - **推理预测**：`src/stock_prediction/predict.py` 负责加载模型权重并输出预测结果。
 - **评估指标**：`metrics.py` 自动采集 RMSE、MAPE、分位覆盖率、VaR、CVaR 等金融指标，训练/测试后保存至 `output/metrics_*.json`。
 - **技术指标库**：`target.py` 内置常见指标（MACD、KDJ、DMI、ATR 等）。
@@ -55,7 +56,7 @@ project-root/
 | `multibranch` | 价格/指标双分支 LSTM | 面向多特征族 |
 | `transformer` | 自定义 Transformer 编解码结构 | 长序列建模 |
 | `cnnlstm` | CNN + LSTM + Attention | 多步预测（需 `predict_days` > 0）|
-| `hybrid` | TemporalHybridNet（多尺度卷积 + Bi-GRU + 多头注意力）| 多尺度回归 |
+| `hybrid` | Hybrid Aggregator（卷积/GRU + PTFT/VSSM/Diffusion/Graph 总线）| 多模态特征融合 |
 | `ptft_vssm` | PTFT + Variational SSM 双轨组合 | 概率预测与风险评估 |
 | `diffusion` | DiffusionForecaster（扩散式去噪解码） | 情景生成、尾部风险分析 |
 | `graph` | GraphTemporalModel（自适应图结构） | 多资产关联建模 |

@@ -16,7 +16,7 @@
 | `stock_prediction.config` | `Config` 类及常用路径 | `from stock_prediction.config import config, train_pkl_path` |
 | `stock_prediction.common` | 数据集、可视化、模型保存工具 | 导入前确保 `init.py` 已初始化全局状态 |
 | `stock_prediction.feature_engineering` | 收益率/差分特征、外生变量融合、滑动窗口聚合 | `FeatureEngineer(AppConfig.from_env_and_yaml(...).features)` |
-| `stock_prediction.models` | 模型集合（TemporalHybridNet、ProbTFT、VSSM、PTFT_VSSM 等） | `from stock_prediction.models import PTFTVSSMEnsemble` |
+| `stock_prediction.models` | 模型集合（Hybrid Aggregator、ProbTFT、VSSM、Diffusion、Graph 等） | `from stock_prediction.models import TemporalHybridNet` |
 | `stock_prediction.getdata` | 行情采集函数 `set_adjust` / `get_stock_list` / `get_stock_data` | 可按需组合 |
 | `stock_prediction.data_preprocess` | 批量预处理接口 `preprocess_data()` | 生成新的序列化队列 |
 | `stock_prediction.target` | 技术指标函数库 | 可直接用于特征工程 |
