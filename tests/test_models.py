@@ -16,6 +16,7 @@ from stock_prediction.models import (
     PTFTVSSMLoss,
     DiffusionForecaster,
     GraphTemporalModel,
+    HybridLoss,
 )
 
 
@@ -109,3 +110,13 @@ def test_graph_temporal_model_shapes():
     assert out.shape == (2, 2, 4)
     out_single = model(x, predict_steps=1)
     assert out_single.shape == (2, 4)
+
+
+def test_hybrid_loss_forward():
+    model = TemporalHybridNet(input_dim=30, output_dim=4, predict_steps=2)
+    criterion = HybridLoss(model, mse_weight=1.0, quantile_weight=0.0, direction_weight=0.1, regime_weight=0.0)
+    x = torch.randn(3, 6, 30)
+    target = torch.randn(3, 2, 4)
+    prediction = model(x, predict_days=2)
+    loss = criterion(prediction, target)
+    assert loss.shape == () and torch.isfinite(loss)

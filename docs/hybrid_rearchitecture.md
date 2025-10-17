@@ -53,7 +53,7 @@ TemporalHybridNet (Hybrid Aggregator)
 
 ## 5. 训练与推理策略
 ### 5.1 训练
-- 默认损失：`nn.MSELoss()`；保留 PTFTVSSMLoss（如启用 PTFT/VSSM，可叠加 KL/分位/方向性约束）。
+- 默认损失：`HybridLoss`（MSE + 分位 Pinball + 方向性 + Regime 对齐）；仍可根据需要叠加 PTFT/VSSM 专属项。
 - 支持阶段式训练：
   1. 冻结子分支，仅训练 FusionLayer（快速调权）。
   2. 解冻关键分支联合微调。

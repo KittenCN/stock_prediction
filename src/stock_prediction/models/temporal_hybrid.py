@@ -185,13 +185,13 @@ class TemporalHybridNet(nn.Module):
                     tensor = branch_output.get("point")
                 if tensor is None:
                     continue
+                self.last_details[f"{name}_details"] = {
+                    k: v.detach() if torch.is_tensor(v) else v for k, v in branch_output.items()
+                }
                 if name == "vssm":
                     regime_probs = branch_output.get("regime_probs")
                     if regime_probs is not None and self.regime_proj is not None:
-                        if regime_probs.dim() == 2:
-                            regime_feature = regime_probs
-                        else:
-                            regime_feature = regime_probs.mean(dim=1)
+                        regime_feature = regime_probs
                     if regime_probs is not None:
                         self.last_details["vssm_regime"] = regime_probs.detach()
                 self.last_details[name] = tensor.detach()
@@ -206,9 +206,8 @@ class TemporalHybridNet(nn.Module):
             branch_features.append(self.branch_projs[name](flat))
 
         if regime_feature is not None and self.regime_proj is not None:
-            if regime_feature.dim() > 2:
-                regime_feature = regime_feature.mean(dim=1)
-            branch_features.append(self.regime_proj(regime_feature))
+            regime_mean = regime_feature.mean(dim=1) if regime_feature.dim() > 2 else regime_feature
+            branch_features.append(self.regime_proj(regime_mean))
 
         fused = torch.cat(branch_features, dim=-1)
         fused = self.fusion_proj(fused)

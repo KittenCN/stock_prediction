@@ -33,8 +33,8 @@
 2. [已完成] 封装 Trainer、学习率调度与 EarlyStopping，提升训练可重复性。
 3. [已完成] 建立 RMSE、MAPE、分位覆盖率、VaR/CVaR 等指标的自动采集与监控。  
 4. [进行中] 扩散模型、图结构建模预研：首版 DiffusionForecaster/GraphTemporalModel 已集成（`--model diffusion/graph`），后续持续迭代，详见 `docs/research_diffusion_graph.md`。  
-5. [规划中] Hybrid 2.0 总线化重构：统一 PTFT/VSSM/Diffusion/Graph 分支，设计文档见 `docs/hybrid_rearchitecture.md`。  
-5. **PTFT+VSSM 改进计划（源自 `docs/ptft_vssm_analysis_20251015.md`）**：  
+5. [进行中] Hybrid 2.0 总线化重构：统一 PTFT/VSSM/Diffusion/Graph 分支，`HybridLoss` 已引入（MSE+分位+方向+Regime），详见 `docs/hybrid_rearchitecture.md`。  
+6. **PTFT+VSSM 改进计划（源自 `docs/ptft_vssm_analysis_20251015.md`）**：  
    - [已完成] 收益率/差分建模以缓解非平稳性。  
    - [已完成] 基于 VSSM Regime 的自适应融合权重。  
    - [已完成] 模型瘦身与正则化（贝叶斯 Dropout、L2、Regime 辅助分类）。  

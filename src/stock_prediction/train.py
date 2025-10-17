@@ -31,6 +31,7 @@ from stock_prediction.models import (
     PTFTVSSMLoss,
     DiffusionForecaster,
     GraphTemporalModel,
+    HybridLoss,
 )
 try:
     from .common import *
@@ -795,7 +796,7 @@ def main():
         )
         test_model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=hybrid_steps)
         save_path = str(config.get_model_path("HYBRID", symbol))
-        criterion = nn.MSELoss()
+        criterion = HybridLoss(model, mse_weight=1.0, quantile_weight=0.1, direction_weight=0.05, regime_weight=0.05)
     elif model_mode == "PTFT_VSSM":
         ensemble_steps = abs(int(args.predict_days)) if int(args.predict_days) > 0 else 1
         model = PTFTVSSMEnsemble(
