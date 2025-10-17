@@ -22,24 +22,43 @@ class GraphTemporalModel(nn.Module):
         hidden_dim: int = 128,
         predict_steps: int = 1,
         dropout: float = 0.1,
+        use_symbol_embedding: bool = False,
+        symbol_embedding_dim: int = 16,
+        max_symbols: int = 4096,
     ) -> None:
         super().__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.hidden_dim = hidden_dim
         self.predict_steps = max(1, predict_steps)
+        self.use_symbol_embedding = bool(use_symbol_embedding)
+        self.symbol_embedding_dim = int(symbol_embedding_dim) if self.use_symbol_embedding else 0
+        self.max_symbols = max(1, int(max_symbols))
+        self.symbol_embedding = (
+            nn.Embedding(self.max_symbols, self.symbol_embedding_dim)
+            if self.use_symbol_embedding and self.symbol_embedding_dim > 0
+            else None
+        )
+        self.model_input_dim = self.input_dim + self.symbol_embedding_dim
 
-        self.adj_param = nn.Parameter(torch.randn(input_dim, input_dim) * 0.01)
-        self.node_proj = nn.Linear(input_dim, hidden_dim)
+        self.adj_param = nn.Parameter(torch.randn(self.model_input_dim, self.model_input_dim) * 0.01)
+        self.node_proj = nn.Linear(self.model_input_dim, hidden_dim)
         self.gru = nn.GRU(hidden_dim, hidden_dim, batch_first=True)
         self.dropout = nn.Dropout(dropout)
         self.head = nn.Linear(hidden_dim, output_dim * self.predict_steps)
 
-    def forward(self, x: torch.Tensor, predict_steps: Optional[int] = None) -> torch.Tensor:
+    def forward(
+        self,
+        x: torch.Tensor,
+        predict_steps: Optional[int] = None,
+        symbol_index: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
         steps = max(1, predict_steps) if predict_steps is not None else self.predict_steps
 
+        x_augmented, _ = self._augment_with_symbol(x, symbol_index)
+
         adj = self._build_adjacency()
-        graph_feature = torch.matmul(x, adj)
+        graph_feature = torch.matmul(x_augmented, adj)
         projected = self.node_proj(graph_feature)
 
         enc_out, hidden = self.gru(projected)
@@ -54,10 +73,24 @@ class GraphTemporalModel(nn.Module):
 
     def _build_adjacency(self) -> torch.Tensor:
         sym = (self.adj_param + self.adj_param.t()) / 2
-        mask = torch.eye(self.input_dim, device=sym.device)
+        mask = torch.eye(self.model_input_dim, device=sym.device)
         adj = F.softmax(sym, dim=-1)
         adj = adj * (1 - mask) + mask
         return adj
+
+    def _augment_with_symbol(
+        self, x: torch.Tensor, symbol_index: Optional[torch.Tensor]
+    ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
+        if self.symbol_embedding is None or symbol_index is None:
+            return x, None
+        if symbol_index.dim() > 1:
+            symbol_index = symbol_index.reshape(symbol_index.size(0), -1)[:, 0]
+        symbol_index = symbol_index.to(dtype=torch.long, device=x.device)
+        symbol_index = torch.clamp(symbol_index, min=0, max=self.max_symbols - 1)
+        embed = self.symbol_embedding(symbol_index)
+        expanded = embed.unsqueeze(1).expand(-1, x.size(1), -1)
+        augmented = torch.cat([x, expanded], dim=-1)
+        return augmented, embed
 
 
 __all__ = ["GraphTemporalModel"]

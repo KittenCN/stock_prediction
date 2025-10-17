@@ -48,22 +48,35 @@
 
 ## 5. 预测均线吸附问题 & 优化计划（2025-10-16）
 
-近期多股票联合训练 → 单股票推理的实验中，预测结果出现明显“靠近全局均线”的懒惰解。为避免跨资产尺度污染与信息丢失，制定如下行动计划：
+近期多股票联合训练及单股票推理实验中，预测结果出现明显“靠近全局均线”的懒惰解。为避免跨资产尺度污染与信息丢失，制定如下行动计划：
 
-1. **股票级相对归一（已完成，2025-10-16）**  
+1. **股票级相对归一（已完成 · 2025-10-16）**  
    - 在 `feature_engineering` 中对每只股票执行局部均值/标准差归一，保留还原所需统计量，并通过 `enable_symbol_normalization` 控制；
-   - 兼容仅单股票/缺乏统计数据的情况，自动回退至原始尺度。
-2. **引入股票 ID 特征（T+2 周）**  
-   - 在数据加载阶段附带 `ts_code`，并在 Hybrid/PTFT/Graph 分支中共享嵌入向量；
-   - `FeatureSettings` 增加 `use_symbol_embedding`、`embedding_dim` 配置。
-3. **强化损失函数（并行进行）**  
-   - 扩展 `HybridLoss`/`PTFTVSSMLoss`，加入预测波动度约束、方向/极值奖励，抑制“均值吸附”行为；
-   - 结合当前 `HybridLoss`（MSE + 分位 + 方向 + Regime）进一步评估权重设置。
+   - 兼容仅单股票或缺乏统计数据的情况，自动回退至原始尺度。
+2. **引入股票 ID 特征（已完成 · 2025-10-17，详见 5.1 节）**  
+   - 在数据加载阶段附带 `ts_code`，并在 Hybrid/PTFT/Diffusion/Graph 分支中共享嵌入向量；
+   - `FeatureSettings` 增加 `use_symbol_embedding`、`symbol_embedding_dim` 配置。
+3. **强化损失函数（已完成 · 2025-10-20，详见 5.2 节）**  
+   - 扩展 `HybridLoss`/`PTFTVSSMLoss`，加入预测波动度约束与极值奖励，抑制“均值吸附”行为；
+   - 调整各项权重，在保留 MSE/分位/方向/Regime 基线的前提下补充波动指标评估。
 4. **模型层次化改造（Hybrid 2.1，T+3~4 周）**  
-   - 在 Hybrid 总线中实现“分组 → 全局”两级融合：先按行业/市值等标签对分支输出聚合，再通过门控输出；
+   - 在 Hybrid 总线中实现“分组→全局”两级融合：先按行业/市值对分支输出聚合，再通过门控输出；
    - 为 PTFT/VSSM 增加趋势/波动多任务头，提高特征区分度。
 5. **分组训练与多任务蒸馏（规划阶段）**  
-   - 对行业/风格分组的子集独立训练，再将经验蒸馏到统一的 Hybrid 模型；
-   - 设定蒸馏指标（MSE、方向、一致性）并记录在 `docs/hybrid_rearchitecture.md` 执行情况。
+   - 对行业/风格分组的子集独立训练，再将经验蒸馏到统一 Hybrid 模型；
+   - 设定蒸馏指标（MSE、方向、一致性）并记录在 `docs/hybrid_rearchitecture.md`。
 
-执行完成后需同步更新：README、CHANGELOG、以及本节记录的状态。详细任务排期与负责人请见 `docs/model_strategy.md`。
+执行完成后需同步更新 README、CHANGELOG，以及本节记录的状态；详细排期与负责人请参阅 `docs/model_strategy.md`。
+
+### 5.1 股票 ID 嵌入执行总结（2025-10-17）
+- ✅ 数据集与特征工程统一输出 `_symbol_index`，训练/推理阶段自动缓存嵌入索引，支持多股票联合训练。
+- ✅ TemporalHybridNet、PTFTVSSMEnsemble、DiffusionForecaster、GraphTemporalModel 均已接入可学习的 ts_code 嵌入，支持 CLI `--model hybrid/diffusion/graph/ptft_vssm`。
+- ✅ Trainer/预测管线兼容新增符号张量，旧模型保持向后兼容。
+- ✅ 相关测试：`tests/test_models.py` 新增股票嵌入形状与梯度验证用例。
+
+### 5.2 损失函数强化执行总结（2025-10-20）
+- ✅ HybridLoss 增加波动度与极值罚项，默认权重可在训练脚本中调整，缓解预测均值吸附。
+- ✅ PTFTVSSMLoss 同步加入波动度/极值项，并整理 Sharpe、最大回撤等指标权重，支持更细粒度调参。
+- ✅ 训练脚本继续使用统一接口，旧权重配置保持兼容。
+- ✅ 	ests/test_models.py 新增相关单元测试，覆盖梯度反传与有限值校验。
+

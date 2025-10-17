@@ -108,6 +108,10 @@ class FeatureEngineer:
     def get_symbol_indices(self) -> Dict[str, int]:
         return self.symbol_index_map
 
+    def get_symbol_vocab_size(self) -> int:
+        """Return current unique symbol count for embedding table sizing."""
+        return len(self.symbol_index_map)
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

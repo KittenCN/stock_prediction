@@ -17,6 +17,8 @@ class HybridLoss(nn.Module):
         quantile_weight: float = 0.1,
         direction_weight: float = 0.05,
         regime_weight: float = 0.05,
+        volatility_weight: float = 0.02,
+        extreme_weight: float = 0.02,
     ) -> None:
         super().__init__()
         self.model = model
@@ -24,10 +26,16 @@ class HybridLoss(nn.Module):
         self.quantile_weight = quantile_weight
         self.direction_weight = direction_weight
         self.regime_weight = regime_weight
+        self.volatility_weight = volatility_weight
+        self.extreme_weight = extreme_weight
         self.mse = nn.MSELoss()
 
     def forward(self, prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        target = target.to(prediction.device)
         total = self.mse_weight * self.mse(prediction, target)
+
+        pred_view = self._ensure_three_dim(prediction)
+        target_view = self._ensure_three_dim(target)
 
         details = {}
         if hasattr(self.model, "get_last_details"):
@@ -45,6 +53,14 @@ class HybridLoss(nn.Module):
             regime_loss = self._regime_alignment_loss(details, target, prediction.device)
             if regime_loss is not None:
                 total = total + self.regime_weight * regime_loss
+
+        if self.volatility_weight > 0:
+            volatility_loss = self._volatility_penalty(pred_view, target_view)
+            total = total + self.volatility_weight * volatility_loss
+
+        if self.extreme_weight > 0:
+            extreme_loss = self._extreme_penalty(pred_view, target_view)
+            total = total + self.extreme_weight * extreme_loss
 
         return total
 
@@ -113,6 +129,24 @@ class HybridLoss(nn.Module):
         target_value = torch.tanh(target_return)
 
         return F.mse_loss(regime_value, target_value)
+
+    @staticmethod
+    def _ensure_three_dim(tensor: torch.Tensor) -> torch.Tensor:
+        if tensor.dim() == 2:
+            return tensor.unsqueeze(1)
+        return tensor
+
+    def _volatility_penalty(self, prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        pred_std = prediction.std(dim=1, unbiased=False)
+        target_std = target.std(dim=1, unbiased=False)
+        return F.mse_loss(pred_std, target_std)
+
+    def _extreme_penalty(self, prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        pred_max = prediction.amax(dim=1)
+        target_max = target.amax(dim=1)
+        pred_min = prediction.amin(dim=1)
+        target_min = target.amin(dim=1)
+        return F.mse_loss(pred_max, target_max) + F.mse_loss(pred_min, target_min)
 
 
 __all__ = ["HybridLoss"]

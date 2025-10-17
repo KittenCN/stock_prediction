@@ -20,6 +20,9 @@ class DiffusionForecaster(nn.Module):
         hidden_dim: int = 128,
         timesteps: int = 6,
         predict_steps: int = 1,
+        use_symbol_embedding: bool = False,
+        symbol_embedding_dim: int = 16,
+        max_symbols: int = 4096,
     ) -> None:
         super().__init__()
         self.input_dim = input_dim
@@ -27,8 +30,17 @@ class DiffusionForecaster(nn.Module):
         self.hidden_dim = hidden_dim
         self.timesteps = max(1, timesteps)
         self.predict_steps = max(1, predict_steps)
+        self.use_symbol_embedding = bool(use_symbol_embedding)
+        self.symbol_embedding_dim = int(symbol_embedding_dim) if self.use_symbol_embedding else 0
+        self.max_symbols = max(1, int(max_symbols))
+        self.symbol_embedding = (
+            nn.Embedding(self.max_symbols, self.symbol_embedding_dim)
+            if self.use_symbol_embedding and self.symbol_embedding_dim > 0
+            else None
+        )
+        self.model_input_dim = self.input_dim + self.symbol_embedding_dim
 
-        self.encoder = nn.GRU(input_dim, hidden_dim, batch_first=True)
+        self.encoder = nn.GRU(self.model_input_dim, hidden_dim, batch_first=True)
         self.denoiser = nn.Sequential(
             nn.LayerNorm(hidden_dim),
             nn.GELU(),
@@ -41,9 +53,15 @@ class DiffusionForecaster(nn.Module):
         beta = torch.linspace(1e-4, 2e-2, steps=self.timesteps)
         self.register_buffer("beta_schedule", beta)
 
-    def forward(self, x: torch.Tensor, predict_steps: Optional[int] = None) -> torch.Tensor:
+    def forward(
+        self,
+        x: torch.Tensor,
+        predict_steps: Optional[int] = None,
+        symbol_index: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
         steps = max(1, predict_steps) if predict_steps is not None else self.predict_steps
-        enc_out, hidden = self.encoder(x)
+        x_augmented, _ = self._augment_with_symbol(x, symbol_index)
+        enc_out, hidden = self.encoder(x_augmented)
         h = hidden[-1]
 
         for beta in self.beta_schedule:
@@ -58,6 +76,20 @@ class DiffusionForecaster(nn.Module):
         if steps == 1:
             out = out.squeeze(1)
         return out
+
+    def _augment_with_symbol(
+        self, x: torch.Tensor, symbol_index: Optional[torch.Tensor]
+    ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
+        if self.symbol_embedding is None or symbol_index is None:
+            return x, None
+        if symbol_index.dim() > 1:
+            symbol_index = symbol_index.reshape(symbol_index.size(0), -1)[:, 0]
+        symbol_index = symbol_index.to(dtype=torch.long, device=x.device)
+        symbol_index = torch.clamp(symbol_index, min=0, max=self.max_symbols - 1)
+        embed = self.symbol_embedding(symbol_index)
+        expanded = embed.unsqueeze(1).expand(-1, x.size(1), -1)
+        augmented = torch.cat([x, expanded], dim=-1)
+        return augmented, embed
 
 
 __all__ = ["DiffusionForecaster"]

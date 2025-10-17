@@ -11,6 +11,7 @@ from cycler import cycler
 from prefetch_generator import BackgroundGenerator
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional, Tuple
 from torchvision.models import resnet101  # unused placeholder import
 
 from .models.lstm_basic import LSTM
@@ -207,6 +208,8 @@ class TextDataset(Dataset):
 
 
 class Stock_Data(Dataset):
+    """Dataset wrapper that optionally emits per-sample symbol indices for embedding."""
+
     # mode 0:train 1:test 2:predict
     def __init__(self, mode=0, transform=None, dataFrame=None, label_num=1, predict_days=0, trend=0):
         try:
@@ -214,11 +217,38 @@ class Stock_Data(Dataset):
             self.mode = mode
             self.predict_days = predict_days
             self.trend = trend
+            self.use_symbol_embedding = feature_engineer.settings.use_symbol_embedding
+            self.symbol_series: Optional[np.ndarray] = None
+            self.symbol_tensor: Optional[torch.Tensor] = None
             self.data = self.load_data(dataFrame)
+            if self.data is None or len(self.data) == 0:
+                self.data = np.empty((0, INPUT_DIMENSION), dtype=np.float32)
             self.normalize_data()
-            self.value, self.label = self.generate_value_label_tensors(label_num)
+            tensors = self.generate_value_label_tensors(label_num)
+            if tensors is None:
+                self.value = torch.empty(0, SEQ_LEN, INPUT_DIMENSION, dtype=torch.float32)
+                if self.predict_days > 0:
+                    self.label = torch.empty(0, self.predict_days, label_num, dtype=torch.float32)
+                else:
+                    self.label = torch.empty(0, label_num, dtype=torch.float32)
+                self.symbol_tensor = (
+                    torch.empty(0, dtype=torch.long) if self.use_symbol_embedding else None
+                )
+            else:
+                if isinstance(tensors, tuple) and len(tensors) == 3:
+                    self.value, self.label, self.symbol_tensor = tensors
+                else:
+                    self.value, self.label = tensors
+                    self.symbol_tensor = None
         except Exception as e:
             print(e)
+            self.data = np.empty((0, INPUT_DIMENSION), dtype=np.float32)
+            self.value = torch.empty(0, SEQ_LEN, INPUT_DIMENSION, dtype=torch.float32)
+            if self.predict_days > 0:
+                self.label = torch.empty(0, self.predict_days, label_num, dtype=torch.float32)
+            else:
+                self.label = torch.empty(0, label_num, dtype=torch.float32)
+            self.symbol_tensor = torch.empty(0, dtype=torch.long) if self.use_symbol_embedding else None
             return None
 
     def load_data(self, dataFrame):
@@ -244,14 +274,21 @@ class Stock_Data(Dataset):
             tqdm.write(f"feature engineering failed: {exc}")
             data_df = data_df.fillna(0.0)
 
-        data = data_df.values
+        if self.use_symbol_embedding and "_symbol_index" in data_df.columns:
+            numeric_ids = pd.to_numeric(data_df["_symbol_index"], errors="coerce").fillna(-1).astype(int)
+            self.symbol_series = numeric_ids.to_numpy()
+        else:
+            self.symbol_series = None
+
+        numeric_df = data_df.select_dtypes(include=[np.number]).drop(columns=["_symbol_index"], errors="ignore")
+        data = numeric_df.to_numpy(dtype=np.float32, copy=True)
 
         if data.shape[1] > INPUT_DIMENSION:
             data = data[:, :INPUT_DIMENSION]
 
         if np.isnan(data).any() or np.isinf(data).any():
             data = np.nan_to_num(data, nan=0.0, posinf=0.0, neginf=0.0)
-        
+
         return data
 
     def normalize_data(self):
@@ -259,89 +296,117 @@ class Stock_Data(Dataset):
             mean_list.clear()
             std_list.clear()
             for i in range(len(self.data[0])):
-                if self.mode in [0, 2]:
-                    col_data = self.data[:, i]
+                col_data = self.data[:, i]
 
-                    if np.isnan(col_data).any() or np.isinf(col_data).any():
-                        col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
-                        self.data[:, i] = col_data
-                    
-                    mean_val = np.mean(col_data)
-                    std_val = np.std(col_data)
-                    
+                if np.isnan(col_data).any() or np.isinf(col_data).any():
+                    col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
+                    self.data[:, i] = col_data
 
-                    if np.isnan(mean_val) or np.isinf(mean_val):
-                        mean_val = 0.0
-                    if np.isnan(std_val) or np.isinf(std_val) or std_val < 1e-8:
-                        std_val = 1.0
-                    
-                    mean_list.append(mean_val)
-                    std_list.append(std_val)
-                    self.data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
+                mean_val = np.mean(col_data)
+                std_val = np.std(col_data)
+
+                if np.isnan(mean_val) or np.isinf(mean_val):
+                    mean_val = 0.0
+                if np.isnan(std_val) or np.isinf(std_val) or std_val < 1e-8:
+                    std_val = 1.0
+
+                mean_list.append(mean_val)
+                std_list.append(std_val)
+                self.data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
         else:
             test_mean_list.clear()
             test_std_list.clear()
             for i in range(len(self.data[0])):
-                if self.mode not in [0, 2]:
-                    col_data = self.data[:, i]
+                col_data = self.data[:, i]
 
-                    if np.isnan(col_data).any() or np.isinf(col_data).any():
-                        col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
-                        self.data[:, i] = col_data
-                    
-                    mean_val = np.mean(col_data)
-                    std_val = np.std(col_data)
-                    
+                if np.isnan(col_data).any() or np.isinf(col_data).any():
+                    col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
+                    self.data[:, i] = col_data
 
-                    if np.isnan(mean_val) or np.isinf(mean_val):
-                        mean_val = 0.0
-                    if np.isnan(std_val) or np.isinf(std_val) or std_val < 1e-8:
-                        std_val = 1.0
-                    
-                    test_mean_list.append(mean_val)
-                    test_std_list.append(std_val)
-                    self.data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
+                mean_val = np.mean(col_data)
+                std_val = np.std(col_data)
+
+                if np.isnan(mean_val) or np.isinf(mean_val):
+                    mean_val = 0.0
+                if np.isnan(std_val) or np.isinf(std_val) or std_val < 1e-8:
+                    std_val = 1.0
+
+                test_mean_list.append(mean_val)
+                test_std_list.append(std_val)
+                self.data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
         return self.data
+
+    def _get_symbol_value(self, index: int) -> int:
+        if self.symbol_series is None or len(self.symbol_series) == 0:
+            return 0
+        if index < len(self.symbol_series):
+            symbol_id = int(self.symbol_series[index])
+        else:
+            symbol_id = int(self.symbol_series[-1])
+        return max(symbol_id, 0)
 
     def generate_value_label_tensors(self, label_num):
         if self.mode in [0, 1]:
-            value = torch.rand(self.data.shape[0] - SEQ_LEN, SEQ_LEN, self.data.shape[1])
+            sequence_count = self.data.shape[0] - SEQ_LEN
+            if sequence_count <= 0:
+                return None
+            value = torch.rand(sequence_count, SEQ_LEN, self.data.shape[1])
             if self.predict_days > 0:
-                label = torch.rand(self.data.shape[0] - SEQ_LEN, self.predict_days, label_num)
-            elif self.predict_days <= 0:
-                label = torch.rand(self.data.shape[0] - SEQ_LEN, label_num)
+                label = torch.rand(sequence_count, self.predict_days, label_num)
+            else:
+                label = torch.rand(sequence_count, label_num)
+            symbol_values: list[int] = []
 
-            for i in range(self.data.shape[0] - SEQ_LEN):
-                _value_tmp = np.copy(np.flip(self.data[i + 1:i + SEQ_LEN + 1, :].reshape(SEQ_LEN, self.data.shape[1]), 0))
-                value[i, :, :] = torch.from_numpy(_value_tmp)
-                _tmp = []
+            for i in range(sequence_count):
+                window = self.data[i + 1 : i + SEQ_LEN + 1, :].reshape(SEQ_LEN, self.data.shape[1])
+                flipped = np.flip(window, 0).astype(np.float32, copy=True)
+                value[i, :, :] = torch.from_numpy(flipped)
+                targets = []
                 for index in range(len(use_list)):
                     if use_list[index] == 1:
                         if self.predict_days <= 0:
-                            _tmp.append(self.data[i, index])
-                        elif self.predict_days > 0:
-                            _tmp.append(self.data[i:i + self.predict_days, index])
+                            targets.append(self.data[i, index])
+                        else:
+                            targets.append(self.data[i : i + self.predict_days, index])
                 if self.predict_days <= 0:
-                    label[i, :] = torch.Tensor(np.array(_tmp))
-                elif self.predict_days > 0:
-                    label[i, :, :] = torch.Tensor(np.array(_tmp)).permute(1, 0)
+                    label[i, :] = torch.tensor(targets, dtype=torch.float32)
+                else:
+                    stacked = torch.tensor(targets, dtype=torch.float32).permute(1, 0)
+                    label[i, :, :] = stacked
+                if self.symbol_series is not None:
+                    symbol_values.append(self._get_symbol_value(i))
         elif self.mode == 2:
             value = torch.rand(1, SEQ_LEN, self.data.shape[1])
             if self.predict_days <= 0:
                 label = torch.rand(1, label_num)
-            elif self.predict_days > 0:
+            else:
                 label = torch.rand(1, self.predict_days, label_num)
-            _value_tmp = np.copy(np.flip(self.data[0:SEQ_LEN, :].reshape(SEQ_LEN, self.data.shape[1]), 0))
-            value[0, :, :] = torch.from_numpy(_value_tmp)
-            if self.trend == 1:
-                if self.predict_days > 0:
-                    label[i][0] = compare_tensor(label[i][0], value[0][-1][:OUTPUT_DIMENSION])
+            if self.data.shape[0] < SEQ_LEN:
+                return None
+            window = self.data[0:SEQ_LEN, :].reshape(SEQ_LEN, self.data.shape[1])
+            flipped = np.flip(window, 0).astype(np.float32, copy=True)
+            value[0, :, :] = torch.from_numpy(flipped)
+            if self.trend == 1 and self.predict_days > 0:
+                label[0][0] = compare_tensor(label[0][0], value[0][-1][:OUTPUT_DIMENSION])
+            symbol_values = [self._get_symbol_value(0)] if self.symbol_series is not None else []
+        else:
+            value = torch.tensor([])
+            label = torch.tensor([])
+            symbol_values = []
 
         _value = value.flip(0)
         _label = label.flip(0)
+        if self.symbol_series is not None:
+            if symbol_values:
+                symbol_tensor = torch.tensor(symbol_values, dtype=torch.long).flip(0)
+            else:
+                symbol_tensor = torch.zeros(_value.size(0), dtype=torch.long)
+            return _value, _label, symbol_tensor
         return _value, _label
 
     def __getitem__(self, index):
+        if self.symbol_tensor is not None:
+            return self.value[index], self.label[index], self.symbol_tensor[index]
         return self.value[index], self.label[index]
 
     def __len__(self):
@@ -360,9 +425,11 @@ class stock_queue_dataset(Dataset):
             self.buffer_index = 0
             self.value_buffer = []
             self.label_buffer = []
+            self.symbol_buffer: list[torch.Tensor] = []
             self.total_length = total_length
             self.predict_days = predict_days
             self.trend = trend
+            self.use_symbol_embedding = feature_engineer.settings.use_symbol_embedding
         except Exception as e:
             print(e)
             return None
@@ -384,14 +451,19 @@ class stock_queue_dataset(Dataset):
                 tqdm.write(f"queue feature engineering failed: {exc}")
                 frame = frame.fillna(frame.median(numeric_only=True)).fillna(0.0)
 
-            numeric_frame = frame.select_dtypes(include=[np.number])
+            symbol_series = None
+            if self.use_symbol_embedding and "_symbol_index" in frame.columns:
+                numeric_ids = pd.to_numeric(frame["_symbol_index"], errors="coerce").fillna(-1).astype(int)
+                symbol_series = numeric_ids.to_numpy()
+
+            numeric_frame = frame.select_dtypes(include=[np.number]).drop(columns=["_symbol_index"], errors="ignore")
             if numeric_frame.empty:
                 return None
             data = numeric_frame.values
             if data.shape[1] > INPUT_DIMENSION:
                 data = data[:, :INPUT_DIMENSION]
             data = np.nan_to_num(data, nan=0.0, posinf=0.0, neginf=0.0)
-            return data
+            return data, symbol_series
 
     def normalize_data(self, data):
         if self.mode in [0, 2]:
@@ -442,12 +514,22 @@ class stock_queue_dataset(Dataset):
                     data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
         return data
 
-    def generate_value_label_tensors(self, data, label_num):
+    def _queue_symbol_value(self, symbol_series: Optional[np.ndarray], index: int) -> int:
+        if symbol_series is None or len(symbol_series) == 0:
+            return 0
+        if index < len(symbol_series):
+            value = int(symbol_series[index])
+        else:
+            value = int(symbol_series[-1])
+        return max(value, 0)
+
+    def generate_value_label_tensors(self, data, label_num, symbol_series=None):
         value = torch.rand(data.shape[0] - SEQ_LEN, SEQ_LEN, data.shape[1])
         if self.predict_days > 0:
             label = torch.rand(data.shape[0] - SEQ_LEN, self.predict_days, label_num)
         elif self.predict_days <= 0:
             label = torch.rand(data.shape[0] - SEQ_LEN, label_num)
+        symbol_values: list[int] = []
 
         for i in range(data.shape[0] - SEQ_LEN):
             _value_tmp = np.copy(np.flip(data[i + 1:i + SEQ_LEN + 1, :].reshape(SEQ_LEN, data.shape[1]), 0))
@@ -467,8 +549,16 @@ class stock_queue_dataset(Dataset):
             if self.trend == 1:
                 if self.predict_days > 0:
                     label[i][0] = compare_tensor(label[i][0], value[0][-1][:OUTPUT_DIMENSION])
+            if symbol_series is not None:
+                symbol_values.append(self._queue_symbol_value(symbol_series, i))
         _value = value.flip(0)
         _label = label.flip(0)
+        if symbol_series is not None:
+            if symbol_values:
+                symbol_tensor = torch.tensor(symbol_values, dtype=torch.long).flip(0)
+            else:
+                symbol_tensor = torch.zeros(_value.size(0), dtype=torch.long)
+            return _value, _label, symbol_tensor
         return _value, _label
 
     def process_data(self):
@@ -477,17 +567,27 @@ class stock_queue_dataset(Dataset):
 
         for _ in range(self.buffer_size):
             try:
-                raw_data = self.load_data()
-                if raw_data is not None:
-                    while len(raw_data) < SEQ_LEN:
-                        raw_data = self.load_data()
-                        if raw_data is None:
+                raw_entry = self.load_data()
+                if raw_entry is not None:
+                    raw_data, raw_symbol = raw_entry
+                    while raw_data is not None and len(raw_data) < SEQ_LEN:
+                        next_entry = self.load_data()
+                        if next_entry is None:
+                            raw_data = None
                             break
+                        raw_data, raw_symbol = next_entry
                     if raw_data is not None:
                         normalized_data = self.normalize_data(raw_data)
-                        value, label = self.generate_value_label_tensors(normalized_data, self.label_num)
+                        tensors = self.generate_value_label_tensors(normalized_data, self.label_num, raw_symbol)
+                        if isinstance(tensors, tuple) and len(tensors) == 3:
+                            value, label, symbol_tensor = tensors
+                        else:
+                            value, label = tensors
+                            symbol_tensor = None
                         self.value_buffer.extend(value)
                         self.label_buffer.extend(label)
+                        if self.use_symbol_embedding and symbol_tensor is not None:
+                            self.symbol_buffer.extend(symbol_tensor.tolist())
                     else:
                         continue
                 else:
@@ -505,18 +605,31 @@ class stock_queue_dataset(Dataset):
             while self.buffer_index >= len(self.value_buffer):
                 self.value_buffer.clear()
                 self.label_buffer.clear()
+                self.symbol_buffer.clear()
                 self.buffer_index = 0
                 ans = self.process_data()
                 if ans is None:
                     break
             if self.buffer_index >= len(self.value_buffer):
-                return None, None
-            value, label = self.value_buffer[self.buffer_index], self.label_buffer[self.buffer_index]
+                return (None, None, None) if self.use_symbol_embedding else (None, None)
+            value = self.value_buffer[self.buffer_index]
+            label = self.label_buffer[self.buffer_index]
+            symbol = None
+            if self.use_symbol_embedding:
+                if self.symbol_buffer and self.buffer_index < len(self.symbol_buffer):
+                    symbol_id = int(self.symbol_buffer[self.buffer_index])
+                elif self.symbol_buffer:
+                    symbol_id = int(self.symbol_buffer[-1])
+                else:
+                    symbol_id = 0
+                symbol = torch.tensor(symbol_id, dtype=torch.long)
             self.buffer_index += 1
+            if self.use_symbol_embedding:
+                return value, label, symbol
             return value, label
         except Exception as e:
             print(e)
-            return None, None
+            return (None, None, None) if self.use_symbol_embedding else (None, None)
 
     def __len__(self):
         if self.data_queue is None:

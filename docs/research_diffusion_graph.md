@@ -68,3 +68,8 @@
 
 ---
 本文件作为扩散模型与图结构建模的预研路线图，后续可在实验推进后同步更新至 `docs/maintenance.md` 与 `docs/model_strategy.md`。*** End Patch
+
+## 股票嵌入实验要点（2025-10-17 · 已完成）
+- DiffusionForecaster 与 GraphTemporalModel 均新增 `use_symbol_embedding` 参数，默认关闭，可在 CLI 中通过配置开启。
+- 嵌入向量在时间维度上广播并与原始特征拼接，不改变现有推理入口。
+- 新增 `tests/test_models.py` 针对 Diffusion/Graph 的符号嵌入形状验证，防止回归。

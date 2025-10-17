@@ -8,3 +8,7 @@
 - 预测/对比绘图假设输入数据按日期倒序存储，最新样本位于顶部，因此按队列顺序截取即可与模型输出一一对应。
 - `Trainer` 类假设批次数据为 (inputs, targets) 元组，支持 None 批次跳过；损失记录为批次级别，用于绘制训练曲线。
 - `metrics.py` 假设 y_true 与 y_pred 为数值数组，支持金融指标计算；VaR/CVaR 默认使用 5% 分位数，适用于收益分布评估。
+
+- 股票嵌入默认容量 4096（可通过环境变量 SYMBOL_EMBED_MAX 调整），eatures.symbol_embedding_dim 控制嵌入维度。
+
+- HybridLoss/PTFTVSSMLoss 默认使用适度的波动度与极值权重（0.02），如需关闭可在训练脚本参数中置 0。

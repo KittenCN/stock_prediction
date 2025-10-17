@@ -64,6 +64,9 @@ class TemporalHybridNet(nn.Module):
         dropout: float = 0.2,
         predict_steps: int = 1,
         branch_config: Optional[Dict[str, bool]] = None,
+        use_symbol_embedding: bool = False,
+        symbol_embedding_dim: int = 16,
+        max_symbols: int = 4096,
     ) -> None:
         super().__init__()
         if len(conv_kernel_sizes) != len(conv_dilations):
@@ -74,10 +77,18 @@ class TemporalHybridNet(nn.Module):
         self.hidden_dim = hidden_dim
         self.predict_steps = max(1, int(predict_steps))
         self.branch_switches = {**self.DEFAULT_BRANCHES, **(branch_config or {})}
-
+        self.use_symbol_embedding = bool(use_symbol_embedding)
+        self.symbol_embedding_dim = int(symbol_embedding_dim) if self.use_symbol_embedding else 0
+        self.max_symbols = max(1, int(max_symbols))
+        self.symbol_embedding = (
+            nn.Embedding(self.max_symbols, self.symbol_embedding_dim)
+            if self.use_symbol_embedding and self.symbol_embedding_dim > 0
+            else None
+        )
+        self.model_input_dim = self.input_dim + self.symbol_embedding_dim
         # ---------------- Legacy branch (Conv + BiGRU + Attention) ----------------
-        self.input_norm = nn.LayerNorm(input_dim)
-        self.input_proj = nn.Linear(input_dim, hidden_dim)
+        self.input_norm = nn.LayerNorm(self.model_input_dim)
+        self.input_proj = nn.Linear(self.model_input_dim, hidden_dim)
         self.conv_blocks = nn.ModuleList(
             [_DepthwiseConvBlock(hidden_dim, ks, dil, dropout) for ks, dil in zip(conv_kernel_sizes, conv_dilations)]
         )
@@ -86,7 +97,7 @@ class TemporalHybridNet(nn.Module):
         self.attn = nn.MultiheadAttention(hidden_dim * 2, num_heads=attn_heads, dropout=dropout, batch_first=True)
         self.attn_dropout = nn.Dropout(dropout)
         self.attn_norm = nn.LayerNorm(hidden_dim * 2)
-        self.stat_proj = nn.Sequential(nn.Linear(input_dim * 3, hidden_dim * 2), nn.GELU())
+        self.stat_proj = nn.Sequential(nn.Linear(self.model_input_dim * 3, hidden_dim * 2), nn.GELU())
         self.base_proj = nn.Sequential(nn.Linear(hidden_dim * 6, hidden_dim * 2), nn.GELU(), nn.Dropout(dropout))
 
         # ---------------- Auxiliary branches ----------------
@@ -98,7 +109,7 @@ class TemporalHybridNet(nn.Module):
 
         if self.branch_switches.get("ptft", False):
             self.branches["ptft"] = ProbTemporalFusionTransformer(
-                input_dim=input_dim,
+                input_dim=self.model_input_dim,
                 output_dim=output_dim,
                 hidden_dim=max(96, hidden_dim),
                 predict_steps=self.predict_steps,
@@ -111,7 +122,7 @@ class TemporalHybridNet(nn.Module):
 
         if self.branch_switches.get("vssm", False):
             self.branches["vssm"] = VariationalStateSpaceModel(
-                input_dim=input_dim,
+                input_dim=self.model_input_dim,
                 output_dim=output_dim,
                 state_dim=max(48, hidden_dim // 3),
                 regime_classes=4,
@@ -128,7 +139,7 @@ class TemporalHybridNet(nn.Module):
 
         if self.branch_switches.get("diffusion", False):
             self.branches["diffusion"] = DiffusionForecaster(
-                input_dim=input_dim,
+                input_dim=self.model_input_dim,
                 output_dim=output_dim,
                 hidden_dim=max(96, hidden_dim),
                 predict_steps=self.predict_steps,
@@ -140,7 +151,7 @@ class TemporalHybridNet(nn.Module):
 
         if self.branch_switches.get("graph", False):
             self.branches["graph"] = GraphTemporalModel(
-                input_dim=input_dim,
+                input_dim=self.model_input_dim,
                 output_dim=output_dim,
                 hidden_dim=max(96, hidden_dim),
                 predict_steps=self.predict_steps,
@@ -165,19 +176,28 @@ class TemporalHybridNet(nn.Module):
     # ------------------------------------------------------------------ #
     # Forward
     # ------------------------------------------------------------------ #
-    def forward(self, x: torch.Tensor, predict_days: Optional[int] = None) -> torch.Tensor:
+    def forward(
+        self,
+        x: torch.Tensor,
+        predict_days: Optional[int] = None,
+        symbol_index: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
         steps = self._normalize_predict_steps(predict_days)
         x = x.to(torch.float32)
 
-        base_feature = self._legacy_branch(x)
+        x_augmented, symbol_embed = self._augment_with_symbol(x, symbol_index)
+
+        base_feature = self._legacy_branch(x_augmented)
         branch_features = [base_feature]
         self.last_details = {"base": base_feature.detach()}
+        if symbol_embed is not None:
+            self.last_details["symbol_embed"] = symbol_embed.detach()
 
         regime_feature: Optional[torch.Tensor] = None
 
         branch_call_steps = self.predict_steps
         for name, branch in self.branches.items():
-            branch_output = branch(x, branch_call_steps)
+            branch_output = branch(x_augmented, branch_call_steps)
             if isinstance(branch_output, dict):
                 if "prediction" in branch_output:
                     tensor = branch_output["prediction"]
@@ -253,6 +273,20 @@ class TemporalHybridNet(nn.Module):
         if predict_steps is None or predict_steps <= 0:
             return self.predict_steps
         return int(predict_steps)
+
+    def _augment_with_symbol(
+        self, x: torch.Tensor, symbol_index: Optional[torch.Tensor]
+    ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
+        if self.symbol_embedding is None or symbol_index is None:
+            return x, None
+        if symbol_index.dim() > 1:
+            symbol_index = symbol_index.reshape(symbol_index.size(0), -1)[:, 0]
+        symbol_index = symbol_index.to(dtype=torch.long, device=x.device)
+        symbol_index = torch.clamp(symbol_index, min=0, max=self.max_symbols - 1)
+        embed = self.symbol_embedding(symbol_index)
+        expanded = embed.unsqueeze(1).expand(-1, x.size(1), -1)
+        augmented = torch.cat([x, expanded], dim=-1)
+        return augmented, embed
 
     def get_last_details(self) -> Dict[str, torch.Tensor]:
         return self.last_details

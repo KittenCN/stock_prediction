@@ -4,6 +4,7 @@
 
 ## [未发布] - 2025-10-20
 ### Added
+- 引入 ts_code 股票嵌入：特征工程输出 _symbol_index，TemporalHybridNet/PTFTVSSMEnsemble/DiffusionForecaster/GraphTemporalModel 支持可学习嵌入。
 - `feature_engineering.py` 与 `FeatureSettings`：支持对数收益率/差分特征生成、外生特征白名单合并、多股票联合训练与滑动窗口统计。
 - `regularization.BayesianDropout` 以及 Regime 感知 Soft Gating，实现 PTFT+VSSM 自适应融合权重并支持 MC Dropout 推理。
 - 金融指标驱动训练：`PTFTVSSMLoss` 中新增方向性、Sharpe、最大回撤、分位 Pinball 与 Regime 辅助分类损失。
@@ -14,6 +15,7 @@
 - 配置解耦：`app_config.py` 使用 Pydantic 验证，支持 YAML + .env 配置，包含特征工程与训练选项。
 
 ### Changed
+- Trainer/预测 CLI 支持可选 symbol_index 张量，保持旧模型兼容。
 - `PTFTVSSMEnsemble` 默认隐藏维度降至 128/48，引入 Regime 感知融合门与贝叶斯 Dropout。
 - `common.Stock_Data` 与 `stock_queue_dataset` 使用特征工程模块，使收益率/外生特征在训练与预测阶段保持一致。
 - `config/config.yaml` 增加 `features` 配置节，提供滑动窗口、外生特征与金融损失权重示例。

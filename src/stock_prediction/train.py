@@ -6,6 +6,7 @@ import argparse
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import numpy as np
+import os
 import sys
 from pathlib import Path
 import torch
@@ -44,6 +45,16 @@ config = AppConfig.from_env_and_yaml(str(root_dir / 'config' / 'config.yaml'))
 train_pkl_path = config.train_pkl_path
 png_path = config.png_path
 model_path = config.model_path
+feature_settings = getattr(config, "features", None)
+SYMBOL_EMBED_ENABLED = bool(getattr(feature_settings, "use_symbol_embedding", False))
+SYMBOL_EMBED_DIM = int(getattr(feature_settings, "symbol_embedding_dim", 16))
+SYMBOL_EMBED_MAX = int(os.getenv("SYMBOL_EMBED_MAX", "4096"))
+_symbol_vocab = len(feature_engineer.get_symbol_indices()) if SYMBOL_EMBED_ENABLED else 0
+if SYMBOL_EMBED_ENABLED:
+    SYMBOL_VOCAB_SIZE = _symbol_vocab if _symbol_vocab > 0 else SYMBOL_EMBED_MAX
+    SYMBOL_VOCAB_SIZE = min(max(SYMBOL_VOCAB_SIZE, 1), SYMBOL_EMBED_MAX)
+else:
+    SYMBOL_VOCAB_SIZE = max(_symbol_vocab, 1)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
@@ -126,7 +137,8 @@ def train_with_trainer(train_loader, val_loader=None):
         epoch_count=args.epoch,
         scaler=None,
         use_amp=False,
-        callbacks={"on_improve": save_best_callback}
+        callbacks={"on_improve": save_best_callback},
+        show_progress=True,
     )
     history = trainer.fit()
     train_with_trainer.last_history = history  # 挂载 loss 记录，供全局访问
@@ -181,15 +193,27 @@ def test(dataset, testmodel=None, dataloader_mode=0):
                     # tqdm.write(f"test error: batch is None")
                     pbar.update(1)
                     continue
-                data, label = batch
+                if isinstance(batch, (list, tuple)):
+                    if len(batch) == 3:
+                        data, label, symbol_idx = batch
+                    else:
+                        data, label = batch[0], batch[1]
+                        symbol_idx = None
+                else:
+                    data, label = batch
+                    symbol_idx = None
                 if data is None or label is None:
                     # tqdm.write(f"test error: data is None or label is None")
                     pbar.update(1)
                     continue
                 if args.test_gpu == 1:
                     data, label = data.to(device, non_blocking=True), label.to(device, non_blocking=True)
+                    if symbol_idx is not None:
+                        symbol_idx = symbol_idx.to(device, non_blocking=True).long()
                 else:
                     data, label = data.to("cpu", non_blocking=True), label.to("cpu", non_blocking=True)
+                    if symbol_idx is not None:
+                        symbol_idx = symbol_idx.to("cpu", non_blocking=True).long()
                 # Ensure data tensors do not contain NaN or inf
                 if torch.isnan(data).any() or torch.isinf(data).any():
                     tqdm.write(f"test error: data has nan or inf, skip batch")
@@ -211,7 +235,10 @@ def test(dataset, testmodel=None, dataloader_mode=0):
                     predict = test_model.forward(data, label, int(args.predict_days))
                 else:
                     data = pad_input(data)
-                    predict = test_model.forward(data)
+                    if symbol_idx is not None:
+                        predict = test_model(data, symbol_index=symbol_idx)
+                    else:
+                        predict = test_model(data)
                 predict_list.append(predict)
                 if(predict.shape == label.shape):
                     accuracy = accuracy_fn(predict, label)
@@ -787,14 +814,34 @@ def main():
             input_dim=INPUT_DIMENSION,
             output_dim=OUTPUT_DIMENSION,
             predict_steps=hybrid_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
         )
-        model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=hybrid_steps)
+        model._init_args = dict(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=hybrid_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
+        )
         test_model = TemporalHybridNet(
             input_dim=INPUT_DIMENSION,
             output_dim=OUTPUT_DIMENSION,
             predict_steps=hybrid_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
         )
-        test_model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=hybrid_steps)
+        test_model._init_args = dict(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=hybrid_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
+        )
         save_path = str(config.get_model_path("HYBRID", symbol))
         criterion = HybridLoss(model, mse_weight=1.0, quantile_weight=0.1, direction_weight=0.05, regime_weight=0.05)
     elif model_mode == "PTFT_VSSM":
@@ -803,14 +850,34 @@ def main():
             input_dim=INPUT_DIMENSION,
             output_dim=OUTPUT_DIMENSION,
             predict_steps=ensemble_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
         )
-        model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=ensemble_steps)
+        model._init_args = dict(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=ensemble_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
+        )
         test_model = PTFTVSSMEnsemble(
             input_dim=INPUT_DIMENSION,
             output_dim=OUTPUT_DIMENSION,
             predict_steps=ensemble_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
         )
-        test_model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=ensemble_steps)
+        test_model._init_args = dict(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=ensemble_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
+        )
         save_path = str(config.get_model_path("PTFT_VSSM", symbol))
         criterion = PTFTVSSMLoss(model, mse_weight=1.0, kl_weight=1e-3)
     elif model_mode == "DIFFUSION":
@@ -819,14 +886,34 @@ def main():
             input_dim=INPUT_DIMENSION,
             output_dim=OUTPUT_DIMENSION,
             predict_steps=diffusion_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
         )
-        model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=diffusion_steps)
+        model._init_args = dict(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=diffusion_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
+        )
         test_model = DiffusionForecaster(
             input_dim=INPUT_DIMENSION,
             output_dim=OUTPUT_DIMENSION,
             predict_steps=diffusion_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
         )
-        test_model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=diffusion_steps)
+        test_model._init_args = dict(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=diffusion_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
+        )
         save_path = str(config.get_model_path("DIFFUSION", symbol))
         criterion = nn.MSELoss()
     elif model_mode == "GRAPH":
@@ -835,14 +922,34 @@ def main():
             input_dim=INPUT_DIMENSION,
             output_dim=OUTPUT_DIMENSION,
             predict_steps=graph_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
         )
-        model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=graph_steps)
+        model._init_args = dict(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=graph_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
+        )
         test_model = GraphTemporalModel(
             input_dim=INPUT_DIMENSION,
             output_dim=OUTPUT_DIMENSION,
             predict_steps=graph_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
         )
-        test_model._init_args = dict(input_dim=INPUT_DIMENSION, output_dim=OUTPUT_DIMENSION, predict_steps=graph_steps)
+        test_model._init_args = dict(
+            input_dim=INPUT_DIMENSION,
+            output_dim=OUTPUT_DIMENSION,
+            predict_steps=graph_steps,
+            use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+            symbol_embedding_dim=SYMBOL_EMBED_DIM,
+            max_symbols=SYMBOL_VOCAB_SIZE,
+        )
         save_path = str(config.get_model_path("GRAPH", symbol))
         criterion = nn.MSELoss()
     elif model_mode == "CNNLSTM":

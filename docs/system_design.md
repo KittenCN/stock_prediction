@@ -113,3 +113,9 @@ flowchart LR
 
 ---  
 本文件记录系统架构与演进方向，需与上述文档保持联动更新。  
+
+## 6. 股票 ID 嵌入数据流（新增 · 已完成 2025-10-17）
+1. 特征工程在多股票场景下为每条记录生成 `_symbol_index`，并缓存 `symbol_index_map` 以便复用。
+2. 数据集 `Stock_Data` 与 `stock_queue_dataset` 在构造批次时携带符号张量，Trainer/推理流程会自动传入模型。
+3. TemporalHybridNet、PTFTVSSMEnsemble、DiffusionForecaster、GraphTemporalModel 在前向阶段通过 `nn.Embedding` 拼接股票向量，融合不同资产的上下文。
+4. 通过配置 `features.use_symbol_embedding` / `symbol_embedding_dim` 控制嵌入开关，默认容量 4096（可通过环境变量 `SYMBOL_EMBED_MAX` 调整）。
