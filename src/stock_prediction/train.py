@@ -9,15 +9,16 @@ import numpy as np
 import os
 import sys
 from pathlib import Path
-import torch
-from stock_prediction.trainer import Trainer, EarlyStopping, EarlyStoppingConfig
 
-# Ensure the stock_prediction package is importable
+# Ensure the stock_prediction package is importable before importing internal modules
 current_dir = Path(__file__).resolve().parent
 root_dir = current_dir.parent.parent
 src_dir = root_dir / "src"
 if str(src_dir) not in sys.path:
     sys.path.insert(0, str(src_dir))
+
+import torch
+from stock_prediction.trainer import Trainer, EarlyStopping, EarlyStoppingConfig
 
 from stock_prediction.models import (
     LSTM,
@@ -58,7 +59,7 @@ else:
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default="train", type=str, help="select running mode: train, test, predict")
-parser.add_argument('--model', default="ptft_vssm", type=str, help="available model names (e.g. lstm, transformer, hybrid, ptft_vssm, diffusion, graph)")
+parser.add_argument('--model', default="hybrid", type=str, help="available model names (e.g. lstm, transformer, hybrid, ptft_vssm, diffusion, graph)")
 parser.add_argument('--begin_code', default="", type=str, help="begin code")
 parser.add_argument('--cpu', default=0, type=int, help="only use cpu")
 parser.add_argument('--pkl', default=1, type=int, help="use pkl file instead of csv file")
@@ -68,14 +69,14 @@ parser.add_argument('--test_gpu', default=1, type=int, help="test method use gpu
 parser.add_argument('--predict_days', default=0, type=int, help="number of the predict days,Positive numbers use interval prediction algorithm, 0 and negative numbers use date prediction algorithm")
 parser.add_argument('--api', default="akshare", type=str, help="api-interface, tushare, akshare or yfinance")
 parser.add_argument('--trend', default=0, type=int, help="predict the trend of stock, not the price")
-parser.add_argument('--epoch', default=2, type=int, help="training epochs")
+parser.add_argument('--epoch', default=5, type=int, help="training epochs")
 parser.add_argument('--plot_days', default=30, type=int, help="history days to display in test/predict plots")
-parser.add_argument('--full_train', default=0, type=int, help="train on full dataset without validation/test (1 to enable)")
+parser.add_argument('--full_train', default=1, type=int, help="train on full dataset without validation/test (1 to enable)")
 
 # Default args reused by tests and direct imports
 class DefaultArgs:
     mode = "train"
-    model = "ptft_vssm"
+    model = "hybrid"
     begin_code = ""
     cpu = 0
     pkl = 1
@@ -85,9 +86,9 @@ class DefaultArgs:
     predict_days = 0
     api = "akshare"
     trend = 0
-    epoch = 2
+    epoch = 5
     plot_days = 30
-    full_train = 0
+    full_train = 1
 
 args = DefaultArgs()
 
@@ -124,9 +125,10 @@ def save_best_callback(context):
     with open('loss.txt', 'w') as file:
         file.write(str(context["best"]))
 
-def train_with_trainer(train_loader, val_loader=None):
+def train_with_trainer(train_loader, val_loader=None, epoch_count=1):
     scheduler = build_scheduler(config, optimizer)
     early_stopping = build_early_stopping(config)
+    epoch_count = max(1, int(epoch_count))
     trainer = Trainer(
         model=model,
         optimizer=optimizer,
@@ -136,7 +138,7 @@ def train_with_trainer(train_loader, val_loader=None):
         val_loader=val_loader,
         scheduler=scheduler,
         early_stopping=early_stopping,
-        epoch_count=args.epoch,
+        epoch_count=epoch_count,
         scaler=None,
         use_amp=False,
         callbacks={"on_improve": save_best_callback},
@@ -1004,7 +1006,7 @@ def main():
         else:
             print("No model and optimizer file, train from scratch")
 
-    period = 100
+    # period = 100
     train_codes = []
     test_codes = []
     print("Clean the data...")
@@ -1085,11 +1087,12 @@ def main():
                         continue
                 init_bar.close()
             codes_len = data_queue.qsize()
+        print("data_queue size: %d" % (data_queue.qsize()))
         print("total codes: %d, total length: %d"%(codes_len, total_length))
         print("total test codes: %d, total test length: %d"%(test_queue.qsize(), total_test_length))
-        batch_none = 0
-        data_none = 0
-        scaler = GradScaler('cuda')
+        # batch_none = 0
+        # data_none = 0
+        # scaler = GradScaler('cuda')
         pbar = tqdm(total=args.epoch, leave=False, ncols=TQDM_NCOLS)
         last_epoch = 0
         for epoch in range(0, args.epoch):
@@ -1099,7 +1102,8 @@ def main():
                 m_loss = np.mean(lo_list)
             pbar.set_description("%d, %e"%(epoch+1,m_loss))
             if args.pkl_queue == 0:
-                tqdm.write("pkl_queue is disabled")
+                if epoch == 0:
+                    tqdm.write("pkl_queue is disabled")
                 code_bar = tqdm(total=codes_len, ncols=TQDM_NCOLS)
                 for index in range (codes_len):
                     try:
@@ -1169,27 +1173,28 @@ def main():
                         code_bar.update(1)
                         continue
             else:
-                tqdm.write("pkl_queue is enabled")
+                if epoch == 0:
+                    tqdm.write("pkl_queue is enabled")
                 ts_code = "data_queue"
                 index = len(ts_codes) - 1
-                tqdm.write("epoch: %d, data_queue size before deep copy: %d" % (epoch, data_queue.qsize()))
+                # tqdm.write("epoch: %d, data_queue size before deep copy: %d" % (epoch, data_queue.qsize()))
                 _stock_data_queue = deep_copy_queue(data_queue)
 
-                tqdm.write("epoch: %d, data_queue size after deep copy: %d" % (epoch, data_queue.qsize()))
-                tqdm.write("epoch: %d, _stock_data_queue size: %d" % (epoch, _stock_data_queue.qsize()))
+                # tqdm.write("epoch: %d, data_queue size after deep copy: %d" % (epoch, data_queue.qsize()))
+                # tqdm.write("epoch: %d, _stock_data_queue size: %d" % (epoch, _stock_data_queue.qsize()))
                 
                 stock_train = stock_queue_dataset(mode=0, data_queue=_stock_data_queue, label_num=OUTPUT_DIMENSION, 
                                                   buffer_size=BUFFER_SIZE, total_length=total_length,
                                                   predict_days=int(args.predict_days),trend=int(args.trend))
-            iteration=0
+            # iteration=0
             loss_list=[]
             
             train_pin_memory = torch.cuda.is_available() and device.type == "cuda" and getattr(args, "cpu", 0) == 0
             train_dataloader=DataLoader(dataset=stock_train,batch_size=BATCH_SIZE,shuffle=False,drop_last=drop_last, 
                                         num_workers=NUM_WORKERS, pin_memory=train_pin_memory, collate_fn=custom_collate)
-            predict_list=[]
-            accuracy_list=[]
-            train_with_trainer(train_dataloader)
+            # predict_list=[]
+            # accuracy_list=[]
+            train_with_trainer(train_dataloader, epoch_count=1)
             if args.pkl_queue == 0:
                 code_bar.update(1)
             if (time.time() - last_save_time >= SAVE_INTERVAL or index == len(ts_codes) - 1) and safe_save == True:

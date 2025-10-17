@@ -61,7 +61,7 @@ else:
     SYMBOL_VOCAB_SIZE = max(_symbol_vocab, 1)
 
 parser = argparse.ArgumentParser(description="Stock price inference CLI")
-parser.add_argument('--model', default="ptft_vssm", type=str, help="model name, e.g. lstm / transformer / hybrid / ptft_vssm / diffusion / graph")
+parser.add_argument('--model', default="hybrid", type=str, help="model name, e.g. lstm / transformer / hybrid / ptft_vssm / diffusion / graph")
 parser.add_argument('--test_code', default="", type=str, help="stock code to predict")
 parser.add_argument('--cpu', default=0, type=int, help="set 1 to run on CPU only")
 parser.add_argument('--pkl', default=1, type=int, help="whether to use preprocessed pkl data (1 means use)")
@@ -72,7 +72,7 @@ parser.add_argument('--trend', default=0, type=int, help="set 1 to predict trend
 parser.add_argument('--test_gpu', default=1, type=int, help="set 1 to run inference on GPU")
 
 class DefaultArgs:
-    model = "ptft_vssm"
+    model = "hybrid"
     test_code = ""
     cpu = 0
     pkl = 1
