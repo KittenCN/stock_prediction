@@ -123,3 +123,7 @@
 ## 损失函数强化策略（2025-10-20 · 已完成）
 - HybridLoss 与 PTFTVSSMLoss 已加入波动度/极值约束，训练阶段可通过权重参数调优，缓解预测均值吸附。
 - 建议结合验证集对 olatility_weight、extreme_weight 进行网格搜索，并关注 Sharpe/最大回撤的配套指标。
+
+## 扩散与图模型迭代（2025-10-20 · 已完成首轮）
+- 扩散/图模型迭代：`DiffusionForecaster` 已支持 `cosine` 调度与上下文条件输入；`GraphTemporalModel` 支持动态邻接混合，可与股票嵌入共用。
+- 下一步：研究可学习噪声调度、动态构图策略以及与 Hybrid 总线的融合。

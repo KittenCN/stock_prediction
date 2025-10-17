@@ -25,6 +25,8 @@ class GraphTemporalModel(nn.Module):
         use_symbol_embedding: bool = False,
         symbol_embedding_dim: int = 16,
         max_symbols: int = 4096,
+        use_dynamic_adj: bool = False,
+        dynamic_alpha: float = 0.5,
     ) -> None:
         super().__init__()
         self.input_dim = input_dim
@@ -40,6 +42,8 @@ class GraphTemporalModel(nn.Module):
             else None
         )
         self.model_input_dim = self.input_dim + self.symbol_embedding_dim
+        self.use_dynamic_adj = bool(use_dynamic_adj)
+        self.dynamic_alpha = float(dynamic_alpha)
 
         self.adj_param = nn.Parameter(torch.randn(self.model_input_dim, self.model_input_dim) * 0.01)
         self.node_proj = nn.Linear(self.model_input_dim, hidden_dim)
@@ -52,12 +56,19 @@ class GraphTemporalModel(nn.Module):
         x: torch.Tensor,
         predict_steps: Optional[int] = None,
         symbol_index: Optional[torch.Tensor] = None,
+        adj_override: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         steps = max(1, predict_steps) if predict_steps is not None else self.predict_steps
 
         x_augmented, _ = self._augment_with_symbol(x, symbol_index)
 
         adj = self._build_adjacency()
+        if self.use_dynamic_adj:
+            dynamic_adj = self._build_dynamic_adjacency(x_augmented)
+            if dynamic_adj is not None:
+                adj = (1 - self.dynamic_alpha) * adj + self.dynamic_alpha * dynamic_adj
+        if adj_override is not None:
+            adj = adj_override.to(adj.device)
         graph_feature = torch.matmul(x_augmented, adj)
         projected = self.node_proj(graph_feature)
 
@@ -77,6 +88,18 @@ class GraphTemporalModel(nn.Module):
         adj = F.softmax(sym, dim=-1)
         adj = adj * (1 - mask) + mask
         return adj
+
+    def _build_dynamic_adjacency(self, x: torch.Tensor) -> Optional[torch.Tensor]:
+        if x.dim() != 3 or x.size(0) == 0:
+            return None
+        device = x.device
+        mean_feat = x.mean(dim=1)  # (batch, nodes)
+        norm = mean_feat / (mean_feat.norm(dim=-1, keepdim=True) + 1e-6)
+        dynamic = torch.matmul(norm.transpose(0, 1), norm) / norm.size(0)
+        dynamic = torch.clamp(dynamic, min=-1.0, max=1.0)
+        dynamic = (dynamic + 1.0) / 2.0
+        dynamic = dynamic.softmax(dim=-1)
+        return dynamic.to(device)
 
     def _augment_with_symbol(
         self, x: torch.Tensor, symbol_index: Optional[torch.Tensor]

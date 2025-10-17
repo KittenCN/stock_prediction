@@ -51,4 +51,5 @@
 - 增强损失函数：HybridLoss 与 PTFTVSSMLoss 新增波动度/极值约束，测试覆盖同 步更新。
 
 ### 本次补充（2025-10-20）
+- 扩散/图模型：`DiffusionForecaster` 增加 `cosine` 调度与上下文条件输入；`GraphTemporalModel` 支持动态邻接混合，测试与文档同步更新。
 - 增强损失函数：`HybridLoss` 与 `PTFTVSSMLoss` 新增波动度/极值约束，相关测试同步更新。

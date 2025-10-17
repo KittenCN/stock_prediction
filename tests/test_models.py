@@ -173,6 +173,38 @@ def test_diffusion_forecaster_symbol_embedding():
     assert out.shape == (2, 2, 4)
 
 
+def test_diffusion_forecaster_cosine_context():
+    model = DiffusionForecaster(
+        input_dim=30,
+        output_dim=4,
+        predict_steps=2,
+        schedule="cosine",
+        context_dim=8,
+    )
+    x = torch.randn(2, 6, 30)
+    context = torch.randn(2, 6, 8)
+    out = model(x, context=context)
+    assert out.shape == (2, 2, 4)
+
+
+def test_diffusion_forecaster_learnable_schedule_ddim():
+    model = DiffusionForecaster(
+        input_dim=30,
+        output_dim=4,
+        predict_steps=1,
+        learnable_schedule=True,
+        use_ddim=True,
+        ddim_eta=0.5,
+    )
+    assert isinstance(model.beta_schedule, torch.nn.Parameter)
+    x = torch.randn(3, 5, 30)
+    out = model(x)
+    assert out.shape == (3, 4)
+    loss = out.mean()
+    loss.backward()
+    assert model.beta_schedule.grad is not None
+
+
 def test_graph_temporal_model_shapes():
     model = GraphTemporalModel(input_dim=30, output_dim=4, predict_steps=2)
     x = torch.randn(2, 5, 30)
@@ -195,6 +227,19 @@ def test_graph_temporal_model_symbol_embedding():
     symbols = torch.tensor([2, 15])
     out = model(x, symbol_index=symbols)
     assert out.shape == (2, 4)
+
+
+def test_graph_temporal_model_dynamic_adj():
+    model = GraphTemporalModel(
+        input_dim=30,
+        output_dim=4,
+        predict_steps=2,
+        use_dynamic_adj=True,
+        dynamic_alpha=0.6,
+    )
+    x = torch.randn(2, 6, 30)
+    out = model(x)
+    assert out.shape == (2, 2, 4)
 
 
 def test_hybrid_loss_forward():

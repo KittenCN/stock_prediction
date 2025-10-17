@@ -72,11 +72,17 @@
 - ✅ 数据集与特征工程统一输出 `_symbol_index`，训练/推理阶段自动缓存嵌入索引，支持多股票联合训练。
 - ✅ TemporalHybridNet、PTFTVSSMEnsemble、DiffusionForecaster、GraphTemporalModel 均已接入可学习的 ts_code 嵌入，支持 CLI `--model hybrid/diffusion/graph/ptft_vssm`。
 - ✅ Trainer/预测管线兼容新增符号张量，旧模型保持向后兼容。
-- ✅ 相关测试：`tests/test_models.py` 新增股票嵌入形状与梯度验证用例。
+- ✅ 相关测试：``tests/test_models.py`` 新增股票嵌入形状与梯度验证用例。
 
 ### 5.2 损失函数强化执行总结（2025-10-20）
 - ✅ HybridLoss 增加波动度与极值罚项，默认权重可在训练脚本中调整，缓解预测均值吸附。
 - ✅ PTFTVSSMLoss 同步加入波动度/极值项，并整理 Sharpe、最大回撤等指标权重，支持更细粒度调参。
 - ✅ 训练脚本继续使用统一接口，旧权重配置保持兼容。
 - ✅ 	ests/test_models.py 新增相关单元测试，覆盖梯度反传与有限值校验。
+
+### 5.3 扩散/图模型迭代总结（2025-10-20）
+- ✅ `DiffusionForecaster` 支持 `schedule`（linear/cosine）与 `context_dim` 条件输入，结合股票嵌入保持接口兼容。
+- ✅ `GraphTemporalModel` 新增动态邻接混合（`use_dynamic_adj` / `dynamic_alpha`），可按批次特征自适应调整关联权重。
+- ✅ `tests/test_models.py` 补充扩散/图模型的上下文、动态邻接测试，验证梯度反传稳定。
+- ✅ 相关文档：`docs/research_diffusion_graph.md` 更新阶段成果与后续计划。
 
