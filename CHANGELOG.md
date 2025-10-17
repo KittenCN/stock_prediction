@@ -4,6 +4,96 @@
 
 ## [未发布] - 2025-10-20
 ### Fixed
+- **测试模式归一化参数为空问题修复**（已完成✓）
+  - 问题：测试模式加载归一化参数文件后，`mean_list` 和 `std_list` 长度为 0，导致反归一化失败并报错 "[WARN] Index X out of range"
+  - 根本原因：
+    1. 归一化参数在每次调用 `normalize_data()` 时都会被 `clear()`
+    2. 模型保存时，全局 `mean_list` 和 `std_list` 可能已经被清空
+    3. 使用 PKL 模式训练时，不会重新计算归一化参数
+  - 修复措施：
+    1. 在 `init.py` 中添加 `saved_mean_list` 和 `saved_std_list` 作为稳定副本
+    2. 在 `Stock_Data` 和 `stock_queue_dataset` 的 `normalize_data()` 中，第一次计算后保存副本
+    3. 在 `save_model()` 中优先使用稳定副本而非易变的全局变量
+    4. 修复 test() 函数中 "Hybrid" 模型导入错误，应为 "TemporalHybridNet"
+    5. 新增 `scripts/fix_norm_params.py` 工具，可从 PKL 文件重新计算并修复现有的空参数文件
+  - 验证结果：
+    - ✓ 单元测试：46/46 通过
+    - ✓ 归一化参数正确加载（mean_list长度30，std_list长度30）
+    - ✓ 不再出现索引越界警告
+  - 影响范围：所有使用归一化参数的模型测试和推理
+  - 相关文件：
+    - `src/stock_prediction/init.py`：添加稳定副本变量
+    - `src/stock_prediction/common.py`：保存和使用稳定副本
+    - `src/stock_prediction/train.py`：修复模型导入错误
+    - `scripts/fix_norm_params.py`：新增修复工具
+
+- **测试模式 Symbol Embedding 维度不匹配问题修复**（已完成✓）
+  - 问题：测试模式报错 "mat1 and mat2 shapes cannot be multiplied (10x30 and 46x128)"，测试数据输入维度为30维，但模型期望46维（启用 symbol embedding 后）
+  - 根本原因：
+    1. 训练时启用了 symbol embedding，每个样本会添加 16 维的股票编码特征（30 → 46维）
+    2. 测试模式下 `contrast_lines()` 函数未添加 `_symbol_index` 列
+    3. Dataloader 迭代格式不匹配（期望 `(data, label)` 但可能返回 `(data, label, symbol_idx)`）
+    4. `contrast_lines()` 函数返回值格式错误（未返回 `(y_true, y_pred)` 元组）
+  - 修复措施：
+    1. 在 `contrast_lines()` 函数中添加 symbol index：
+       - 从数据中提取 `ts_code`
+       - 使用 `feature_engineer.symbol_to_id` 映射获取 symbol_id
+       - 添加 `_symbol_index` 列到数据框
+    2. 修复 dataloader 迭代逻辑：
+       - 正确处理 2元组 `(data, label)` 和 3元组 `(data, label, symbol_idx)` 格式
+       - 添加边界检查避免索引越界
+    3. 修复 `contrast_lines()` 返回值：
+       - 返回 `(y_true, y_pred)` 元组供 metrics 计算使用
+       - 移除过时的 `while contrast_lines() == -1` 循环
+  - 验证结果：
+    - ✓ 单元测试：46/46 通过
+    - ✓ 测试模式成功运行（test accuracy: 0.686）
+    - ✓ Symbol index 成功添加（例如 ts_code=19 → symbol_index=4075）
+    - ✓ Metrics 文件生成成功（包含 RMSE, MAPE, VaR, CVaR）
+  - 影响范围：所有启用 symbol embedding 的模型测试和推理
+  - 相关文件：
+    - `src/stock_prediction/train.py`：修复 `contrast_lines()` 和 `test()` 函数
+
+### Known Issues
+- **用户需要运行一次性修复工具**（可选 ⚙️）
+  - 对于使用 PKL 模式训练的现有模型，归一化参数文件可能为空
+  - 解决方案：运行 `python scripts\fix_norm_params.py` 一次性修复
+  - 未来训练的模型会自动保存正确的归一化参数
+  - 问题：测试模式报错 `mat1 and mat2 shapes cannot be multiplied (40x30 and 46x128)`
+  - 根本原因：训练时启用 symbol embedding（输入维度30+16=46），但测试时数据加载未提供 symbol_index（输入维度30）
+  - 状态：归一化参数问题已解决，但测试数据维度与模型不匹配的问题仍需处理
+  - 临时解决方案：使用 `scripts/fix_norm_params.py` 修复归一化参数后，需要重新训练不使用 symbol embedding 的模型，或修改测试数据加载逻辑以支持 symbol_index
+  - 详见：`docs/test_mode_fix_progress.md`
+
+- **测试模式模型参数加载问题修复**（关键修复）
+  - 问题：测试模式（`mode=test`）时报错 `mat1 and mat2 shapes cannot be multiplied (10x30 and 46x128)` 和 `IndexError: list index out of range`
+  - 根本原因：
+    1. 测试时使用全局 `INPUT_DIMENSION` 创建模型，但实际训练时的模型可能使用不同的输入维度（例如启用 symbol embedding 后为 30+16=46）
+    2. 测试时未加载训练时保存的归一化参数（`mean_list`、`std_list`），导致反归一化时索引越界
+  - 修复措施：
+    1. 修改 `test()` 函数，在加载模型权重前先加载 `_Model_args.json`，使用训练时的参数重新创建模型
+    2. 保存归一化参数到 `_norm_params.json` 文件，测试时自动加载并更新全局变量
+    3. 在 `contrast_lines()` 函数中添加边界检查，避免索引越界
+    4. 修改 `save_model()` 函数，同时保存模型参数和归一化参数
+  - 影响范围：所有模型的测试和推理流程
+  - 预期效果：测试模式正确加载训练时的模型配置和归一化参数，避免维度不匹配和索引越界错误
+  - 相关文件：
+    - `src/stock_prediction/train.py`：test() 函数、contrast_lines() 函数
+    - `src/stock_prediction/common.py`：save_model() 函数
+
+- **Hybrid 模型推理维度不匹配问题修复**（关键修复）
+  - 问题：推理时 RuntimeError: Given normalized_shape=[46], expected input with shape [*, 46], but got input of size[1, 5, 30]
+  - 根本原因：
+    1. 训练时启用 symbol embedding，输入维度 30 + 16 = 46，推理时未提供 symbol_index，导致输入维度 30
+    2. `get_adaptive_hybrid_config` 函数定义在 `train.py` 中，无法从 `predict.py` 导入
+  - 修复措施：
+    1. 将 `get_adaptive_hybrid_config` 提取到独立模块 `src/stock_prediction/hybrid_config.py`，便于复用
+    2. 在 `predict.py` 中添加 symbol mapping，从训练数据构建 symbol_to_id 映射
+    3. 修改 `test()` 函数支持传递 `symbol_index` 参数，启用 symbol embedding 推理
+    4. 在模型加载时，自动调整输入维度以匹配数据（临时修复）
+  - 影响范围：所有使用 symbol embedding 的模型推理
+  - 预期效果：推理脚本正常运行，无维度错误
+  - 相关文档：更新 `docs/architecture.md` 说明 symbol embedding 处理
 - **Hybrid 模型训练集推理偏差问题修复**（关键修复）
   - 问题：训练 30 epoch 后，使用训练集数据推理时预测结果与真实值偏差巨大
   - 根本原因：

@@ -48,6 +48,9 @@ mean_list=[]
 std_list=[]
 test_mean_list = []
 test_std_list = []
+# 用于模型保存的稳定副本（不会被 clear）
+saved_mean_list = []
+saved_std_list = []
 safe_save = False
 # data_queue=multiprocessing.Queue()
 data_queue=queue.Queue()

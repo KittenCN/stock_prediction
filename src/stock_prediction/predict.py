@@ -60,6 +60,25 @@ if SYMBOL_EMBED_ENABLED:
 else:
     SYMBOL_VOCAB_SIZE = max(_symbol_vocab, 1)
 
+# Load symbol mapping for embedding
+import dill
+train_data = dill.load(open(train_pkl_path, 'rb'))
+if isinstance(train_data, queue.Queue):
+    temp_queue = deep_copy_queue(train_data)
+    all_data = []
+    while not temp_queue.empty():
+        item = temp_queue.get()
+        all_data.append(item)
+    if all_data:
+        train_df = pd.concat(all_data, ignore_index=True)
+        unique_symbols = train_df['ts_code'].unique()
+        symbol_to_id = {symbol: i for i, symbol in enumerate(unique_symbols)}
+    else:
+        symbol_to_id = {}
+else:
+    unique_symbols = train_data['ts_code'].unique()
+    symbol_to_id = {symbol: i for i, symbol in enumerate(unique_symbols)}
+
 parser = argparse.ArgumentParser(description="Stock price inference CLI")
 parser.add_argument('--model', default="hybrid", type=str, help="model name, e.g. lstm / transformer / hybrid / ptft_vssm / diffusion / graph")
 parser.add_argument('--test_code', default="", type=str, help="stock code to predict")
@@ -213,7 +232,7 @@ def _init_models(symbol: str) -> None:
     test_model.to(device if args.test_gpu == 1 else torch.device("cpu"))
 
 
-def test(dataset, testmodel=None, dataloader_mode=0):
+def test(dataset, testmodel=None, dataloader_mode=0, symbol_index=None):
     global test_model
     predict_list = []
     accuracy_list = []
@@ -235,6 +254,7 @@ def test(dataset, testmodel=None, dataloader_mode=0):
     else:
         raise ValueError("Unsupported dataloader mode")
 
+    import json
     if testmodel is None:
         predict_days = int(args.predict_days)
         ckpt_prefix = f"{save_path}_out{OUTPUT_DIMENSION}_time{SEQ_LEN}"
@@ -244,6 +264,66 @@ def test(dataset, testmodel=None, dataloader_mode=0):
             f"{ckpt_prefix}_Model.pkl",
             f"{ckpt_prefix}_Model_best.pkl",
         ]
+        args_candidates = [
+            f"{ckpt_prefix}_Model_args.json",
+            f"{ckpt_prefix}_Model_best_args.json",
+        ]
+        # 1. 自动读取参数 json
+        model_args = None
+        for args_path in args_candidates:
+            if os.path.exists(args_path):
+                try:
+                    with open(args_path, 'r', encoding='utf-8') as f:
+                        model_args = json.load(f)
+                    print(f"[INFO] Loaded model args from {args_path}")
+                    break
+                except Exception as e:
+                    print(f"[WARN] Failed to load model args: {e}")
+        # 2. 支持手动覆盖（命令行参数优先）
+        hybrid_size = getattr(args, "hybrid_size", None)
+        if model_mode == "HYBRID":
+            # 优先用 json 参数，其次命令行参数
+            from stock_prediction.hybrid_config import get_adaptive_hybrid_config
+            if model_args is not None:
+                # json 优先
+                hybrid_config = get_adaptive_hybrid_config(size_hint=model_args.get("hybrid_size", "auto"), data_size=0)
+                test_model = TemporalHybridNet(
+                    input_dim=model_args.get("input_dim", INPUT_DIMENSION),
+                    output_dim=model_args.get("output_dim", OUTPUT_DIMENSION),
+                    hidden_dim=model_args.get("hidden_dim", hybrid_config["hidden_dim"]),
+                    predict_steps=model_args.get("predict_steps", int(args.predict_days)),
+                    branch_config=model_args.get("branch_config", hybrid_config["branch_config"]),
+                    use_symbol_embedding=model_args.get("use_symbol_embedding", SYMBOL_EMBED_ENABLED),
+                    symbol_embedding_dim=model_args.get("symbol_embedding_dim", SYMBOL_EMBED_DIM),
+                    max_symbols=model_args.get("max_symbols", SYMBOL_VOCAB_SIZE),
+                )
+            elif hybrid_size is not None:
+                # 命令行覆盖
+                hybrid_config = get_adaptive_hybrid_config(size_hint=hybrid_size, data_size=0)
+                test_model = TemporalHybridNet(
+                    input_dim=INPUT_DIMENSION,
+                    output_dim=OUTPUT_DIMENSION,
+                    hidden_dim=hybrid_config["hidden_dim"],
+                    predict_steps=int(args.predict_days),
+                    branch_config=hybrid_config["branch_config"],
+                    use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+                    symbol_embedding_dim=SYMBOL_EMBED_DIM,
+                    max_symbols=SYMBOL_VOCAB_SIZE,
+                )
+            else:
+                # 默认 auto
+                hybrid_config = get_adaptive_hybrid_config(size_hint="auto", data_size=0)
+                test_model = TemporalHybridNet(
+                    input_dim=INPUT_DIMENSION,
+                    output_dim=OUTPUT_DIMENSION,
+                    hidden_dim=hybrid_config["hidden_dim"],
+                    predict_steps=int(args.predict_days),
+                    branch_config=hybrid_config["branch_config"],
+                    use_symbol_embedding=SYMBOL_EMBED_ENABLED,
+                    symbol_embedding_dim=SYMBOL_EMBED_DIM,
+                    max_symbols=SYMBOL_VOCAB_SIZE,
+                )
+        # 3. 加载权重
         loaded = False
         for candidate in candidates:
             if os.path.exists(candidate):
@@ -285,8 +365,8 @@ def test(dataset, testmodel=None, dataloader_mode=0):
             elif model_mode == "TRANSFORMER":
                 predict = test_model(data, label, int(args.predict_days))
             else:
-                if symbol_idx is not None:
-                    predict = test_model(data, symbol_index=symbol_idx)
+                if symbol_index is not None:
+                    predict = test_model(data, symbol_index=symbol_index)
                 else:
                     predict = test_model(data)
             predict_list.append(predict.to('cpu'))
@@ -339,6 +419,11 @@ def predict(test_codes):
     spliced_data = normalize_date_column(copy.deepcopy(data))
     print(f"[LOG] predict_data.columns: {list(predict_data.columns)}")
     print(f"[LOG] predict_data.shape: {predict_data.shape}")
+
+    # Prepare symbol index for embedding
+    symbol_index = None
+    if SYMBOL_EMBED_ENABLED:
+        symbol_index = torch.tensor([symbol_to_id.get(test_codes[0], 0)])
     if int(args.predict_days) <= 0:
         predict_days = abs(int(args.predict_days)) or 1
         print(f"[LOG] predict_days={predict_days}")
@@ -353,7 +438,7 @@ def predict(test_codes):
             normalized_predict = normalize_date_column(predict_data)
             features_df = normalized_predict.drop(columns=['ts_code', 'Date']).copy()
             features_df = features_df.fillna(features_df.median(numeric_only=True))
-            _, predict_list, _ = test(features_df, dataloader_mode=2)
+            _, predict_list, _ = test(features_df, dataloader_mode=2, symbol_index=symbol_index)
             print(f"[LOG] predict_list len: {len(predict_list)}")
 
             rows = []
@@ -416,7 +501,7 @@ def predict(test_codes):
         normalized_predict = normalize_date_column(predict_data)
         feature_frame = normalized_predict.drop(columns=['ts_code', 'Date']).copy()
         feature_frame = feature_frame.fillna(feature_frame.median(numeric_only=True))
-        test_loss, predict_list, _ = test(feature_frame, dataloader_mode=2)
+        test_loss, predict_list, _ = test(feature_frame, dataloader_mode=2, symbol_index=symbol_index)
         print("test loss:", test_loss)
 
         predictions = []

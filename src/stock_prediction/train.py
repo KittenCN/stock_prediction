@@ -35,6 +35,7 @@ from stock_prediction.models import (
     GraphTemporalModel,
     HybridLoss,
 )
+from stock_prediction.hybrid_config import get_adaptive_hybrid_config
 try:
     from .common import *
 except ImportError:
@@ -184,6 +185,65 @@ def test(dataset, testmodel=None, dataloader_mode=0):
         loaded = False
         for candidate in candidates:
             if os.path.exists(candidate):
+                # 尝试加载归一化参数
+                norm_file = candidate.replace("_Model.pkl", "_norm_params.json").replace("_Model_best.pkl", "_norm_params_best.json")
+                if os.path.exists(norm_file):
+                    try:
+                        import json
+                        with open(norm_file, 'r', encoding='utf-8') as f:
+                            norm_params = json.load(f)
+                        # 更新全局归一化参数
+                        global mean_list, std_list, show_list, name_list
+                        mean_list = norm_params.get('mean_list', mean_list)
+                        std_list = norm_params.get('std_list', std_list)
+                        show_list = norm_params.get('show_list', show_list)
+                        name_list = norm_params.get('name_list', name_list)
+                        print(f"[LOG] Loaded normalization params from {norm_file}")
+                        print(f"[LOG] mean_list length: {len(mean_list)}, std_list length: {len(std_list)}")
+                    except Exception as e:
+                        print(f"[WARN] Failed to load normalization params from {norm_file}: {e}")
+                
+                # 尝试加载模型参数配置
+                args_file = candidate.replace("_Model.pkl", "_Model_args.json").replace("_Model_best.pkl", "_Model_best_args.json")
+                if os.path.exists(args_file):
+                    try:
+                        import json
+                        with open(args_file, 'r', encoding='utf-8') as f:
+                            model_args = json.load(f)
+                        # 使用保存的参数重新创建模型
+                        if model_mode == "LSTM":
+                            from stock_prediction.models import LSTM
+                            test_model = LSTM(**model_args)
+                        elif model_mode == "GRU":
+                            from stock_prediction.models import GRU
+                            test_model = GRU(**model_args)
+                        elif model_mode == "TRANSFORMER":
+                            from stock_prediction.models import Transformer
+                            test_model = Transformer(**model_args)
+                        elif model_mode == "HYBRID":
+                            from stock_prediction.models import TemporalHybridNet
+                            test_model = TemporalHybridNet(**model_args)
+                        elif model_mode == "PTFT_VSSM":
+                            from stock_prediction.models import PTFTVSSMEnsemble
+                            test_model = PTFTVSSMEnsemble(**model_args)
+                        elif model_mode == "DIFFUSION":
+                            from stock_prediction.models import DiffusionLSTM
+                            test_model = DiffusionLSTM(**model_args)
+                        elif model_mode == "GRAPH":
+                            from stock_prediction.models import GraphLSTM
+                            test_model = GraphLSTM(**model_args)
+                        elif model_mode == "CNNLSTM":
+                            from stock_prediction.models import CNNLSTM
+                            test_model = CNNLSTM(**model_args)
+                        # 将模型移到正确的设备
+                        if args.test_gpu == 0:
+                            test_model = test_model.to('cpu', non_blocking=True)
+                        else:
+                            test_model = test_model.to(device, non_blocking=True)
+                        print(f"[LOG] Loaded model args from {args_file}")
+                    except Exception as e:
+                        print(f"[WARN] Failed to load model args from {args_file}: {e}, using default test_model")
+                
                 test_model.load_state_dict(torch.load(candidate))
                 loaded = True
                 break
@@ -588,6 +648,24 @@ def contrast_lines(test_codes):
         data_queue = queue.Queue()
 
     data = normalize_date_column(data)
+    
+    # 保存 ts_code 用于 symbol mapping
+    ts_code_value = None
+    if 'ts_code' in data.columns and not data.empty:
+        ts_code_value = str(data['ts_code'].iloc[0])
+    
+    # 添加 _symbol_index 列（如果启用了 symbol embedding）
+    from stock_prediction.common import feature_engineer
+    if feature_engineer.settings.use_symbol_embedding and ts_code_value:
+        # 使用 feature_engineer 的 symbol mapping
+        if not hasattr(feature_engineer, 'symbol_to_id') or not feature_engineer.symbol_to_id:
+            # 如果没有 mapping，尝试构建一个简单的
+            symbol_id = hash(ts_code_value) % 4096  # 简单哈希到 0-4095
+        else:
+            symbol_id = feature_engineer.symbol_to_id.get(ts_code_value, 0)
+        data['_symbol_index'] = symbol_id
+        print(f"[LOG] Added _symbol_index={symbol_id} for ts_code={ts_code_value}")
+    
     feature_data = data.drop(columns=['ts_code', 'Date'], errors='ignore').copy()
     feature_data = feature_data.fillna(feature_data.median(numeric_only=True))
     print("test_code=", test_codes)
@@ -643,7 +721,17 @@ def contrast_lines(test_codes):
             print("Error: loss_curve", e)
     else:
 
-        for i, (_, label) in enumerate(dataloader):
+        for i, batch in enumerate(dataloader):
+            # 处理 batch 格式：可能是 (data, label) 或 (data, label, symbol_idx)
+            if isinstance(batch, (list, tuple)):
+                if len(batch) == 3:
+                    _, label, _ = batch
+                else:
+                    _, label = batch[0], batch[1]
+            else:
+                continue  # 跳过无效 batch
+                
+            # 处理 label
             for idx in range(label.shape[0]):
                 _tmp = []
                 for index in range(len(show_list)):
@@ -660,8 +748,14 @@ def contrast_lines(test_codes):
                         v = value
                     if show_list[index] == 1:
                         # Denormalize using training set normalization parameters to ensure consistency
-                        _tmp.append(v * std_list[index] + mean_list[index])
-                real_list.append(np.array(_tmp))
+                        # 添加边界检查以避免索引越界
+                        if index < len(std_list) and index < len(mean_list):
+                            _tmp.append(v * std_list[index] + mean_list[index])
+                        else:
+                            print(f"[WARN] Index {index} out of range for std_list/mean_list (len={len(std_list)}), using raw value")
+                            _tmp.append(v)
+                if _tmp:  # 只添加非空结果
+                    real_list.append(np.array(_tmp))
 
         for items in predict_list:
             items = items.to("cpu", non_blocking=True)
@@ -680,10 +774,16 @@ def contrast_lines(test_codes):
                 else:
                     values = [idxs]
                 for index, item in enumerate(values):
-                    if show_list[index] == 1:
+                    if index < len(show_list) and show_list[index] == 1:
                         # Denormalize using training set normalization parameters to ensure consistency
-                        _tmp.append(item * std_list[index] + mean_list[index])
-                prediction_list.append(np.array(_tmp))
+                        # 添加边界检查以避免索引越界
+                        if index < len(std_list) and index < len(mean_list):
+                            _tmp.append(item * std_list[index] + mean_list[index])
+                        else:
+                            print(f"[WARN] Index {index} out of range for std_list/mean_list (len={len(std_list)}), using raw value")
+                            _tmp.append(item)
+                if _tmp:  # 只添加非空结果
+                    prediction_list.append(np.array(_tmp))
     selected_features = [name_list[idx] for idx, flag in enumerate(show_list) if flag == 1]
     rename_map = {"open": "Open", "high": "High", "low": "Low", "close": "Close"}
     real_array = np.array(real_list)
@@ -742,7 +842,14 @@ def contrast_lines(test_codes):
         with open(metrics_path, "w", encoding="utf-8") as f:
             json.dump(metrics_out, f, ensure_ascii=False, indent=2)
         print(f"[LOG] Metrics saved: {metrics_path}")
-    return
+    
+    # 返回真实值和预测值供 metrics 计算使用
+    y_true = None
+    y_pred = None
+    if 'Close' in real_df.columns and 'Close' in pred_df.columns:
+        y_true = real_df.set_index('Date')['Close'].astype(float).dropna().values
+        y_pred = pred_df.set_index('Date')['Close'].astype(float).dropna().values
+    return (y_true, y_pred) if y_true is not None else None
 
 def main():
     """Main entry point: training, testing, and prediction."""
@@ -1392,9 +1499,6 @@ def main():
                     print(f"[LOG] Train metrics saved: {metrics_path}")
             except Exception as e:
                 print(f"[WARN] Train metrics collection failed: {e}")
-            while contrast_lines(test_code) == -1:
-                test_index = random.randint(0, len(test_codes) - 1)
-                test_code = [test_codes[test_index]]
         print("train epoch: %d" % (last_epoch))
     elif mode == "test":
         if getattr(args, "full_train", False) and not test_codes and args.test_code == "":
@@ -1405,9 +1509,7 @@ def main():
         else:
             test_index = random.randint(0, len(test_codes) - 1)
             test_code = [test_codes[test_index]]
-        while contrast_lines(test_code) == -1:
-            test_index = random.randint(0, len(test_codes) - 1)
-            test_code = [test_codes[test_index]]
+        contrast_lines(test_code)
     elif mode == "predict":
         if args.test_code == "":
             print("Error: test_code is empty")

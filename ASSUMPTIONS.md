@@ -16,6 +16,12 @@
 - `branch_config` 支持 bool / float / dict 形式；当提供 `{"enabled": bool, "weight": float}` 时，权重会被转换为门控先验（log-scale），默认值为 1。
 - Hybrid 门控温度通过软正则参数控制，如需固定可在训练脚本中手动设定。
 
+## Symbol Embedding 推理一致性假设（2025-10-20 新增）
+
+- **训练与推理必须使用相同的 symbol embedding 配置**：如果训练时启用 `use_symbol_embedding`，推理时必须提供有效的 `symbol_index`，确保输入维度一致（原始特征 + 嵌入维度）。
+- Symbol mapping 从训练数据动态构建，假设训练数据覆盖所有推理股票代码；缺失代码默认映射到 ID 0，可能影响嵌入质量。
+- 模型加载时自动调整输入维度以匹配数据，但权重为随机初始化，预测准确性可能下降；建议重新训练以获得最佳性能。
+
 ## 归一化一致性假设（2025-10-20 新增）
 
 - **训练与推理必须使用相同的归一化参数**：`Stock_Data(mode=0)` 训练时计算的 `mean_list`/`std_list` 必须在推理和反归一化时复用，避免分布偏移。

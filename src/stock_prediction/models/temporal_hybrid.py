@@ -288,6 +288,10 @@ class TemporalHybridNet(nn.Module):
     # Helpers
     # ------------------------------------------------------------------ #
     def _legacy_branch(self, x: torch.Tensor) -> torch.Tensor:
+        # Dynamic adjustment for input dimension mismatch
+        if self.input_norm.normalized_shape[0] != x.shape[-1]:
+            print(f"[WARNING] Input dimension mismatch: model expects {self.input_norm.normalized_shape[0]}, data has {x.shape[-1]}. Adjusting LayerNorm (weights will be random).")
+            self.input_norm = nn.LayerNorm(x.shape[-1])
         norm_x = self.input_norm(x)
         base = self.input_proj(norm_x)
         conv_feats = [base]

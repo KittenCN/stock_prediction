@@ -292,6 +292,7 @@ class Stock_Data(Dataset):
         return data
 
     def normalize_data(self):
+        global saved_mean_list, saved_std_list
         if self.mode in [0, 2]:
             mean_list.clear()
             std_list.clear()
@@ -313,6 +314,11 @@ class Stock_Data(Dataset):
                 mean_list.append(mean_val)
                 std_list.append(std_val)
                 self.data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
+            
+            # 保存稳定副本用于模型保存（只在第一次或列表为空时更新）
+            if not saved_mean_list or not saved_std_list:
+                saved_mean_list = mean_list.copy()
+                saved_std_list = std_list.copy()
         else:
             test_mean_list.clear()
             test_std_list.clear()
@@ -466,6 +472,7 @@ class stock_queue_dataset(Dataset):
             return data, symbol_series
 
     def normalize_data(self, data):
+        global saved_mean_list, saved_std_list
         if self.mode in [0, 2]:
             mean_list.clear()
             std_list.clear()
@@ -489,6 +496,11 @@ class stock_queue_dataset(Dataset):
                     mean_list.append(mean_val)
                     std_list.append(std_val)
                     data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
+            
+            # 保存稳定副本用于模型保存（只在第一次或列表为空时更新）
+            if not saved_mean_list or not saved_std_list:
+                saved_mean_list = mean_list.copy()
+                saved_std_list = std_list.copy()
         else:
             test_mean_list.clear()
             test_std_list.clear()
@@ -922,29 +934,69 @@ def _move_state_to_cpu(state):
 
 
 def save_model(model, optimizer, save_path, best_model=False, predict_days=0):
+    import json
     if isinstance(model, dict):
         model_state = model
+        model_args = None
     else:
         model_state = {k: v.detach().cpu().clone() if torch.is_tensor(v) else v for k, v in model.state_dict().items()}
+        model_args = getattr(model, '_init_args', None)
     if isinstance(optimizer, dict):
         optimizer_state = optimizer
     else:
         optimizer_state = _move_state_to_cpu(optimizer.state_dict())
 
+    def save_with_args(model_path, optimizer_path, args_path, norm_path):
+        torch.save(model_state, model_path)
+        torch.save(optimizer_state, optimizer_path)
+        if model_args is not None:
+            try:
+                with open(args_path, 'w', encoding='utf-8') as f:
+                    json.dump(model_args, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                print(f"[WARN] Failed to save model args: {e}")
+        # 保存归一化参数（使用稳定副本）
+        try:
+            # 优先使用稳定副本，如果为空则使用当前值
+            use_mean = saved_mean_list if saved_mean_list else mean_list
+            use_std = saved_std_list if saved_std_list else std_list
+            norm_params = {
+                'mean_list': use_mean,
+                'std_list': use_std,
+                'show_list': show_list,
+                'name_list': name_list,
+            }
+            with open(norm_path, 'w', encoding='utf-8') as f:
+                json.dump(norm_params, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"[WARN] Failed to save normalization params: {e}")
+
     if predict_days > 0:
         if best_model is False:
-            torch.save(model_state, save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Model.pkl")
-            torch.save(optimizer_state, save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Optimizer.pkl")
+            model_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Model.pkl"
+            optimizer_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Optimizer.pkl"
+            args_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Model_args.json"
+            norm_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_norm_params.json"
+            save_with_args(model_path, optimizer_path, args_path, norm_path)
         elif best_model is True:
-            torch.save(model_state, save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Model_best.pkl")
-            torch.save(optimizer_state, save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Optimizer_best.pkl")
+            model_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Model_best.pkl"
+            optimizer_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Optimizer_best.pkl"
+            args_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Model_best_args.json"
+            norm_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_norm_params_best.json"
+            save_with_args(model_path, optimizer_path, args_path, norm_path)
     else:
         if best_model is False:
-            torch.save(model_state, save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl")
-            torch.save(optimizer_state, save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl")
+            model_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl"
+            optimizer_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"
+            args_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model_args.json"
+            norm_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_norm_params.json"
+            save_with_args(model_path, optimizer_path, args_path, norm_path)
         elif best_model is True:
-            torch.save(model_state, save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model_best.pkl")
-            torch.save(optimizer_state, save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer_best.pkl")
+            model_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model_best.pkl"
+            optimizer_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer_best.pkl"
+            args_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model_best_args.json"
+            norm_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_norm_params_best.json"
+            save_with_args(model_path, optimizer_path, args_path, norm_path)
 
 
 def thread_save_model(model, optimizer, save_path, best_model=False, predict_days=0):
