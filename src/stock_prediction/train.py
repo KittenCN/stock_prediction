@@ -70,6 +70,7 @@ parser.add_argument('--api', default="akshare", type=str, help="api-interface, t
 parser.add_argument('--trend', default=0, type=int, help="predict the trend of stock, not the price")
 parser.add_argument('--epoch', default=2, type=int, help="training epochs")
 parser.add_argument('--plot_days', default=30, type=int, help="history days to display in test/predict plots")
+parser.add_argument('--full_train', default=0, type=int, help="train on full dataset without validation/test (1 to enable)")
 
 # Default args reused by tests and direct imports
 class DefaultArgs:
@@ -86,6 +87,7 @@ class DefaultArgs:
     trend = 0
     epoch = 2
     plot_days = 30
+    full_train = 0
 
 args = DefaultArgs()
 
@@ -146,6 +148,8 @@ def train_with_trainer(train_loader, val_loader=None):
 
 
 def test(dataset, testmodel=None, dataloader_mode=0):
+    if getattr(args, "full_train", False):
+        return -1, -1, None
     global drop_last, total_test_length
     global test_model
     predict_list = []
@@ -550,6 +554,9 @@ def ensure_checkpoint_ready() -> None:
     save_model(model, optimizer, save_path, True, predict_days)
 
 def contrast_lines(test_codes):
+    if getattr(args, "full_train", False):
+        print("[LOG] full_train enabled, skip contrast_lines.")
+        return
     global model_mode
     data = NoneDataFrame
     if PKL is False:
@@ -739,6 +746,7 @@ def main():
     
     # Parse command-line arguments only when executed as a script
     args = parser.parse_args()
+    args.full_train = bool(int(getattr(args, "full_train", 0)))
     # b_size * (p_days * n_head) * (d_model // n_head) = b_size * seq_len * d_model
     # if int(args.predict_days) > 0:
     #     assert BATCH_SIZE * (int(args.predict_days) * NHEAD) * (D_MODEL // NHEAD) == BATCH_SIZE * SEQ_LEN * D_MODEL and D_MODEL % NHEAD == 0, "Error: assert error"
@@ -1025,6 +1033,9 @@ def main():
     else:
         train_codes = ts_codes
         test_codes = ts_codes
+    if getattr(args, "full_train", False):
+        train_codes = ts_codes
+        test_codes = []
     random.shuffle(ts_codes)
     random.shuffle(train_codes)
     random.shuffle(test_codes)
@@ -1066,10 +1077,10 @@ def main():
                     if _ts_code in test_codes:
                         test_queue.put(_data)
                         total_test_length += _data.shape[0] - SEQ_LEN
-                    if _ts_code not in train_codes and _ts_code not in test_codes:
+                    if not getattr(args, "full_train", False) and _ts_code not in train_codes and _ts_code not in test_codes:
                         print("Error: %s not in train or test"%_ts_code)
                         continue
-                    if _ts_code in train_codes and _ts_code in test_codes:
+                    if not getattr(args, "full_train", False) and _ts_code in train_codes and _ts_code in test_codes:
                         print("Error: %s in train and test"%_ts_code)
                         continue
                 init_bar.close()
@@ -1131,12 +1142,18 @@ def main():
                             else:
                                 args.begin_code = ""
                         data.drop(['ts_code','Date'],axis=1,inplace = True)    
-                        train_size=int(TRAIN_WEIGHT*(data.shape[0]))
-                        if train_size<SEQ_LEN or train_size+SEQ_LEN>data.shape[0]:
+                        if getattr(args, "full_train", False):
+                            Train_data = data
+                        else:
+                            train_size=int(TRAIN_WEIGHT*(data.shape[0]))
+                            if train_size<SEQ_LEN or train_size+SEQ_LEN>data.shape[0]:
+                                code_bar.update(1)
+                                continue
+                            Train_data=data[:train_size+SEQ_LEN]
+                        # Test_data=data[train_size-SEQ_LEN:]
+                        if Train_data.shape[0] < SEQ_LEN:
                             code_bar.update(1)
                             continue
-                        Train_data=data[:train_size+SEQ_LEN]
-                        # Test_data=data[train_size-SEQ_LEN:]
                         if Train_data.empty or Train_data is None:
                             tqdm.write(ts_code + ":Train_data is None")
                             code_bar.update(1)
@@ -1194,34 +1211,37 @@ def main():
         elif len(lo_list) > 0:
             print("Start create image for loss (final)")
             loss_curve(lo_list)
-        print("Start create image for pred-real")
-        test_index = random.randint(0, len(test_codes) - 1)
-        test_code = [test_codes[test_index]]
-        # 采集并保存指标
-        try:
-            import json
-            from stock_prediction.metrics import metrics_report
-            # 只采集 test_code 的 close 列，实际可扩展
-            pred_result = contrast_lines(test_code)
-            # contrast_lines 内部已绘图，需返回预测与真实值
-            # 这里假设 contrast_lines 返回 (y_true, y_pred) 或 None
-            if isinstance(pred_result, tuple) and len(pred_result) == 2:
-                y_true, y_pred = pred_result
-                metrics_out = {"close": metrics_report(y_true, y_pred)}
-                output_dir = Path("output")
-                output_dir.mkdir(exist_ok=True)
-                ts = datetime.now().strftime("%Y%m%d%H%M%S")
-                metrics_path = output_dir / f"metrics_train_{test_code[0]}_{model_mode}_{ts}.json"
-                with open(metrics_path, "w", encoding="utf-8") as f:
-                    json.dump(metrics_out, f, ensure_ascii=False, indent=2)
-                print(f"[LOG] Train metrics saved: {metrics_path}")
-        except Exception as e:
-            print(f"[WARN] Train metrics collection failed: {e}")
-        while contrast_lines(test_code) == -1:
+        if getattr(args, "full_train", False) or len(test_codes) == 0:
+            print("[LOG] full_train enabled或无测试代码，跳过预测对比。")
+        else:
+            print("Start create image for pred-real")
             test_index = random.randint(0, len(test_codes) - 1)
             test_code = [test_codes[test_index]]
+            # 采集并保存指标
+            try:
+                import json
+                from stock_prediction.metrics import metrics_report
+                pred_result = contrast_lines(test_code)
+                if isinstance(pred_result, tuple) and len(pred_result) == 2:
+                    y_true, y_pred = pred_result
+                    metrics_out = {"close": metrics_report(y_true, y_pred)}
+                    output_dir = Path("output")
+                    output_dir.mkdir(exist_ok=True)
+                    ts = datetime.now().strftime("%Y%m%d%H%M%S")
+                    metrics_path = output_dir / f"metrics_train_{test_code[0]}_{model_mode}_{ts}.json"
+                    with open(metrics_path, "w", encoding="utf-8") as f:
+                        json.dump(metrics_out, f, ensure_ascii=False, indent=2)
+                    print(f"[LOG] Train metrics saved: {metrics_path}")
+            except Exception as e:
+                print(f"[WARN] Train metrics collection failed: {e}")
+            while contrast_lines(test_code) == -1:
+                test_index = random.randint(0, len(test_codes) - 1)
+                test_code = [test_codes[test_index]]
         print("train epoch: %d" % (last_epoch))
     elif mode == "test":
+        if getattr(args, "full_train", False) and not test_codes and args.test_code == "":
+            print("[LOG] 无测试数据可用于对比。")
+            return
         if args.test_code != "" or args.test_code == "all":
             test_code = [args.test_code]
         else:
