@@ -71,7 +71,7 @@ parser.add_argument('--api', default="akshare", type=str, help="api-interface, t
 parser.add_argument('--trend', default=0, type=int, help="predict the trend of stock, not the price")
 parser.add_argument('--epoch', default=5, type=int, help="training epochs")
 parser.add_argument('--plot_days', default=30, type=int, help="history days to display in test/predict plots")
-parser.add_argument('--full_train', default=1, type=int, help="train on full dataset without validation/test (1 to enable)")
+parser.add_argument('--full_train', default=0, type=int, help="train on full dataset without validation/test (1 to enable)")
 
 # Default args reused by tests and direct imports
 class DefaultArgs:
@@ -88,7 +88,7 @@ class DefaultArgs:
     trend = 0
     epoch = 5
     plot_days = 30
-    full_train = 1
+    full_train = 0
 
 args = DefaultArgs()
 
