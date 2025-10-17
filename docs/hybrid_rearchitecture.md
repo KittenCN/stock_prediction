@@ -72,8 +72,8 @@ TemporalHybridNet (Hybrid Aggregator)
 | ---- | ---- | -------- |
 | Phase 1 | ✅ | 重构 `TemporalHybridNet` → Hybrid Aggregator；保持旧接口 |
 | Phase 2 | ✅ | 集成 PTFT/VSSM/Diffusion/Graph 分支；默认全开，配置可控 |
-| Phase 3 | ◻ | 深度实验与指标评估（待进行） |
-| Phase 4 | ◻ | 深入优化（如知识蒸馏、在线学习） |
+| Phase 3 | ◻ | 深度实验与指标评估（待进行）：重点验证相对归一、股票 ID 嵌入、HybridLoss 权重等策略 |
+| Phase 4 | ◻ | 深入优化（如分组训练 → 多任务蒸馏、在线学习） |
 
 ---
 

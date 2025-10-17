@@ -99,6 +99,7 @@
 5. **扩展方向**：探索扩散模型用于情景分析，或构建图结构以支持多资产预测。
    - 扩散与图建模预研计划参见 `docs/research_diffusion_graph.md`，包含实验步骤与阶段目标；仓库内首版实现可通过 `--model diffusion` 与 `--model graph` 调用。
    - Hybrid 2.0 总线化设计详见 `docs/hybrid_rearchitecture.md`，Hybrid 使用 `HybridLoss` 组合损失支撑多分支融合。
+   - 针对“均线吸附”问题的优化计划：相对归一、股票 ID 嵌入、损失约束、层次化模型与分组蒸馏，详见 `docs/maintenance.md`。
 
 ### 6.1 PTFT+VSSM 改进路线（新增）
 | 优先级 | 状态 | 改进方向 | 关键动作 | 预期收益 |
