@@ -84,6 +84,9 @@ OUTPUT_DIMENSION = sum(use_list)
 
 assert OUTPUT_DIMENSION > 0
 
+# 缓存按股票维度的归一化统计
+symbol_norm_map = {}
+
 device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
 if device.type == "cuda":
     torch.backends.cudnn.benchmark = True

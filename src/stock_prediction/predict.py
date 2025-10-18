@@ -1,7 +1,8 @@
-﻿#!/usr/bin/env python
+#!/usr/bin/env python
 # coding: utf-8
 import argparse
 import copy
+import json
 import os
 import random
 import matplotlib.pyplot as plt
@@ -77,7 +78,85 @@ if isinstance(train_data, queue.Queue):
         symbol_to_id = {}
 else:
     unique_symbols = train_data['ts_code'].unique()
-    symbol_to_id = {symbol: i for i, symbol in enumerate(unique_symbols)}
+symbol_to_id = {symbol: i for i, symbol in enumerate(unique_symbols)}
+
+
+def _apply_norm_from_params(norm_params, symbol=None):
+    """Update全局归一化参数，并同步 symbol_norm_map。"""
+
+    symbol_key = canonical_symbol(symbol)
+    per_symbol = norm_params.get("per_symbol") or norm_params.get("per_symbol_stats")
+
+    if isinstance(per_symbol, dict):
+        for sym, stats in per_symbol.items():
+            means = stats.get("mean_list")
+            stds = stats.get("std_list")
+            if means and stds:
+                record_symbol_norm(sym, means, stds)
+
+    target_stats = None
+    missing_symbol_stats = False
+    if symbol_key and isinstance(per_symbol, dict):
+        target_stats = per_symbol.get(symbol_key)
+        if target_stats is None:
+            missing_symbol_stats = True
+    elif symbol_key and not isinstance(per_symbol, dict):
+        missing_symbol_stats = True
+    if target_stats is None:
+        target_stats = norm_params
+
+    means = target_stats.get("mean_list")
+    stds = target_stats.get("std_list")
+    shows = target_stats.get("show_list") or norm_params.get("show_list")
+    names = target_stats.get("name_list") or norm_params.get("name_list")
+
+    if means:
+        mean_list.clear()
+        mean_list.extend(means)
+        saved_mean_list.clear()
+        saved_mean_list.extend(means)
+    if stds:
+        std_list.clear()
+        std_list.extend(stds)
+        saved_std_list.clear()
+        saved_std_list.extend(stds)
+    if shows:
+        show_list.clear()
+        show_list.extend(shows)
+    if names:
+        name_list.clear()
+        name_list.extend(names)
+
+    if missing_symbol_stats and symbol_key:
+        print(f"[WARN] No symbol-specific normalization stats found for {symbol_key}; using global statistics.")
+
+    if symbol_key and means and stds:
+        record_symbol_norm(symbol_key, means, stds)
+
+
+def _warn_if_norm_mismatch(symbol_key, observed_means, observed_stds, context):
+    if not symbol_key:
+        return
+    expected = symbol_norm_map.get(symbol_key)
+    if not expected:
+        return
+    try:
+        obs_mean = np.asarray(observed_means, dtype=float)
+        obs_std = np.asarray(observed_stds, dtype=float)
+        exp_mean = np.asarray(expected.get("mean_list", []), dtype=float)
+        exp_std = np.asarray(expected.get("std_list", []), dtype=float)
+        threshold = 1e-3
+        mean_diff = std_diff = None
+        if exp_mean.size and obs_mean.size and exp_mean.shape == obs_mean.shape:
+            mean_diff = float(np.max(np.abs(exp_mean - obs_mean)))
+        if exp_std.size and obs_std.size and exp_std.shape == obs_std.shape:
+            std_diff = float(np.max(np.abs(exp_std - obs_std)))
+        if (mean_diff is not None and mean_diff > threshold) or (std_diff is not None and std_diff > threshold):
+            print(f"[WARN] Normalization mismatch detected for {symbol_key} during {context}: "
+                  f"mean diff={mean_diff if mean_diff is not None else 'n/a'}, "
+                  f"std diff={std_diff if std_diff is not None else 'n/a'}")
+    except Exception:
+        pass
 
 parser = argparse.ArgumentParser(description="Stock price inference CLI")
 parser.add_argument('--model', default="hybrid", type=str, help="model name, e.g. lstm / transformer / hybrid / ptft_vssm / diffusion / graph")
@@ -106,6 +185,7 @@ model_mode: str | None = None
 model: nn.Module | None = None
 test_model: nn.Module | None = None
 save_path: str | None = None
+current_norm_symbol: str | None = None
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 PKL = True
 drop_last = False
@@ -114,13 +194,15 @@ drop_last = False
 total_test_length = 0
 
 
-def _init_models(symbol: str) -> None:
-    global model_mode, model, test_model, save_path
+def _init_models(target_symbol: str | None) -> None:
+    global model_mode, model, test_model, save_path, current_norm_symbol
+    current_norm_symbol = canonical_symbol(target_symbol)
+    path_symbol = symbol  #  init.pyģͱĿ¼
     model_mode = args.model.upper()
     if model_mode == "LSTM":
         model = LSTM(input_dim=INPUT_DIMENSION)
         test_model = LSTM(input_dim=INPUT_DIMENSION)
-        save_path = str(config.get_model_path("LSTM", symbol))
+        save_path = str(config.get_model_path("LSTM", path_symbol))
     elif model_mode == "ATTENTION_LSTM":
         model = AttentionLSTM(input_dim=INPUT_DIMENSION, hidden_dim=128, num_layers=2, output_dim=OUTPUT_DIMENSION)
         test_model = AttentionLSTM(input_dim=INPUT_DIMENSION, hidden_dim=128, num_layers=2, output_dim=OUTPUT_DIMENSION)
@@ -144,7 +226,7 @@ def _init_models(symbol: str) -> None:
                                  dim_feedforward=2048, output_dim=OUTPUT_DIMENSION, max_len=SEQ_LEN, mode=0)
         test_model = TransformerModel(input_dim=INPUT_DIMENSION, d_model=D_MODEL, nhead=NHEAD, num_layers=6,
                                       dim_feedforward=2048, output_dim=OUTPUT_DIMENSION, max_len=SEQ_LEN, mode=1)
-        save_path = config.get_model_path("TRANSFORMER", symbol)
+        save_path = config.get_model_path("TRANSFORMER", path_symbol)
     elif model_mode == "HYBRID":
         hybrid_steps = abs(int(args.predict_days)) if int(args.predict_days) > 0 else 1
         model = TemporalHybridNet(
@@ -163,7 +245,7 @@ def _init_models(symbol: str) -> None:
             symbol_embedding_dim=SYMBOL_EMBED_DIM,
             max_symbols=SYMBOL_VOCAB_SIZE,
         )
-        save_path = config.get_model_path("HYBRID", symbol)
+        save_path = config.get_model_path("HYBRID", path_symbol)
     elif model_mode == "PTFT_VSSM":
         ensemble_steps = abs(int(args.predict_days)) if int(args.predict_days) > 0 else 1
         model = PTFTVSSMEnsemble(
@@ -182,7 +264,7 @@ def _init_models(symbol: str) -> None:
             symbol_embedding_dim=SYMBOL_EMBED_DIM,
             max_symbols=SYMBOL_VOCAB_SIZE,
         )
-        save_path = config.get_model_path("PTFT_VSSM", symbol)
+        save_path = config.get_model_path("PTFT_VSSM", path_symbol)
     elif model_mode == "DIFFUSION":
         diffusion_steps = abs(int(args.predict_days)) if int(args.predict_days) > 0 else 1
         model = DiffusionForecaster(
@@ -201,7 +283,7 @@ def _init_models(symbol: str) -> None:
             symbol_embedding_dim=SYMBOL_EMBED_DIM,
             max_symbols=SYMBOL_VOCAB_SIZE,
         )
-        save_path = str(config.get_model_path("DIFFUSION", symbol))
+        save_path = str(config.get_model_path("DIFFUSION", path_symbol))
     elif model_mode == "GRAPH":
         graph_steps = abs(int(args.predict_days)) if int(args.predict_days) > 0 else 1
         model = GraphTemporalModel(
@@ -220,41 +302,54 @@ def _init_models(symbol: str) -> None:
             symbol_embedding_dim=SYMBOL_EMBED_DIM,
             max_symbols=SYMBOL_VOCAB_SIZE,
         )
-        save_path = str(config.get_model_path("GRAPH", symbol))
+        save_path = str(config.get_model_path("GRAPH", path_symbol))
     elif model_mode == "CNNLSTM":
         predict_days = max(1, abs(int(args.predict_days)))
         model = CNNLSTM(input_dim=INPUT_DIMENSION, num_classes=OUTPUT_DIMENSION, predict_days=predict_days)
         test_model = CNNLSTM(input_dim=INPUT_DIMENSION, num_classes=OUTPUT_DIMENSION, predict_days=predict_days)
-        save_path = config.get_model_path("CNNLSTM", symbol)
+        save_path = config.get_model_path("CNNLSTM", path_symbol)
     else:
         raise ValueError(f"Unsupported model: {model_mode}")
     model.to(device)
     test_model.to(device if args.test_gpu == 1 else torch.device("cpu"))
 
 
-def test(dataset, testmodel=None, dataloader_mode=0, symbol_index=None):
+def test(dataset, testmodel=None, dataloader_mode=0, symbol_index=None, norm_symbol=None):
     global test_model
-    predict_list = []
-    accuracy_list = []
+    predict_list: list[torch.Tensor] = []
+    accuracy_list: list[float] = []
+    symbol_key = canonical_symbol(norm_symbol or current_norm_symbol or getattr(args, "test_code", ""))
     use_gpu = device.type == "cuda" and getattr(args, "test_gpu", 1) == 1 and torch.cuda.is_available()
     pin_memory = use_gpu
+
     if dataloader_mode in [0, 2]:
-        stock_predict = Stock_Data(mode=dataloader_mode, dataFrame=dataset, label_num=OUTPUT_DIMENSION,
-                                   predict_days=int(args.predict_days), trend=int(args.trend))
+        stock_predict = Stock_Data(
+            mode=dataloader_mode,
+            dataFrame=dataset,
+            label_num=OUTPUT_DIMENSION,
+            predict_days=int(args.predict_days),
+            trend=int(args.trend),
+            norm_symbol=symbol_key,
+        )
         dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False,
                                 drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=pin_memory)
     elif dataloader_mode in [1]:
         _stock_test_data_queue = deep_copy_queue(dataset)
         total_test_length = _stock_test_data_queue.qsize()
-        stock_test = stock_queue_dataset(mode=1, data_queue=_stock_test_data_queue, label_num=OUTPUT_DIMENSION,
-                                         buffer_size=BUFFER_SIZE, total_length=total_test_length,
-                                         predict_days=int(args.predict_days), trend=int(args.trend))
+        stock_test = stock_queue_dataset(
+            mode=1,
+            data_queue=_stock_test_data_queue,
+            label_num=OUTPUT_DIMENSION,
+            buffer_size=BUFFER_SIZE,
+            total_length=total_test_length,
+            predict_days=int(args.predict_days),
+            trend=int(args.trend),
+        )
         dataloader = DataLoader(dataset=stock_test, batch_size=BATCH_SIZE, shuffle=False, drop_last=drop_last,
                                 num_workers=NUM_WORKERS, pin_memory=pin_memory, collate_fn=custom_collate)
     else:
         raise ValueError("Unsupported dataloader mode")
 
-    import json
     if testmodel is None:
         predict_days = int(args.predict_days)
         ckpt_prefix = f"{save_path}_out{OUTPUT_DIMENSION}_time{SEQ_LEN}"
@@ -268,7 +363,6 @@ def test(dataset, testmodel=None, dataloader_mode=0, symbol_index=None):
             f"{ckpt_prefix}_Model_args.json",
             f"{ckpt_prefix}_Model_best_args.json",
         ]
-        # 1. 自动读取参数 json
         model_args = None
         for args_path in args_candidates:
             if os.path.exists(args_path):
@@ -279,13 +373,10 @@ def test(dataset, testmodel=None, dataloader_mode=0, symbol_index=None):
                     break
                 except Exception as e:
                     print(f"[WARN] Failed to load model args: {e}")
-        # 2. 支持手动覆盖（命令行参数优先）
-        hybrid_size = getattr(args, "hybrid_size", None)
+
         if model_mode == "HYBRID":
-            # 优先用 json 参数，其次命令行参数
             from stock_prediction.hybrid_config import get_adaptive_hybrid_config
             if model_args is not None:
-                # json 优先
                 hybrid_config = get_adaptive_hybrid_config(size_hint=model_args.get("hybrid_size", "auto"), data_size=0)
                 test_model = TemporalHybridNet(
                     input_dim=model_args.get("input_dim", INPUT_DIMENSION),
@@ -297,22 +388,9 @@ def test(dataset, testmodel=None, dataloader_mode=0, symbol_index=None):
                     symbol_embedding_dim=model_args.get("symbol_embedding_dim", SYMBOL_EMBED_DIM),
                     max_symbols=model_args.get("max_symbols", SYMBOL_VOCAB_SIZE),
                 )
-            elif hybrid_size is not None:
-                # 命令行覆盖
-                hybrid_config = get_adaptive_hybrid_config(size_hint=hybrid_size, data_size=0)
-                test_model = TemporalHybridNet(
-                    input_dim=INPUT_DIMENSION,
-                    output_dim=OUTPUT_DIMENSION,
-                    hidden_dim=hybrid_config["hidden_dim"],
-                    predict_steps=int(args.predict_days),
-                    branch_config=hybrid_config["branch_config"],
-                    use_symbol_embedding=SYMBOL_EMBED_ENABLED,
-                    symbol_embedding_dim=SYMBOL_EMBED_DIM,
-                    max_symbols=SYMBOL_VOCAB_SIZE,
-                )
             else:
-                # 默认 auto
-                hybrid_config = get_adaptive_hybrid_config(size_hint="auto", data_size=0)
+                size_hint = getattr(args, "hybrid_size", "auto")
+                hybrid_config = get_adaptive_hybrid_config(size_hint=size_hint, data_size=0)
                 test_model = TemporalHybridNet(
                     input_dim=INPUT_DIMENSION,
                     output_dim=OUTPUT_DIMENSION,
@@ -323,26 +401,24 @@ def test(dataset, testmodel=None, dataloader_mode=0, symbol_index=None):
                     symbol_embedding_dim=SYMBOL_EMBED_DIM,
                     max_symbols=SYMBOL_VOCAB_SIZE,
                 )
-        # 3. 加载权重
+
         loaded = False
         for candidate in candidates:
             if os.path.exists(candidate):
-                # 先尝试加载归一化参数，确保后续反归一化正确
-                try:
-                    norm_file = candidate.replace("_Model.pkl", "_norm_params.json").replace("_Model_best.pkl", "_norm_params_best.json")
-                    if os.path.exists(norm_file):
+                norm_file = candidate.replace("_Model.pkl", "_norm_params.json").replace("_Model_best.pkl", "_norm_params_best.json")
+                if os.path.exists(norm_file):
+                    try:
                         with open(norm_file, 'r', encoding='utf-8') as f:
                             norm_params = json.load(f)
-                        # 更新全局归一化参数
-                        global mean_list, std_list, show_list, name_list
-                        mean_list = norm_params.get('mean_list', mean_list)
-                        std_list = norm_params.get('std_list', std_list)
-                        show_list = norm_params.get('show_list', show_list)
-                        name_list = norm_params.get('name_list', name_list)
+                        _apply_norm_from_params(norm_params, symbol=symbol_key)
                         print(f"[LOG] Loaded normalization params from {norm_file}")
-                        print(f"[LOG] mean_list length: {len(mean_list)}, std_list length: {len(std_list)}")
-                except Exception as e:
-                    print(f"[WARN] Failed to load normalization params: {e}")
+                        if symbol_key and symbol_key in symbol_norm_map:
+                            stats = symbol_norm_map[symbol_key]
+                            print(f"[LOG] Using symbol-specific norm stats for {symbol_key} (features={len(stats.get('mean_list', []))})")
+                        else:
+                            print(f"[LOG] Using global normalization stats (features={len(mean_list)})")
+                    except Exception as e:
+                        print(f"[WARN] Failed to load normalization params: {e}")
                 test_model.load_state_dict(torch.load(candidate, map_location=device))
                 loaded = True
                 break
@@ -353,6 +429,7 @@ def test(dataset, testmodel=None, dataloader_mode=0, symbol_index=None):
 
     test_model.eval()
     criterion = nn.MSELoss()
+    device_target = device if args.test_gpu == 1 else torch.device("cpu")
     pbar = tqdm(total=len(dataloader), leave=False, ncols=TQDM_NCOLS)
     with torch.no_grad():
         for batch in dataloader:
@@ -368,12 +445,13 @@ def test(dataset, testmodel=None, dataloader_mode=0, symbol_index=None):
             else:
                 data, label = batch
                 symbol_idx = None
-            device_target = device if args.test_gpu == 1 else torch.device("cpu")
+
             data = data.to(device_target, non_blocking=True)
             label = label.to(device_target, non_blocking=True)
             if symbol_idx is not None:
                 symbol_idx = symbol_idx.to(device_target, non_blocking=True).long()
             data = pad_input(data)
+
             if model_mode == "MULTIBRANCH":
                 price_dim = INPUT_DIMENSION // 2
                 tech_dim = INPUT_DIMENSION - price_dim
@@ -394,6 +472,8 @@ def test(dataset, testmodel=None, dataloader_mode=0, symbol_index=None):
     pbar.close()
     if not accuracy_list:
         accuracy_list = [0]
+    if symbol_key and len(test_mean_list) and len(test_std_list):
+        _warn_if_norm_mismatch(symbol_key, test_mean_list, test_std_list, "predict-test")
     return float(np.mean(accuracy_list)), predict_list, dataloader
 
 
@@ -437,9 +517,14 @@ def predict(test_codes):
     print(f"[LOG] predict_data.shape: {predict_data.shape}")
 
     # Prepare symbol index for embedding
+    raw_code = str(test_codes[0])
+    symbol_code = raw_code.split('.')[0].zfill(6)
+    symbol_key = canonical_symbol(raw_code)
+
     symbol_index = None
     if SYMBOL_EMBED_ENABLED:
-        symbol_index = torch.tensor([symbol_to_id.get(test_codes[0], 0)])
+        symbol_lookup = raw_code if raw_code in symbol_to_id else (symbol_key or symbol_code)
+        symbol_index = torch.tensor([symbol_to_id.get(symbol_lookup, 0)])
     if int(args.predict_days) <= 0:
         predict_days = abs(int(args.predict_days)) or 1
         print(f"[LOG] predict_days={predict_days}")
@@ -454,7 +539,7 @@ def predict(test_codes):
             normalized_predict = normalize_date_column(predict_data)
             features_df = normalized_predict.drop(columns=['ts_code', 'Date']).copy()
             features_df = features_df.fillna(features_df.median(numeric_only=True))
-            _, predict_list, _ = test(features_df, dataloader_mode=2, symbol_index=symbol_index)
+            _, predict_list, _ = test(features_df, dataloader_mode=2, symbol_index=symbol_index, norm_symbol=symbol_code)
             print(f"[LOG] predict_list len: {len(predict_list)}")
 
             rows = []
@@ -517,7 +602,7 @@ def predict(test_codes):
         normalized_predict = normalize_date_column(predict_data)
         feature_frame = normalized_predict.drop(columns=['ts_code', 'Date']).copy()
         feature_frame = feature_frame.fillna(feature_frame.median(numeric_only=True))
-        test_loss, predict_list, _ = test(feature_frame, dataloader_mode=2, symbol_index=symbol_index)
+        test_loss, predict_list, _ = test(feature_frame, dataloader_mode=2, symbol_index=symbol_index, norm_symbol=symbol_code)
         print("test loss:", test_loss)
 
         predictions = []
@@ -539,11 +624,8 @@ def predict(test_codes):
         actual_df['Date'] = pd.to_datetime(actual_df['Date'])
         pred_df['Date'] = actual_df['Date'].iloc[:len(pred_df)].values
 
-        symbol_code = str(test_codes[0]).split('.')[0].zfill(6)
-        import json
-        from datetime import datetime
         from stock_prediction.metrics import metrics_report
-        # 采集并保存指标
+        # ɼָ
         metrics_out = {}
         for col in PLOT_FEATURE_COLUMNS:
             if col not in actual_df.columns:
@@ -552,7 +634,7 @@ def predict(test_codes):
             prediction_series = pd.Series(dtype=float)
             if col in pred_df.columns:
                 prediction_series = pred_df.set_index('Date')[col].astype(float).dropna()
-            # 绘图
+            # ͼ
             plot_feature_comparison(
                 symbol_code,
                 model_mode,
@@ -562,10 +644,10 @@ def predict(test_codes):
                 Path(png_path) / "predict",
                 prefix="predict",
             )
-            # 指标采集
+            # ָɼ
             if len(history_series) == len(prediction_series) and len(history_series) > 0:
                 metrics_out[col] = metrics_report(history_series.values, prediction_series.values)
-        # 保存指标到 output/metrics_xxx.json
+        # ָ굽 output/metrics_xxx.json
         if metrics_out:
             output_dir = Path("output")
             output_dir.mkdir(exist_ok=True)
@@ -601,8 +683,8 @@ def main(argv=None):
         if candidate_code is None:
             raise ValueError('test_code is empty and no valid entries found in test_codes.txt')
         args.test_code = candidate_code
-    # �޸���ʹ�� symbol ��Ϊģ��·���������� test_code
-    _init_models(symbol)
+    # ???????? symbol ???????????????? test_code
+    _init_models(args.test_code)
     predict([args.test_code])
 
 
@@ -626,3 +708,4 @@ def create_predictor(model_type='lstm', device_type='cpu'):
 
 if __name__ == '__main__':
     main()
+

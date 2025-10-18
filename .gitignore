@@ -1,6 +1,6 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
-model/
+models/
 data/
 predict/
 png/
@@ -156,3 +156,4 @@ test_codes.txt
 bert_data/
 my_vocab/
 stock_data/
+*.json

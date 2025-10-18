@@ -126,8 +126,90 @@ def build_early_stopping(cfg):
 def save_best_callback(context):
     # context: {"epoch", "best", "train_loss", "val_loss"}
     thread_save_model(model, optimizer, save_path, True, int(args.predict_days))
-    with open('loss.txt', 'w') as file:
-        file.write(str(context["best"]))
+    try:
+        with open("loss.txt", "w") as file:
+            file.write(str(context.get("best", "")))
+    except Exception:
+        pass
+
+
+def _apply_norm_from_params(norm_params, symbol=None):
+    """Update全局归一化参数，并同步 symbol_norm_map。"""
+
+    symbol_key = canonical_symbol(symbol)
+    per_symbol = norm_params.get("per_symbol") or norm_params.get("per_symbol_stats")
+
+    if isinstance(per_symbol, dict):
+        for sym, stats in per_symbol.items():
+            means = stats.get("mean_list")
+            stds = stats.get("std_list")
+            if means and stds:
+                record_symbol_norm(sym, means, stds)
+
+    target_stats = None
+    missing_symbol_stats = False
+    if symbol_key and isinstance(per_symbol, dict):
+        target_stats = per_symbol.get(symbol_key)
+        if target_stats is None:
+            missing_symbol_stats = True
+    elif symbol_key and not isinstance(per_symbol, dict):
+        missing_symbol_stats = True
+    if target_stats is None:
+        target_stats = norm_params
+
+    means = target_stats.get("mean_list")
+    stds = target_stats.get("std_list")
+    shows = target_stats.get("show_list") or norm_params.get("show_list")
+    names = target_stats.get("name_list") or norm_params.get("name_list")
+
+    if means:
+        mean_list.clear()
+        mean_list.extend(means)
+        saved_mean_list.clear()
+        saved_mean_list.extend(means)
+    if stds:
+        std_list.clear()
+        std_list.extend(stds)
+        saved_std_list.clear()
+        saved_std_list.extend(stds)
+    if shows:
+        show_list.clear()
+        show_list.extend(shows)
+    if names:
+        name_list.clear()
+        name_list.extend(names)
+
+    if missing_symbol_stats and symbol_key:
+        print(f"[WARN] No symbol-specific normalization stats found for {symbol_key}; using global statistics.")
+
+    if symbol_key and means and stds:
+        record_symbol_norm(symbol_key, means, stds)
+
+
+def _warn_if_norm_mismatch(symbol_key, observed_means, observed_stds, context):
+    if not symbol_key:
+        return
+    expected = symbol_norm_map.get(symbol_key)
+    if not expected:
+        return
+    try:
+        obs_mean = np.asarray(observed_means, dtype=float)
+        obs_std = np.asarray(observed_stds, dtype=float)
+        exp_mean = np.asarray(expected.get("mean_list", []), dtype=float)
+        exp_std = np.asarray(expected.get("std_list", []), dtype=float)
+        mean_diff = None
+        std_diff = None
+        if exp_mean.size and obs_mean.size and exp_mean.shape == obs_mean.shape:
+            mean_diff = float(np.max(np.abs(exp_mean - obs_mean)))
+        if exp_std.size and obs_std.size and exp_std.shape == obs_std.shape:
+            std_diff = float(np.max(np.abs(exp_std - obs_std)))
+        threshold = 1e-3
+        if (mean_diff is not None and mean_diff > threshold) or (std_diff is not None and std_diff > threshold):
+            print(f"[WARN] Normalization mismatch detected for {symbol_key} during {context}: "
+                  f"mean diff={mean_diff if mean_diff is not None else 'n/a'}, "
+                  f"std diff={std_diff if std_diff is not None else 'n/a'}")
+    except Exception:
+        pass
 
 def train_with_trainer(train_loader, val_loader=None, epoch_count=1):
     scheduler = build_scheduler(config, optimizer)
@@ -153,24 +235,46 @@ def train_with_trainer(train_loader, val_loader=None, epoch_count=1):
     return history
 
 
-def test(dataset, testmodel=None, dataloader_mode=0):
+def test(dataset, testmodel=None, dataloader_mode=0, norm_symbol=None):
     if getattr(args, "full_train", False):
         return -1, -1, None
     global drop_last, total_test_length
     global test_model
+    global test_mean_list, test_std_list
+    symbol_key = canonical_symbol(norm_symbol)
+    if not symbol_key:
+        candidate_symbol = getattr(args, "test_code", "")
+        if candidate_symbol and str(candidate_symbol).lower() != "all":
+            symbol_key = canonical_symbol(candidate_symbol)
     predict_list = []
     accuracy_list = []
     use_gpu = device.type == "cuda" and getattr(args, "test_gpu", 1) == 1 and torch.cuda.is_available()
     pin_memory = use_gpu
     if dataloader_mode in [0, 2]:
-        stock_predict = Stock_Data(mode=dataloader_mode, dataFrame=dataset, label_num=OUTPUT_DIMENSION,predict_days=int(args.predict_days),trend=int(args.trend))
+        stock_predict = Stock_Data(
+            mode=dataloader_mode,
+            dataFrame=dataset,
+            label_num=OUTPUT_DIMENSION,
+            predict_days=int(args.predict_days),
+            trend=int(args.trend),
+            norm_symbol=symbol_key,
+        )
         dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False, drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=pin_memory)
     elif dataloader_mode in [1]:
         _stock_test_data_queue = deep_copy_queue(dataset)
         stock_test = stock_queue_dataset(mode=1, data_queue=_stock_test_data_queue, label_num=OUTPUT_DIMENSION, buffer_size=BUFFER_SIZE, total_length=total_test_length,predict_days=int(args.predict_days),trend=int(args.trend))
         dataloader=DataLoader(dataset=stock_test,batch_size=BATCH_SIZE,shuffle=False,drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=pin_memory, collate_fn=custom_collate)
     elif dataloader_mode in [3]:
-        stock_predict = Stock_Data(mode=1, dataFrame=dataset, label_num=OUTPUT_DIMENSION,predict_days=int(args.predict_days),trend=int(args.trend))
+        stock_predict = Stock_Data(
+            mode=1,
+            dataFrame=dataset,
+            label_num=OUTPUT_DIMENSION,
+            predict_days=int(args.predict_days),
+            trend=int(args.trend),
+            norm_symbol=symbol_key,
+        )
+        if symbol_key and test_mean_list:
+            _warn_if_norm_mismatch(symbol_key, test_mean_list, test_std_list, "test-dataloader")
         dataloader = DataLoader(dataset=stock_predict, batch_size=BATCH_SIZE, shuffle=False, drop_last=drop_last, num_workers=NUM_WORKERS, pin_memory=pin_memory)
 
     if testmodel is None:
@@ -192,14 +296,14 @@ def test(dataset, testmodel=None, dataloader_mode=0):
                         import json
                         with open(norm_file, 'r', encoding='utf-8') as f:
                             norm_params = json.load(f)
-                        # 更新全局归一化参数
-                        global mean_list, std_list, show_list, name_list
-                        mean_list = norm_params.get('mean_list', mean_list)
-                        std_list = norm_params.get('std_list', std_list)
-                        show_list = norm_params.get('show_list', show_list)
-                        name_list = norm_params.get('name_list', name_list)
+                        _apply_norm_from_params(norm_params, symbol=symbol_key)
                         print(f"[LOG] Loaded normalization params from {norm_file}")
-                        print(f"[LOG] mean_list length: {len(mean_list)}, std_list length: {len(std_list)}")
+                        if symbol_key and symbol_key in symbol_norm_map:
+                            stats = symbol_norm_map[symbol_key]
+                            print(f"[LOG] Using symbol-specific norm stats for {symbol_key} "
+                                  f"(features={len(stats.get('mean_list', []))})")
+                        else:
+                            print(f"[LOG] Using global normalization stats (features={len(mean_list)})")
                     except Exception as e:
                         print(f"[WARN] Failed to load normalization params from {norm_file}: {e}")
                 
@@ -338,6 +442,8 @@ def test(dataset, testmodel=None, dataloader_mode=0):
         accuracy_list = [0]
 
     test_loss = np.mean(accuracy_list)
+    if symbol_key and dataloader_mode in [3] and len(test_mean_list) and len(test_std_list):
+        _warn_if_norm_mismatch(symbol_key, test_mean_list, test_std_list, "test")
     return test_loss, predict_list, dataloader
 
 
@@ -368,11 +474,11 @@ def predict(test_codes):
 
     data = normalize_date_column(data)
 
-    if data.empty or data["ts_code"][0] == "None":
+    if data.empty or data["ts_code"].iloc[0] == "None":
         print("Error: data is empty or ts_code is None")
         return
 
-    if str(data['ts_code'][0]).zfill(6) != str(test_codes[0]):
+    if str(data['ts_code'].iloc[0]).zfill(6) != str(test_codes[0]):
         print("Error: ts_code is not match")
         return
 
@@ -398,7 +504,7 @@ def predict(test_codes):
                 lastclose = float(predict_data["Close"].iloc[0])
             feature_frame = predict_data.drop(columns=['ts_code', 'Date']).copy()
             feature_frame = feature_frame.fillna(feature_frame.median(numeric_only=True))
-            test_loss, predict_list, _ = test(feature_frame, dataloader_mode=2)
+            test_loss, predict_list, _ = test(feature_frame, dataloader_mode=2, norm_symbol=symbol_code)
             if test_loss == -1 and predict_list == -1:
                 return
             rows = []
@@ -525,7 +631,7 @@ def predict(test_codes):
         normalized_predict = normalize_date_column(predict_data)
         feature_frame = normalized_predict.drop(columns=['ts_code', 'Date']).copy()
         feature_frame = feature_frame.fillna(feature_frame.median(numeric_only=True))
-        test_loss, predict_list, _ = test(feature_frame, dataloader_mode=2)
+        test_loss, predict_list, _ = test(feature_frame, dataloader_mode=2, norm_symbol=symbol_code)
         predictions = []
         for items in predict_list:
             items = items.to("cpu", non_blocking=True)
@@ -673,7 +779,7 @@ def contrast_lines(test_codes):
         print("Error: data is empty or ts_code is None")
         return -1
 
-    if PKL is False and ('ts_code' in data.columns and data["ts_code"][0] == "None"):
+    if PKL is False and ('ts_code' in data.columns and data["ts_code"].iloc[0] == "None"):
         print("Error: data is empty or ts_code is None")
         return -1
 
@@ -691,7 +797,7 @@ def contrast_lines(test_codes):
     accuracy_list, predict_list = [], []
     real_list = []
     prediction_list = []
-    test_loss, predict_list, dataloader = test(Test_data, dataloader_mode=3)
+    test_loss, predict_list, dataloader = test(Test_data, dataloader_mode=3, norm_symbol=ts_code_value)
     if test_loss == -1 and predict_list == -1:
         print("Error: No model excist")
         try:
@@ -879,6 +985,8 @@ def main():
 
     mode = args.mode
     model_mode = args.model.upper()
+    if mode == "train":
+        symbol_norm_map.clear()
     PKL = False if args.pkl <= 0 else True
     if args.cpu == 1:
         device = torch.device("cpu")
@@ -1395,7 +1503,7 @@ def main():
                         # data = data.dropna()
                         # data = data.fillna(-0.0)
                         data = data.fillna(data.median(numeric_only=True))
-                        if data.empty or data["ts_code"][0] == "None":
+                        if data.empty or data["ts_code"].iloc[0] == "None":
                             tqdm.write("data is empty or data has invalid col")
                             code_bar.update(1)
                             continue
@@ -1423,7 +1531,7 @@ def main():
                             tqdm.write(ts_code + ":Train_data is None")
                             code_bar.update(1)
                             continue
-                        stock_train=Stock_Data(mode=0, dataFrame=Train_data, label_num=OUTPUT_DIMENSION)
+                        stock_train=Stock_Data(mode=0, dataFrame=Train_data, label_num=OUTPUT_DIMENSION, norm_symbol=ts_code)
                         if len(loss_list) == 0:
                             m_loss = 0
                         else:

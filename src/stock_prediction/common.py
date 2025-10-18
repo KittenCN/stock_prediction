@@ -47,6 +47,33 @@ png_path = config.png_path
 model_path = config.model_path
 feature_engineer = FeatureEngineer.from_app_config(config)
 
+def canonical_symbol(symbol: Optional[str]) -> Optional[str]:
+    if symbol is None:
+        return None
+    s = str(symbol).strip()
+    if not s:
+        return None
+    if "." in s:
+        s = s.split(".", 1)[0]
+    if s.isdigit():
+        s = s.zfill(6)
+    return s.upper()
+
+
+def record_symbol_norm(symbol: Optional[str], means: list, stds: list) -> None:
+    symbol_key = canonical_symbol(symbol)
+    if not symbol_key:
+        return
+    if not means or not stds:
+        return
+    try:
+        symbol_norm_map[symbol_key] = {
+            "mean_list": [float(x) for x in means],
+            "std_list": [float(x) for x in stds],
+        }
+    except Exception:
+        pass
+
 
 class DataLoaderX(DataLoader):
     def __iter__(self):
@@ -212,19 +239,20 @@ class Stock_Data(Dataset):
     """Dataset wrapper that optionally emits per-sample symbol indices for embedding."""
 
     # mode 0:train 1:test 2:predict
-    def __init__(self, mode=0, transform=None, dataFrame=None, label_num=1, predict_days=0, trend=0):
+    def __init__(self, mode=0, transform=None, dataFrame=None, label_num=1, predict_days=0, trend=0, norm_symbol=None):
         try:
             assert mode in [0, 1, 2]
             self.mode = mode
             self.predict_days = predict_days
             self.trend = trend
+            self.norm_symbol = canonical_symbol(norm_symbol)
             self.use_symbol_embedding = feature_engineer.settings.use_symbol_embedding
             self.symbol_series: Optional[np.ndarray] = None
             self.symbol_tensor: Optional[torch.Tensor] = None
             self.data = self.load_data(dataFrame)
             if self.data is None or len(self.data) == 0:
                 self.data = np.empty((0, INPUT_DIMENSION), dtype=np.float32)
-            self.normalize_data()
+            self.data = self.normalize_data(self.data, symbol=self.norm_symbol)
             tensors = self.generate_value_label_tensors(label_num)
             if tensors is None:
                 self.value = torch.empty(0, SEQ_LEN, INPUT_DIMENSION, dtype=torch.float32)
@@ -269,6 +297,10 @@ class Stock_Data(Dataset):
         else:
             data_df = pd.DataFrame(dataFrame)
 
+        if self.norm_symbol is None and isinstance(dataFrame, pd.DataFrame):
+            if "ts_code" in dataFrame.columns and not dataFrame.empty:
+                self.norm_symbol = canonical_symbol(dataFrame["ts_code"].iloc[0])
+
         try:
             data_df = feature_engineer.transform(data_df)
         except Exception as exc:  # pragma: no cover - logging fallback
@@ -292,17 +324,24 @@ class Stock_Data(Dataset):
 
         return data
 
-    def normalize_data(self):
+    def normalize_data(self, data=None, symbol=None):
         global saved_mean_list, saved_std_list
+        if data is None:
+            data = self.data
+        symbol_key = canonical_symbol(symbol if symbol is not None else self.norm_symbol)
+
+        if data is None or len(data) == 0:
+            return data
+
         if self.mode in [0, 2]:
             mean_list.clear()
             std_list.clear()
-            for i in range(len(self.data[0])):
-                col_data = self.data[:, i]
+            for i in range(len(data[0])):
+                col_data = data[:, i]
 
                 if np.isnan(col_data).any() or np.isinf(col_data).any():
                     col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
-                    self.data[:, i] = col_data
+                    data[:, i] = col_data
 
                 mean_val = np.mean(col_data)
                 std_val = np.std(col_data)
@@ -314,33 +353,53 @@ class Stock_Data(Dataset):
 
                 mean_list.append(mean_val)
                 std_list.append(std_val)
-                self.data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
-            
-            # 保存稳定副本用于模型保存（只在第一次或列表为空时更新）
+                data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
+
             if not saved_mean_list or not saved_std_list:
                 saved_mean_list = mean_list.copy()
                 saved_std_list = std_list.copy()
+            if symbol_key:
+                record_symbol_norm(symbol_key, mean_list.copy(), std_list.copy())
         else:
+            saved_stats = symbol_norm_map.get(symbol_key) if symbol_key else None
             test_mean_list.clear()
             test_std_list.clear()
-            for i in range(len(self.data[0])):
-                col_data = self.data[:, i]
+            if saved_stats and saved_stats.get('mean_list') and saved_stats.get('std_list'):
+                means = saved_stats['mean_list']
+                stds = saved_stats['std_list']
+                for i in range(len(data[0])):
+                    col_data = data[:, i]
+                    if np.isnan(col_data).any() or np.isinf(col_data).any():
+                        col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
+                        data[:, i] = col_data
+                    mean_val = means[i] if i < len(means) else 0.0
+                    std_val = stds[i] if i < len(stds) else 1.0
+                    test_mean_list.append(mean_val)
+                    test_std_list.append(std_val)
+                    data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
+            else:
+                for i in range(len(data[0])):
+                    col_data = data[:, i]
+                    if np.isnan(col_data).any() or np.isinf(col_data).any():
+                        col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
+                        data[:, i] = col_data
 
-                if np.isnan(col_data).any() or np.isinf(col_data).any():
-                    col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
-                    self.data[:, i] = col_data
+                    mean_val = np.mean(col_data)
+                    std_val = np.std(col_data)
 
-                mean_val = np.mean(col_data)
-                std_val = np.std(col_data)
+                    if np.isnan(mean_val) or np.isinf(mean_val):
+                        mean_val = 0.0
+                    if np.isnan(std_val) or np.isinf(std_val) or std_val < 1e-8:
+                        std_val = 1.0
 
-                if np.isnan(mean_val) or np.isinf(mean_val):
-                    mean_val = 0.0
-                if np.isnan(std_val) or np.isinf(std_val) or std_val < 1e-8:
-                    std_val = 1.0
-
-                test_mean_list.append(mean_val)
-                test_std_list.append(std_val)
-                self.data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
+                    test_mean_list.append(mean_val)
+                    test_std_list.append(std_val)
+                    data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
+                if symbol_key:
+                    record_symbol_norm(symbol_key, test_mean_list.copy(), test_std_list.copy())
+        if data is not self.data:
+            return data
+        self.data = data
         return self.data
 
     def _get_symbol_value(self, index: int) -> int:
@@ -450,6 +509,9 @@ class stock_queue_dataset(Dataset):
             except queue.Empty:
                 return None
             frame = dataFrame.copy()
+            symbol_code = None
+            if "ts_code" in frame.columns and not frame.empty:
+                symbol_code = canonical_symbol(frame["ts_code"].iloc[0])
             if "trade_date" not in frame.columns and "Date" in frame.columns:
                 frame = frame.rename(columns={"Date": "trade_date"})
             try:
@@ -470,45 +532,60 @@ class stock_queue_dataset(Dataset):
             if data.shape[1] > INPUT_DIMENSION:
                 data = data[:, :INPUT_DIMENSION]
             data = np.nan_to_num(data, nan=0.0, posinf=0.0, neginf=0.0)
-            return data, symbol_series
+            return data, symbol_series, symbol_code
 
-    def normalize_data(self, data):
+    def normalize_data(self, data, symbol=None):
         global saved_mean_list, saved_std_list
+        symbol_key = canonical_symbol(symbol)
         if self.mode in [0, 2]:
             mean_list.clear()
             std_list.clear()
             for i in range(len(data[0])):
-                if self.mode in [0, 2]:
-                    col_data = data[:, i]
+                col_data = data[:, i]
 
-                    if np.isnan(col_data).any() or np.isinf(col_data).any():
-                        col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
-                        data[:, i] = col_data
-                    
-                    mean_val = np.mean(col_data)
-                    std_val = np.std(col_data)
-                    
+                if np.isnan(col_data).any() or np.isinf(col_data).any():
+                    col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
+                    data[:, i] = col_data
+                
+                mean_val = np.mean(col_data)
+                std_val = np.std(col_data)
+                
 
-                    if np.isnan(mean_val) or np.isinf(mean_val):
-                        mean_val = 0.0
-                    if np.isnan(std_val) or np.isinf(std_val) or std_val < 1e-8:
-                        std_val = 1.0
-                    
-                    mean_list.append(mean_val)
-                    std_list.append(std_val)
-                    data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
+                if np.isnan(mean_val) or np.isinf(mean_val):
+                    mean_val = 0.0
+                if np.isnan(std_val) or np.isinf(std_val) or std_val < 1e-8:
+                    std_val = 1.0
+                
+                mean_list.append(mean_val)
+                std_list.append(std_val)
+                data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
             
             # 保存稳定副本用于模型保存（只在第一次或列表为空时更新）
             if not saved_mean_list or not saved_std_list:
                 saved_mean_list = mean_list.copy()
                 saved_std_list = std_list.copy()
+            if symbol_key:
+                record_symbol_norm(symbol_key, mean_list.copy(), std_list.copy())
         else:
+            saved_stats = symbol_norm_map.get(symbol_key) if symbol_key else None
             test_mean_list.clear()
             test_std_list.clear()
-            for i in range(len(data[0])):
-                if self.mode not in [0, 2]:
+            if saved_stats and saved_stats.get('mean_list') and saved_stats.get('std_list'):
+                means = saved_stats['mean_list']
+                stds = saved_stats['std_list']
+                for i in range(len(data[0])):
                     col_data = data[:, i]
-
+                    if np.isnan(col_data).any() or np.isinf(col_data).any():
+                        col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
+                        data[:, i] = col_data
+                    mean_val = means[i] if i < len(means) else 0.0
+                    std_val = stds[i] if i < len(stds) else 1.0
+                    test_mean_list.append(mean_val)
+                    test_std_list.append(std_val)
+                    data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
+            else:
+                for i in range(len(data[0])):
+                    col_data = data[:, i]
                     if np.isnan(col_data).any() or np.isinf(col_data).any():
                         col_data = np.nan_to_num(col_data, nan=0.0, posinf=0.0, neginf=0.0)
                         data[:, i] = col_data
@@ -516,7 +593,6 @@ class stock_queue_dataset(Dataset):
                     mean_val = np.mean(col_data)
                     std_val = np.std(col_data)
                     
-
                     if np.isnan(mean_val) or np.isinf(mean_val):
                         mean_val = 0.0
                     if np.isnan(std_val) or np.isinf(std_val) or std_val < 1e-8:
@@ -525,6 +601,8 @@ class stock_queue_dataset(Dataset):
                     test_mean_list.append(mean_val)
                     test_std_list.append(std_val)
                     data[:, i] = (col_data - mean_val) / (std_val + 1e-8)
+                if symbol_key:
+                    record_symbol_norm(symbol_key, test_mean_list.copy(), test_std_list.copy())
         return data
 
     def _queue_symbol_value(self, symbol_series: Optional[np.ndarray], index: int) -> int:
@@ -582,15 +660,15 @@ class stock_queue_dataset(Dataset):
             try:
                 raw_entry = self.load_data()
                 if raw_entry is not None:
-                    raw_data, raw_symbol = raw_entry
+                    raw_data, raw_symbol, raw_symbol_code = raw_entry
                     while raw_data is not None and len(raw_data) < SEQ_LEN:
                         next_entry = self.load_data()
                         if next_entry is None:
                             raw_data = None
                             break
-                        raw_data, raw_symbol = next_entry
+                        raw_data, raw_symbol, raw_symbol_code = next_entry
                     if raw_data is not None:
-                        normalized_data = self.normalize_data(raw_data)
+                        normalized_data = self.normalize_data(raw_data, symbol=raw_symbol_code)
                         tensors = self.generate_value_label_tensors(normalized_data, self.label_num, raw_symbol)
                         if isinstance(tensors, tuple) and len(tensors) == 3:
                             value, label, symbol_tensor = tensors
@@ -1028,14 +1106,76 @@ def save_model(model, optimizer, save_path, best_model=False, predict_days=0):
                     except Exception:
                         pass
 
+            def _backfill_symbol_stats():
+                if not os.path.exists(train_pkl_path):
+                    return
+                try:
+                    with open(train_pkl_path, 'rb') as f_pkl:
+                        dq = ensure_queue_compatibility(dill.load(f_pkl))
+                    items = []
+                    while not dq.empty():
+                        try:
+                            items.append(dq.get_nowait())
+                        except _q.Empty:
+                            break
+                    for item in items:
+                        try:
+                            sym_series = item.get('ts_code')
+                            sym = canonical_symbol(str(sym_series.iloc[0])) if sym_series is not None else None
+                        except Exception:
+                            sym = None
+                        if not sym or sym in symbol_norm_map:
+                            continue
+                        frame = normalize_date_column(item.copy())
+                        try:
+                            transformed = feature_engineer.transform(frame)
+                        except Exception:
+                            transformed = frame
+                        numeric = transformed.select_dtypes(include=[_np.number]).drop(columns=['_symbol_index'], errors='ignore')
+                        if numeric.empty:
+                            continue
+                        data_np = _np.nan_to_num(numeric.to_numpy(dtype=_np.float64, copy=True), nan=0.0, posinf=0.0, neginf=0.0)
+                        means = [_np.float64(m).item() if _np.isfinite(m) else 0.0 for m in data_np.mean(axis=0)]
+                        stds = []
+                        for s in data_np.std(axis=0):
+                            if not _np.isfinite(s) or s < 1e-8:
+                                stds.append(1.0)
+                            else:
+                                stds.append(_np.float64(s).item())
+                        if len(means) == len(stds):
+                            symbol_norm_map[sym] = {
+                                'mean_list': means,
+                                'std_list': stds,
+                            }
+                except Exception as exc:
+                    print(f"[WARN] Failed to backfill per-symbol norm stats: {exc}")
+
+            _backfill_symbol_stats()
+
+            per_symbol_payload = {}
+            for sym, stats in symbol_norm_map.items():
+                means = stats.get('mean_list')
+                stds = stats.get('std_list')
+                if means and stds and len(means) == len(stds):
+                    per_symbol_payload[sym] = {
+                        'mean_list': list(means),
+                        'std_list': list(stds),
+                    }
+
             norm_params = {
-                'mean_list': use_mean,
-                'std_list': use_std,
-                'show_list': show_list,
-                'name_list': name_list,
+                'mean_list': list(use_mean),
+                'std_list': list(use_std),
+                'show_list': list(show_list),
+                'name_list': list(name_list),
+                'version': 2,
             }
+            if per_symbol_payload:
+                norm_params['per_symbol'] = per_symbol_payload
+            else:
+                print('[WARN] per_symbol stats empty; only global normalization will be saved.')
             with open(norm_path, 'w', encoding='utf-8') as f:
                 json.dump(norm_params, f, ensure_ascii=False, indent=2)
+
         except Exception as e:
             print(f"[WARN] Failed to save normalization params: {e}")
 
