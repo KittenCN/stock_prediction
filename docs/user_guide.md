@@ -71,5 +71,15 @@ un_all_models.bat
 4. **设备切换**：`--cpu 1` 会自动降级 AMP；如需完全关闭可在配置中禁用 `GradScaler`。
 5. **外生特征文件**：默认读取 `config/external/*.csv`，保持 `trade_date` 为八位字符串（如 `20241203`），缺失值会按配置自动前向填充。需在 `config/config.yaml` 的 `features.external_sources` 指定白名单路径。
 
+### 4.5 归一化参数：保存与加载（重要）
+- 训练保存模型时会生成与权重同名的 `*_norm_params*.json`，包含 `mean_list/std_list/show_list/name_list`。
+- 若使用 PKL 队列训练且运行态的均值/方差为空，系统会自动从 `pkl_handle/train.pkl` 计算后写入，无需手动脚本。
+- 测试与推理在加载权重前，会优先读取对应的 `*_norm_params*.json` 并更新全局参数以保证反归一化正确。
+- 历史权重若缺少或为空，可执行一次：
+   ```bat
+   python scripts\fix_norm_params.py
+   ```
+   新训练的模型不再需要该脚本。
+
 ---
 如需更多背景与规划，请参考 `docs/system_design.md` 与 `docs/model_strategy.md`。

@@ -23,6 +23,13 @@
 - **问题**：包含 weight_norm 的模型在深拷贝时阻塞。  
 - **处理**：保存前统一迁移至 CPU，仅保存 state_dict。  
 
+### 2.4 归一化参数持久化与自动回填（2025-10-18）
+- **问题**：PKL 模式训练时，全局 `mean_list/std_list` 可能为空，导致后续推理反归一化失败；历史权重缺失 `*_norm_params*.json`。
+- **处理**：
+   1) `save_model()` 优先写出稳定副本 `saved_mean_list/saved_std_list`；为空则自动从 `train_pkl_path` 反序列化队列计算均值/方差并写入。
+   2) `train.py` 的 `test()` 和 `predict.py` 的 `test()` 在加载权重前会优先读取 `*_norm_params*.json` 并更新全局参数。
+   3) 历史权重可用 `scripts/fix_norm_params.py` 一次性修复，后续训练不再需要该脚本。
+
 ## 3. 自动执行摘要
 - **最新结果**：`pytest` 现有 28 项全部通过，新增加的特征工程与 Regime 自适应融合测试运行正常。  
 - **推荐命令**：`conda run -n stock_prediction pytest -q`。  

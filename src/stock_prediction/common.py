@@ -934,7 +934,19 @@ def _move_state_to_cpu(state):
 
 
 def save_model(model, optimizer, save_path, best_model=False, predict_days=0):
-    import json
+    """保存模型与优化器，并确保归一化参数文件总是有效。
+
+    逻辑：
+    - 优先保存模型与优化器
+    - 归一化参数优先取稳定副本(saved_mean_list/saved_std_list)；为空则回退全局(mean_list/std_list)
+    - 若仍为空（常见于 PKL 模式），将从 train_pkl_path 自动计算并写入
+    """
+    import json, os, dill
+    import queue as _q
+    import pandas as _pd
+    import numpy as _np
+
+    # 组装可序列化状态
     if isinstance(model, dict):
         model_state = model
         model_args = None
@@ -946,20 +958,75 @@ def save_model(model, optimizer, save_path, best_model=False, predict_days=0):
     else:
         optimizer_state = _move_state_to_cpu(optimizer.state_dict())
 
+    def _compute_norm_params_from_pkl(pkl_path):
+        try:
+            if not pkl_path:
+                return None, None
+            pkl_path_str = str(pkl_path)
+            if not os.path.exists(pkl_path_str):
+                return None, None
+            with open(pkl_path_str, 'rb') as f:
+                dq = dill.load(f)
+            dq = ensure_queue_compatibility(dq)
+            items = []
+            while not dq.empty():
+                try:
+                    items.append(dq.get_nowait())
+                except _q.Empty:
+                    break
+            if not items:
+                return None, None
+            df = _pd.concat(items, ignore_index=True)
+            df = normalize_date_column(df)
+            feat_df = df.drop(columns=['ts_code', 'Date'], errors='ignore')
+            feat_df = feat_df.fillna(feat_df.median(numeric_only=True))
+            X = feat_df.values
+            means, stds = [], []
+            for i in range(X.shape[1]):
+                col = _np.nan_to_num(X[:, i], nan=0.0, posinf=0.0, neginf=0.0)
+                m = float(_np.mean(col))
+                s = float(_np.std(col))
+                if not _np.isfinite(m):
+                    m = 0.0
+                if (not _np.isfinite(s)) or s < 1e-8:
+                    s = 1.0
+                means.append(m)
+                stds.append(s)
+            print(f"[LOG] Auto-computed normalization params from PKL: {len(means)} features")
+            return means, stds
+        except Exception as e:
+            print(f"[WARN] Auto-compute norm params from PKL failed: {e}")
+            return None, None
+
     def save_with_args(model_path, optimizer_path, args_path, norm_path):
+        # 1) 保存模型与优化器
         torch.save(model_state, model_path)
         torch.save(optimizer_state, optimizer_path)
+
+        # 2) 保存模型初始化参数（若有）
         if model_args is not None:
             try:
                 with open(args_path, 'w', encoding='utf-8') as f:
                     json.dump(model_args, f, ensure_ascii=False, indent=2)
             except Exception as e:
                 print(f"[WARN] Failed to save model args: {e}")
-        # 保存归一化参数（使用稳定副本）
+
+        # 3) 保存归一化参数（稳定副本 → 全局 → 自动计算）
         try:
-            # 优先使用稳定副本，如果为空则使用当前值
             use_mean = saved_mean_list if saved_mean_list else mean_list
             use_std = saved_std_list if saved_std_list else std_list
+
+            if (not use_mean or not use_std or len(use_mean) == 0 or len(use_std) == 0):
+                auto_mean, auto_std = _compute_norm_params_from_pkl(train_pkl_path)
+                if auto_mean and auto_std and len(auto_mean) == len(auto_std) and len(auto_mean) > 0:
+                    use_mean, use_std = auto_mean, auto_std
+                    try:
+                        saved_mean_list.clear(); saved_mean_list.extend(use_mean)  # type: ignore
+                        saved_std_list.clear(); saved_std_list.extend(use_std)    # type: ignore
+                        print("[LOG] Filled normalization params into saved_mean_list/saved_std_list from PKL")
+                    except Exception:
+                        pass
+
             norm_params = {
                 'mean_list': use_mean,
                 'std_list': use_std,
@@ -971,6 +1038,7 @@ def save_model(model, optimizer, save_path, best_model=False, predict_days=0):
         except Exception as e:
             print(f"[WARN] Failed to save normalization params: {e}")
 
+    # 目标路径拼装与调用
     if predict_days > 0:
         if best_model is False:
             model_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Model.pkl"
@@ -978,7 +1046,7 @@ def save_model(model, optimizer, save_path, best_model=False, predict_days=0):
             args_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Model_args.json"
             norm_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_norm_params.json"
             save_with_args(model_path, optimizer_path, args_path, norm_path)
-        elif best_model is True:
+        else:
             model_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Model_best.pkl"
             optimizer_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Optimizer_best.pkl"
             args_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(predict_days) + "_Model_best_args.json"
@@ -991,7 +1059,7 @@ def save_model(model, optimizer, save_path, best_model=False, predict_days=0):
             args_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model_args.json"
             norm_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_norm_params.json"
             save_with_args(model_path, optimizer_path, args_path, norm_path)
-        elif best_model is True:
+        else:
             model_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model_best.pkl"
             optimizer_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer_best.pkl"
             args_path = save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model_best_args.json"

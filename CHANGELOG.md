@@ -23,7 +23,7 @@
   - 影响范围：所有使用归一化参数的模型测试和推理
   - 相关文件：
     - `src/stock_prediction/init.py`：添加稳定副本变量
-    - `src/stock_prediction/common.py`：保存和使用稳定副本
+    - `src/stock_prediction/common.py`：保存和使用稳定副本；保存模型时若归一化参数为空自动从 PKL 计算并写入
     - `src/stock_prediction/train.py`：修复模型导入错误
     - `scripts/fix_norm_params.py`：新增修复工具
 
@@ -57,8 +57,7 @@
 ### Known Issues
 - **用户需要运行一次性修复工具**（可选 ⚙️）
   - 对于使用 PKL 模式训练的现有模型，归一化参数文件可能为空
-  - 解决方案：运行 `python scripts\fix_norm_params.py` 一次性修复
-  - 未来训练的模型会自动保存正确的归一化参数
+  - 解决方案：运行 `python scripts\fix_norm_params.py` 一次性修复（仅历史模型）。新训练的模型在保存时会自动生成归一化参数，无需手工执行修复脚本。
   - 问题：测试模式报错 `mat1 and mat2 shapes cannot be multiplied (40x30 and 46x128)`
   - 根本原因：训练时启用 symbol embedding（输入维度30+16=46），但测试时数据加载未提供 symbol_index（输入维度30）
   - 状态：归一化参数问题已解决，但测试数据维度与模型不匹配的问题仍需处理

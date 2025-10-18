@@ -6,12 +6,17 @@
 - **行情采集**：封装 `tushare`/`akshare`/`yfinance` 三类数据源。
 - **数据预处理**：将日线 CSV 聚合为 `pkl_handle/train.pkl` 队列，支持重复加载。
 - **特征工程**：
-eature_engineering.py 自动生成对数收益与差分特征，按配置合并宏观、行业、舆情外生变量，支持 per-symbol 归一 (enable_symbol_normalization) 并缓存统计量；启用 use_symbol_embedding 时会输出股票 ID 索引，模型可共享可学习的嵌入向量。
+  feature_engineering.py 自动生成对数收益与差分特征，按配置合并宏观、行业、舆情外生变量，支持 per-symbol 归一 (enable_symbol_normalization) 并缓存统计量；启用 use_symbol_embedding 时会输出股票 ID 索引，模型可共享可学习的嵌入向量。
 - **模型训练**：`src/stock_prediction/train.py` 提供统一入口，可选择 LSTM、Transformer、TemporalHybridNet、PTFT_VSSM、Diffusion、Graph 等模型，内置 Trainer/LR Scheduler/Early Stopping；Hybrid 默认使用 `HybridLoss`（MSE+分位+方向+Regime）并扩展波动度/极值约束。
 - **Hybrid 总线**：--model hybrid 聚合卷积/GRU/Attention 与 PTFT、VSSM、Diffusion、Graph 分支输出，可通过 ranch_config 设置分支先验权重，软门控自动调节贡献度，并在多股票场景下共享股票嵌入。
 - **推理预测**：src/stock_prediction/predict.py 负责加载模型权重并输出预测结果，保持与训练阶段一致的特征加工与嵌入策略。
 - **评估指标**：`metrics.py` 自动采集 RMSE、MAPE、分位覆盖率、VaR、CVaR 等金融指标，训练/测试后保存至 `output/metrics_*.json`。
 - **技术指标库**：`target.py` 内置常见指标（MACD、KDJ、DMI、ATR 等）。
+  
+  归一化参数持久化与自动回填：
+  - 训练保存模型时总会写出与权重同名的 `*_norm_params*.json`（包含 mean_list/std_list/show_list/name_list）。
+  - 若在 PKL 模式下全局均值/方差列表为空，将自动从 `pkl_handle/train.pkl` 计算并写入（无需手工脚本）。
+  - test()/predict() 在加载权重前会优先读取对应的 `*_norm_params*.json`，确保反归一化正确。
 
 ## 快速开始
 ```bash
@@ -111,6 +116,8 @@ cat output/metrics_*.json
 | 导入触发 `SystemExit` | CLI 在导入阶段解析命令行参数 | `predict.py` / `train.py` 已改为默认参数对象，可直接导入 |
 | CPU 模式出现 AMP 提示 | GradScaler 默认针对 CUDA | 推理与训练会自动降级，可忽略或关闭 AMP |
 | 模型保存阻塞 | weight_norm 与深拷贝冲突 | `thread_save_model` 已改为保存 state_dict 并迁移到 CPU |
+| 归一化参数文件为空（旧模型） | 早期版本未保存/计算 mean/std | 对历史模型执行一次 `python scripts\fix_norm_params.py`；新训练的模型在保存时会自动从 PKL 回填并写出 `*_norm_params*.json` |
+| 推理时 30 vs 46 维度不匹配 | 启用 symbol embedding 后需要 `_symbol_index` | 训练/测试/推理已统一在数据管线中注入 symbol 索引；确保 predict/test 读取到了 `*_Model_args.json` 以复现训练配置 |
 
 ## 贡献指南
 1. 新增模型请在 `src/stock_prediction/models/` 中实现，并在训练/推理入口注册。

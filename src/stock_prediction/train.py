@@ -732,6 +732,9 @@ def contrast_lines(test_codes):
                 continue  # 跳过无效 batch
                 
             # 处理 label
+            # 选择用于反归一化的统计量：测试集统计优先，缺失时回退到训练统计
+            use_mean = test_mean_list if 'test_mean_list' in globals() and len(test_mean_list) > 0 else mean_list
+            use_std = test_std_list if 'test_std_list' in globals() and len(test_std_list) > 0 else std_list
             for idx in range(label.shape[0]):
                 _tmp = []
                 for index in range(len(show_list)):
@@ -747,12 +750,11 @@ def contrast_lines(test_codes):
                     else:
                         v = value
                     if show_list[index] == 1:
-                        # Denormalize using training set normalization parameters to ensure consistency
-                        # 添加边界检查以避免索引越界
-                        if index < len(std_list) and index < len(mean_list):
-                            _tmp.append(v * std_list[index] + mean_list[index])
+                        # 在测试模式下优先使用 test_mean/std 反归一化，避免与训练统计不一致导致的刻度偏移
+                        if index < len(use_std) and index < len(use_mean):
+                            _tmp.append(v * use_std[index] + use_mean[index])
                         else:
-                            print(f"[WARN] Index {index} out of range for std_list/mean_list (len={len(std_list)}), using raw value")
+                            print(f"[WARN] Index {index} out of range for denorm stats (mean/std), using raw value")
                             _tmp.append(v)
                 if _tmp:  # 只添加非空结果
                     real_list.append(np.array(_tmp))
@@ -775,12 +777,11 @@ def contrast_lines(test_codes):
                     values = [idxs]
                 for index, item in enumerate(values):
                     if index < len(show_list) and show_list[index] == 1:
-                        # Denormalize using training set normalization parameters to ensure consistency
-                        # 添加边界检查以避免索引越界
-                        if index < len(std_list) and index < len(mean_list):
-                            _tmp.append(item * std_list[index] + mean_list[index])
+                        # 与上面真实值一致，预测值也用测试统计做反归一化，确保与 predict 绘图一致
+                        if index < len(use_std) and index < len(use_mean):
+                            _tmp.append(item * use_std[index] + use_mean[index])
                         else:
-                            print(f"[WARN] Index {index} out of range for std_list/mean_list (len={len(std_list)}), using raw value")
+                            print(f"[WARN] Index {index} out of range for denorm stats (mean/std), using raw value")
                             _tmp.append(item)
                 if _tmp:  # 只添加非空结果
                     prediction_list.append(np.array(_tmp))

@@ -327,6 +327,22 @@ def test(dataset, testmodel=None, dataloader_mode=0, symbol_index=None):
         loaded = False
         for candidate in candidates:
             if os.path.exists(candidate):
+                # 先尝试加载归一化参数，确保后续反归一化正确
+                try:
+                    norm_file = candidate.replace("_Model.pkl", "_norm_params.json").replace("_Model_best.pkl", "_norm_params_best.json")
+                    if os.path.exists(norm_file):
+                        with open(norm_file, 'r', encoding='utf-8') as f:
+                            norm_params = json.load(f)
+                        # 更新全局归一化参数
+                        global mean_list, std_list, show_list, name_list
+                        mean_list = norm_params.get('mean_list', mean_list)
+                        std_list = norm_params.get('std_list', std_list)
+                        show_list = norm_params.get('show_list', show_list)
+                        name_list = norm_params.get('name_list', name_list)
+                        print(f"[LOG] Loaded normalization params from {norm_file}")
+                        print(f"[LOG] mean_list length: {len(mean_list)}, std_list length: {len(std_list)}")
+                except Exception as e:
+                    print(f"[WARN] Failed to load normalization params: {e}")
                 test_model.load_state_dict(torch.load(candidate, map_location=device))
                 loaded = True
                 break

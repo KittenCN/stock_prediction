@@ -6,6 +6,7 @@
   1. 修复测试模式归一化参数为空的问题
   2. 修复测试模式下 Symbol Embedding 维度不匹配问题（30维 vs 46维）
   3. 确保测试模式可正常运行并生成预测结果
+  4. 新增：保存模型时若归一化参数为空自动从 PKL 计算；predict/test 自动读取 `*_norm_params*.json`
 
 ## 关键假设 | Key Assumptions
 （详见 ASSUMPTIONS.md）
@@ -29,7 +30,7 @@ scripts/
 ### 选型与权衡 | Choices & Trade-offs
 1. **稳定副本 vs 重新计算**：选择稳定副本，避免 PKL 模式下无法重新计算
 2. **Dataloader 格式兼容**：支持 2元组和3元组格式，向后兼容
-3. **一次性修复工具**：提供 fix_norm_params.py，用户需手动运行一次（未来不需要）
+3. **一次性修复工具**：提供 fix_norm_params.py，历史模型可手动运行一次；新训练的模型不再需要
 
 ## 实现与自测 | Implementation & Self-testing
 
@@ -45,7 +46,7 @@ python -m pytest tests/ -v
 # 测试模式
 python scripts\train.py --model Hybrid --mode test --test_code 000019
 
-# 修复现有模型（一次性，可选）
+# 修复现有模型（一次性，仅历史权重）
 python scripts\fix_norm_params.py
 ```
 
@@ -78,8 +79,8 @@ python scripts\fix_norm_params.py
 
 ### 构建产物 | Build Artefacts
 - 测试报告：46/46 passed
-- Metrics 文件：`output/metrics_000019_HYBRID_*.json`
-- 归一化参数文件：`*_norm_params.json`（包含30维 mean/std）
+- Metrics 文件：`output/metrics_*.json`
+- 归一化参数文件：`*_norm_params*.json`（包含 mean/std/show/name）
 - 预测图表：`png/test/*.png`（可选）
 
 ## 风险与后续改进 | Risks & Next Steps
