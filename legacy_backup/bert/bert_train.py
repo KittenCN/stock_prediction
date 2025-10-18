@@ -1,3 +1,6 @@
+# 备份：原始 BERT 训练脚本（迁移前实现）。
+# 注意：该文件仅用于归档，不随主代码路径更新。
+
 import torch
 import argparse
 import torch.utils.data as Data
@@ -153,4 +156,3 @@ if __name__ == '__main__':
     opt = get_train_args()
     print('Use: ', device)
     main(opt)
-

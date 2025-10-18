@@ -1,3 +1,6 @@
+# 备份：原始 BERT 数据预处理脚本（迁移前实现）。
+# 注意：该文件仅用于归档，不随主代码路径更新。
+
 from stock_prediction.common import *
 train_first_line = True
 x_list = []
@@ -38,4 +41,3 @@ df_neg = pd.DataFrame({'label':0,'text':negative})
 df_pos = pd.DataFrame({'label':1,'text':positive})
 df = pd.concat([df_pos,df_neg],axis=0)
 df.to_csv(bert_data_path+'/data'+'/Train3.csv',index=False,sep=',',encoding='utf-8')
-

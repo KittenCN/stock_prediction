@@ -65,7 +65,7 @@ flowchart LR
 | 高 | 行情采集缺少限速、重试 | 增加 retry/backoff、结构化日志与 `.env` 配置 |
 | 中 | CPU 模式 AMP 警告 | 默认禁用 AMP 或提供开关 |
 | 中 | 文档同步易遗漏 | 在 PR 模板与 pre-commit 中加入文档检查 |
-| 中 | BERT/NLP 代码仍在主包 | 拆分到独立模块或按需加载 |
+| 中 | BERT/NLP 代码已从主包中拆分 | 已迁移至 `src/bert/`，根目录保留包装器以兼容旧入口；原始实现已备份到 `legacy_backup/bert/` |
 
 ## 3. 模型演进
 ### 3.1 TemporalHybridNet

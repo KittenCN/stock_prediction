@@ -11,6 +11,9 @@ help:
 	@echo "  run-train      Start model training"
 	@echo "  run-getdata    Get stock data"
 	@echo "  run-preprocess Preprocess data"
+	@echo "  bert-train      Run BERT training"
+	@echo "  bert-prep       Run BERT data preprocess"
+	@echo "  bert-getdata    Download BERT datasets"
 	@echo "  clean          Clean generated files"
 	@echo "  ci             Run CI pipeline"
 
@@ -38,6 +41,16 @@ run-getdata:
 
 run-preprocess:
 	$(PYTHON) scripts/data_preprocess.py --pklname train.pkl
+
+# BERT related helpers
+bert-train:
+	$(PYTHON) bert_train.py --batch_size 8 --nepoch 3
+
+bert-prep:
+	$(PYTHON) bert_data_preprocess.py
+
+bert-getdata:
+	$(PYTHON) get_bert_data.py
 
 build:
 	@echo "No build step required for pure Python project"

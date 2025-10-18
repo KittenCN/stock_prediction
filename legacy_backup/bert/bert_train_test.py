@@ -1,3 +1,6 @@
+# 备份：原始 BERT 训练测试脚本（迁移前实现）。
+# 注意：该文件仅用于归档，不随主代码路径更新。
+
 from stock_prediction.common import *
 import argparse
 
