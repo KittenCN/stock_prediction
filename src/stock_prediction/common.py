@@ -2,6 +2,7 @@ import re
 import queue
 import copy
 import matplotlib as mpl
+import pandas as pd
 import mplfinance as mpf
 import matplotlib.pyplot as plt
 import torch
@@ -1184,6 +1185,7 @@ def plot_feature_comparison(symbol, model_name, feature, history_series, predict
             label="Actual",
         )
 
+    plotted_pred_series = pd.Series(dtype=float)
     if not prediction_series.empty:
         # If predictions start after the last historical point, attach the first forecast to the last actual value for continuity.
         plot_index = prediction_series.index
@@ -1191,6 +1193,8 @@ def plot_feature_comparison(symbol, model_name, feature, history_series, predict
         if not history_series.empty and prediction_series.index[0] > history_series.index[-1]:
             plot_index = prediction_series.index.insert(0, history_series.index[-1])
             plot_values = np.insert(prediction_series.values, 0, history_series.iloc[-1])
+        # Keep a copy of what is actually plotted for CSV export
+        plotted_pred_series = pd.Series(plot_values, index=plot_index, dtype=float)
         ax.plot(
             plot_index,
             plot_values,
@@ -1216,6 +1220,18 @@ def plot_feature_comparison(symbol, model_name, feature, history_series, predict
     save_path = output_dir / file_name
     fig.savefig(save_path, dpi=600)
     plt.close(fig)
+    # Also export the data used in the plot to CSV with the same filename (different suffix)
+    try:
+        hist_df = history_series.rename("Actual").to_frame()
+        pred_src = plotted_pred_series if not plotted_pred_series.empty else prediction_series
+        pred_df = pred_src.rename("Forecast").to_frame()
+        merged = hist_df.join(pred_df, how="outer").sort_index()
+        merged.reset_index(inplace=True)
+        merged.rename(columns={merged.columns[0]: "Date"}, inplace=True)
+        csv_path = save_path.with_suffix('.csv')
+        merged.to_csv(csv_path, index=False, encoding='utf-8')
+    except Exception as e:
+        print(f"[WARN] Failed to export CSV for plot {save_path.name}: {e}")
     return save_path
 
 
