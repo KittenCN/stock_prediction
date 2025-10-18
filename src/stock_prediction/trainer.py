@@ -99,7 +99,7 @@ class Trainer:
                     ncols=self.progress_bar_ncols,
                     desc="train-batch",
                 )
-        for batch in self.train_loader:
+        for batch_idx, batch in enumerate(self.train_loader):
             # Null check, compatible with legacy behavior
             if batch is None:
                 if batch_bar:
@@ -117,14 +117,20 @@ class Trainer:
                         if len(batch) >= 3:
                             symbol_index = batch[2]
                     else:
+                        if batch_bar:
+                            batch_bar.update(1)
                         continue
             else:
                 # fallback: single tensor as inputs, targets must be provided by dataset
                 if batch is None or len(batch) < 2 or batch[0] is None or batch[1] is None:
+                    if batch_bar:
+                        batch_bar.update(1)
                     continue
                 inputs, targets = batch[0], batch[1]
 
             if inputs is None or targets is None:
+                if batch_bar:
+                    batch_bar.update(1)
                 continue
 
             inputs = inputs.to(self.device, non_blocking=True)
@@ -151,6 +157,10 @@ class Trainer:
             if batch_loss_list is not None:
                 batch_loss_list.append(loss_value)
             if batch_bar:
+                batch_bar.set_postfix({
+                    "loss": f"{loss_value:.4f}",
+                    "avg": f"{total_loss / (batch_idx + 1):.4f}",
+                })
                 batch_bar.update(1)
         if batch_bar:
             batch_bar.close()
