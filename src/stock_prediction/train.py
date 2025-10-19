@@ -111,6 +111,16 @@ if device.type == "cuda":
     torch.backends.cudnn.benchmark = True
 
 
+def resolve_plot_window(total_length: int) -> int:
+    """根据 plot_days 设定绘图窗口，0 表示使用全部历史数据。"""
+    plot_days_value = int(getattr(args, "plot_days", 30))
+    if plot_days_value == 0:
+        return max(total_length, 0)
+    if total_length <= 0:
+        return max(plot_days_value, 1)
+    return max(1, min(plot_days_value, total_length))
+
+
 # --- Trainer integration ---
 def build_scheduler(cfg, optimizer):
     if cfg.scheduler_type == "step":
@@ -489,7 +499,7 @@ def predict(test_codes):
 
     predict_data = normalize_date_column(copy.deepcopy(data))
     spliced_data = normalize_date_column(copy.deepcopy(data))
-    history_window = max(1, int(getattr(args, "plot_days", 30)))
+    history_window = resolve_plot_window(spliced_data.shape[0])
     predicted_rows: list[dict] = []
     if predict_data.empty:
         print("Error: Train_data or Test_data is None")
@@ -649,7 +659,10 @@ def predict(test_codes):
         pred_df = pd.DataFrame(predictions, columns=pred_columns)
         actual_df = normalize_date_column(predict_data)
         actual_df['Date'] = pd.to_datetime(actual_df['Date'])
-        actual_df = actual_df.sort_values('Date').tail(max(1, int(getattr(args, "plot_days", 30))))
+        actual_df = actual_df.sort_values('Date')
+        window = resolve_plot_window(len(actual_df))
+        if window > 0:
+            actual_df = actual_df.tail(window)
         if not pred_df.empty:
             pred_df = pred_df.tail(len(actual_df))
         pred_df['Date'] = actual_df['Date'].iloc[:len(pred_df)].values
@@ -899,7 +912,7 @@ def contrast_lines(test_codes):
     if min_len == 0:
         print("Error: No valid prediction results for plotting.")
         return
-    plot_window = max(1, int(getattr(args, "plot_days", 30)))
+    plot_window = resolve_plot_window(min_len)
     real_array = real_array[:min_len][-plot_window:]
     pred_array = pred_array[:min_len][-plot_window:]
     column_names = [rename_map.get(name, name.title()) for name in selected_features]

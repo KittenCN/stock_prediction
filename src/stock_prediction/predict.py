@@ -165,6 +165,7 @@ parser.add_argument('--cpu', default=0, type=int, help="set 1 to run on CPU only
 parser.add_argument('--pkl', default=1, type=int, help="whether to use preprocessed pkl data (1 means use)")
 parser.add_argument('--pkl_queue', default=1, type=int, help="whether to use pkl queue data")
 parser.add_argument('--predict_days', default=0, type=int, help=">0 for interval prediction, <=0 for day-by-day prediction")
+parser.add_argument('--plot_days', default=30, type=int, help="history days to display in test/predict plots; 0 表示使用全部历史")
 parser.add_argument('--api', default="akshare", type=str, help="data source: tushare / akshare / yfinance")
 parser.add_argument('--trend', default=0, type=int, help="set 1 to predict trend instead of price")
 parser.add_argument('--test_gpu', default=1, type=int, help="set 1 to run inference on GPU")
@@ -176,6 +177,7 @@ class DefaultArgs:
     pkl = 1
     pkl_queue = 1
     predict_days = 0
+    plot_days = 30
     api = "akshare"
     trend = 0
     test_gpu = 1
@@ -192,6 +194,16 @@ drop_last = False
 
 # Provide global handles for tests when common.py is unavailable
 total_test_length = 0
+
+
+def resolve_plot_window(total_length: int) -> int:
+    """根据 plot_days 配置决定绘图窗口长度，0 表示使用全部历史数据。"""
+    plot_days_value = int(getattr(args, "plot_days", 30))
+    if plot_days_value == 0:
+        return max(total_length, 0)
+    if total_length <= 0:
+        return max(plot_days_value, 1)
+    return max(1, min(plot_days_value, total_length))
 
 
 def _init_models(target_symbol: str | None) -> None:
@@ -530,7 +542,6 @@ def predict(test_codes):
         print(f"[LOG] predict_days={predict_days}")
         pbar = tqdm(total=predict_days, leave=False, ncols=TQDM_NCOLS)
         predicted_rows: list[dict] = []
-        history_window = max(SEQ_LEN * 8, 40)
         while predict_days > 0:
             predict_days -= 1
             lastdate = pd.to_datetime(predict_data['Date'].iloc[0])
@@ -578,7 +589,12 @@ def predict(test_codes):
         if not predicted_df.empty:
             predicted_df['Date'] = pd.to_datetime(predicted_df['Date'])
 
-        history_df = full_df.iloc[len(predicted_rows):len(predicted_rows) + history_window].copy()
+        available_history = max(0, len(full_df) - len(predicted_rows))
+        history_window = resolve_plot_window(available_history)
+        if history_window <= 0:
+            history_df = full_df.iloc[len(predicted_rows):].copy()
+        else:
+            history_df = full_df.iloc[len(predicted_rows):len(predicted_rows) + history_window].copy()
         history_df['Date'] = pd.to_datetime(history_df['Date'])
 
         symbol_code = str(test_codes[0]).split('.')[0].zfill(6)
