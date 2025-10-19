@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 
 class HybridLoss(nn.Module):
-    """组合损失：在保留 MSE 的基础上，融合分位、方向性与 Regime 约束。"""
+    """Composite loss for Hybrid models: MSE plus quantile/direction/regime/volatility/mean/return penalties."""
 
     def __init__(
         self,
@@ -17,8 +17,10 @@ class HybridLoss(nn.Module):
         quantile_weight: float = 0.1,
         direction_weight: float = 0.05,
         regime_weight: float = 0.05,
-        volatility_weight: float = 0.02,
+        volatility_weight: float = 0.05,
         extreme_weight: float = 0.02,
+        mean_weight: float = 0.05,
+        return_weight: float = 0.05,
     ) -> None:
         super().__init__()
         self.model = model
@@ -28,6 +30,8 @@ class HybridLoss(nn.Module):
         self.regime_weight = regime_weight
         self.volatility_weight = volatility_weight
         self.extreme_weight = extreme_weight
+        self.mean_weight = mean_weight
+        self.return_weight = return_weight
         self.mse = nn.MSELoss()
 
     def forward(self, prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
@@ -37,9 +41,10 @@ class HybridLoss(nn.Module):
         pred_view = self._ensure_three_dim(prediction)
         target_view = self._ensure_three_dim(target)
 
-        details = {}
+        details: Dict[str, torch.Tensor] = {}
         if hasattr(self.model, "get_last_details"):
-            details = self.model.get_last_details() or {}
+            last_details = self.model.get_last_details() or {}
+            details = last_details
 
         if self.quantile_weight > 0:
             quantile_loss = self._quantile_loss(details, target, prediction.device)
@@ -61,6 +66,14 @@ class HybridLoss(nn.Module):
         if self.extreme_weight > 0:
             extreme_loss = self._extreme_penalty(pred_view, target_view)
             total = total + self.extreme_weight * extreme_loss
+
+        if self.mean_weight > 0:
+            mean_loss = self._mean_penalty(pred_view, target_view)
+            total = total + self.mean_weight * mean_loss
+
+        if self.return_weight > 0:
+            return_loss = self._return_penalty(pred_view, target_view)
+            total = total + self.return_weight * return_loss
 
         return total
 
@@ -137,8 +150,15 @@ class HybridLoss(nn.Module):
         return tensor
 
     def _volatility_penalty(self, prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        pred_std = prediction.std(dim=1, unbiased=False)
-        target_std = target.std(dim=1, unbiased=False)
+        if prediction.size(1) <= 1:
+            # Single-step outputs: fall back to batch-level volatility matching.
+            pred_slice = prediction[:, 0, :]
+            target_slice = target[:, 0, :]
+            pred_std = pred_slice.std(dim=0, unbiased=False).unsqueeze(0)
+            target_std = target_slice.std(dim=0, unbiased=False).unsqueeze(0)
+        else:
+            pred_std = prediction.std(dim=1, unbiased=False)
+            target_std = target.std(dim=1, unbiased=False)
         return F.mse_loss(pred_std, target_std)
 
     def _extreme_penalty(self, prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
@@ -147,6 +167,18 @@ class HybridLoss(nn.Module):
         pred_min = prediction.amin(dim=1)
         target_min = target.amin(dim=1)
         return F.mse_loss(pred_max, target_max) + F.mse_loss(pred_min, target_min)
+
+    def _mean_penalty(self, prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        pred_mean = prediction.mean(dim=1)
+        target_mean = target.mean(dim=1)
+        return F.mse_loss(pred_mean, target_mean)
+
+    def _return_penalty(self, prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        if prediction.size(1) < 2 or target.size(1) < 2:
+            return torch.zeros((), device=prediction.device)
+        pred_diff = prediction[:, 1:, :] - prediction[:, :-1, :]
+        target_diff = target[:, 1:, :] - target[:, :-1, :]
+        return F.mse_loss(pred_diff, target_diff)
 
 
 __all__ = ["HybridLoss"]

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 # coding: utf-8
 import argparse
 import copy
@@ -39,6 +39,8 @@ from stock_prediction.models import (
     DiffusionForecaster,
     GraphTemporalModel,
 )
+from stock_prediction.metrics import metrics_report, distribution_report
+from stock_prediction.diagnostics import evaluate_feature_metrics, STD_RATIO_WARNING, BIAS_WARNING
 try:
     from .common import *
 except ImportError:
@@ -82,7 +84,7 @@ symbol_to_id = {symbol: i for i, symbol in enumerate(unique_symbols)}
 
 
 def _apply_norm_from_params(norm_params, symbol=None):
-    """Update全局归一化参数，并同步 symbol_norm_map。"""
+    """Apply saved normalization parameters and refresh symbol_norm_map."""
 
     symbol_key = canonical_symbol(symbol)
     per_symbol = norm_params.get("per_symbol") or norm_params.get("per_symbol_stats")
@@ -165,7 +167,7 @@ parser.add_argument('--cpu', default=0, type=int, help="set 1 to run on CPU only
 parser.add_argument('--pkl', default=1, type=int, help="whether to use preprocessed pkl data (1 means use)")
 parser.add_argument('--pkl_queue', default=1, type=int, help="whether to use pkl queue data")
 parser.add_argument('--predict_days', default=0, type=int, help=">0 for interval prediction, <=0 for day-by-day prediction")
-parser.add_argument('--plot_days', default=30, type=int, help="history days to display in test/predict plots; 0 表示使用全部历史")
+parser.add_argument('--plot_days', default=30, type=int, help="history days to display in test/predict plots; 0 uses full history")
 parser.add_argument('--api', default="akshare", type=str, help="data source: tushare / akshare / yfinance")
 parser.add_argument('--trend', default=0, type=int, help="set 1 to predict trend instead of price")
 parser.add_argument('--test_gpu', default=1, type=int, help="set 1 to run inference on GPU")
@@ -194,10 +196,8 @@ drop_last = False
 
 # Provide global handles for tests when common.py is unavailable
 total_test_length = 0
-
-
 def resolve_plot_window(total_length: int) -> int:
-    """根据 plot_days 配置决定绘图窗口长度，0 表示使用全部历史数据。"""
+    """Return plot window length; plot_days==0 means full history."""
     plot_days_value = int(getattr(args, "plot_days", 30))
     if plot_days_value == 0:
         return max(total_length, 0)
@@ -209,7 +209,7 @@ def resolve_plot_window(total_length: int) -> int:
 def _init_models(target_symbol: str | None) -> None:
     global model_mode, model, test_model, save_path, current_norm_symbol
     current_norm_symbol = canonical_symbol(target_symbol)
-    path_symbol = symbol  #  init.pyģͱĿ¼
+    path_symbol = symbol  #  init.py模捅目录
     model_mode = args.model.upper()
     if model_mode == "LSTM":
         model = LSTM(input_dim=INPUT_DIMENSION)
@@ -614,6 +614,35 @@ def predict(test_codes):
                 Path(png_path) / "predict",
                 prefix="predict",
             )
+        metrics_out = {}
+        distribution_out = {}
+        for col in PLOT_FEATURE_COLUMNS:
+            if col not in history_df.columns:
+                continue
+            history_series = history_df.set_index('Date')[col].astype(float).dropna()
+            prediction_series = pd.Series(dtype=float)
+            if not predicted_df.empty and col in predicted_df.columns:
+                prediction_series = predicted_df.set_index('Date')[col].astype(float).dropna()
+            evaluate_feature_metrics(col, history_series, prediction_series, metrics_out, distribution_out)
+        if metrics_out:
+            output_dir = Path("output")
+            output_dir.mkdir(exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d%H%M%S")
+            metrics_path = output_dir / f"metrics_{symbol_code}_{model_mode}_{ts}.json"
+            payload = {
+                "regression": metrics_out,
+                "distribution": distribution_out,
+                "meta": {
+                    "std_ratio_warning": STD_RATIO_WARNING,
+                    "bias_warning": BIAS_WARNING,
+                    "generated_at": ts,
+                    "symbol": symbol_code,
+                    "mode": model_mode,
+                },
+            }
+            with open(metrics_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+            print(f"[LOG] Metrics saved: {metrics_path}")
     else:
         normalized_predict = normalize_date_column(predict_data)
         feature_frame = normalized_predict.drop(columns=['ts_code', 'Date']).copy()
@@ -640,9 +669,8 @@ def predict(test_codes):
         actual_df['Date'] = pd.to_datetime(actual_df['Date'])
         pred_df['Date'] = actual_df['Date'].iloc[:len(pred_df)].values
 
-        from stock_prediction.metrics import metrics_report
-        # ɼָ
         metrics_out = {}
+        distribution_out = {}
         for col in PLOT_FEATURE_COLUMNS:
             if col not in actual_df.columns:
                 actual_df[col] = np.nan
@@ -650,7 +678,6 @@ def predict(test_codes):
             prediction_series = pd.Series(dtype=float)
             if col in pred_df.columns:
                 prediction_series = pred_df.set_index('Date')[col].astype(float).dropna()
-            # ͼ
             plot_feature_comparison(
                 symbol_code,
                 model_mode,
@@ -660,17 +687,25 @@ def predict(test_codes):
                 Path(png_path) / "predict",
                 prefix="predict",
             )
-            # ָɼ
-            if len(history_series) == len(prediction_series) and len(history_series) > 0:
-                metrics_out[col] = metrics_report(history_series.values, prediction_series.values)
-        # ָ굽 output/metrics_xxx.json
+            evaluate_feature_metrics(col, history_series, prediction_series, metrics_out, distribution_out)
         if metrics_out:
             output_dir = Path("output")
             output_dir.mkdir(exist_ok=True)
             ts = datetime.now().strftime("%Y%m%d%H%M%S")
             metrics_path = output_dir / f"metrics_{symbol_code}_{model_mode}_{ts}.json"
+            payload = {
+                "regression": metrics_out,
+                "distribution": distribution_out,
+                "meta": {
+                    "std_ratio_warning": STD_RATIO_WARNING,
+                    "bias_warning": BIAS_WARNING,
+                    "generated_at": ts,
+                    "symbol": symbol_code,
+                    "mode": model_mode,
+                },
+            }
             with open(metrics_path, "w", encoding="utf-8") as f:
-                json.dump(metrics_out, f, ensure_ascii=False, indent=2)
+                json.dump(payload, f, ensure_ascii=False, indent=2)
             print(f"[LOG] Metrics saved: {metrics_path}")
         return predict_list
 
@@ -724,4 +759,5 @@ def create_predictor(model_type='lstm', device_type='cpu'):
 
 if __name__ == '__main__':
     main()
+
 

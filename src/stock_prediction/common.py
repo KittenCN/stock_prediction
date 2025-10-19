@@ -313,7 +313,10 @@ class Stock_Data(Dataset):
         else:
             self.symbol_series = None
 
-        numeric_df = data_df.select_dtypes(include=[np.number]).drop(columns=["_symbol_index"], errors="ignore")
+        numeric_df = (
+            data_df.select_dtypes(include=[np.number])
+            .drop(columns=["_symbol_index", "ts_code"], errors="ignore")
+        )
         data = numeric_df.to_numpy(dtype=np.float32, copy=True)
 
         if data.shape[1] > INPUT_DIMENSION:
@@ -525,7 +528,10 @@ class stock_queue_dataset(Dataset):
                 numeric_ids = pd.to_numeric(frame["_symbol_index"], errors="coerce").fillna(-1).astype(int)
                 symbol_series = numeric_ids.to_numpy()
 
-            numeric_frame = frame.select_dtypes(include=[np.number]).drop(columns=["_symbol_index"], errors="ignore")
+            numeric_frame = (
+                frame.select_dtypes(include=[np.number])
+                .drop(columns=["_symbol_index", "ts_code"], errors="ignore")
+            )
             if numeric_frame.empty:
                 return None
             data = numeric_frame.values
@@ -1131,7 +1137,10 @@ def save_model(model, optimizer, save_path, best_model=False, predict_days=0):
                             transformed = feature_engineer.transform(frame)
                         except Exception:
                             transformed = frame
-                        numeric = transformed.select_dtypes(include=[_np.number]).drop(columns=['_symbol_index'], errors='ignore')
+                        numeric = (
+                            transformed.select_dtypes(include=[_np.number])
+                            .drop(columns=['_symbol_index', 'ts_code'], errors='ignore')
+                        )
                         if numeric.empty:
                             continue
                         data_np = _np.nan_to_num(numeric.to_numpy(dtype=_np.float64, copy=True), nan=0.0, posinf=0.0, neginf=0.0)

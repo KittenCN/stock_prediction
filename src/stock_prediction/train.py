@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 # coding: utf-8
 
 import random
@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import os
 import sys
+import json
 from pathlib import Path
 
 # Ensure the stock_prediction package is importable before importing internal modules
@@ -36,6 +37,8 @@ from stock_prediction.models import (
     HybridLoss,
 )
 from stock_prediction.hybrid_config import get_adaptive_hybrid_config
+from stock_prediction.metrics import metrics_report, distribution_report
+from stock_prediction.diagnostics import evaluate_feature_metrics, STD_RATIO_WARNING, BIAS_WARNING
 try:
     from .common import *
 except ImportError:
@@ -74,6 +77,14 @@ parser.add_argument('--epoch', default=5, type=int, help="training epochs")
 parser.add_argument('--plot_days', default=30, type=int, help="history days to display in test/predict plots")
 parser.add_argument('--full_train', default=0, type=int, help="train on full dataset without validation/test (1 to enable)")
 parser.add_argument('--hybrid_size', default="auto", type=str, help="Hybrid model size: auto (data-adaptive), tiny, small, medium, large, full")
+parser.add_argument('--hybrid_mse_weight', default=1.0, type=float, help="HybridLoss MSE weight")
+parser.add_argument('--hybrid_quantile_weight', default=0.1, type=float, help="HybridLoss quantile loss weight")
+parser.add_argument('--hybrid_direction_weight', default=0.05, type=float, help="HybridLoss direction consistency weight")
+parser.add_argument('--hybrid_regime_weight', default=0.05, type=float, help="HybridLoss regime alignment weight")
+parser.add_argument('--hybrid_volatility_weight', default=0.12, type=float, help="HybridLoss volatility penalty weight")
+parser.add_argument('--hybrid_extreme_weight', default=0.02, type=float, help="HybridLoss extreme value penalty weight")
+parser.add_argument('--hybrid_mean_weight', default=0.05, type=float, help="HybridLoss mean alignment weight")
+parser.add_argument('--hybrid_return_weight', default=0.08, type=float, help="HybridLoss return series alignment weight")
 
 # Default args reused by tests and direct imports
 class DefaultArgs:
@@ -93,6 +104,14 @@ class DefaultArgs:
     full_train = 0
     hybrid_size = "auto"
     full_train = 0
+    hybrid_mse_weight = 1.0
+    hybrid_quantile_weight = 0.1
+    hybrid_direction_weight = 0.05
+    hybrid_regime_weight = 0.05
+    hybrid_volatility_weight = 0.12
+    hybrid_extreme_weight = 0.02
+    hybrid_mean_weight = 0.05
+    hybrid_return_weight = 0.08
 
 args = DefaultArgs()
 
@@ -112,7 +131,7 @@ if device.type == "cuda":
 
 
 def resolve_plot_window(total_length: int) -> int:
-    """根据 plot_days 设定绘图窗口，0 表示使用全部历史数据。"""
+    """Return plot window length; plot_days==0 means full history."""
     plot_days_value = int(getattr(args, "plot_days", 30))
     if plot_days_value == 0:
         return max(total_length, 0)
@@ -144,7 +163,7 @@ def save_best_callback(context):
 
 
 def _apply_norm_from_params(norm_params, symbol=None):
-    """Update全局归一化参数，并同步 symbol_norm_map。"""
+    """Apply saved normalization parameters and refresh symbol_norm_map."""
 
     symbol_key = canonical_symbol(symbol)
     per_symbol = norm_params.get("per_symbol") or norm_params.get("per_symbol_stats")
@@ -299,11 +318,10 @@ def test(dataset, testmodel=None, dataloader_mode=0, norm_symbol=None):
         loaded = False
         for candidate in candidates:
             if os.path.exists(candidate):
-                # 尝试加载归一化参数
+                # 灏濊瘯鍔犺浇褰掍竴鍖栧弬鏁?
                 norm_file = candidate.replace("_Model.pkl", "_norm_params.json").replace("_Model_best.pkl", "_norm_params_best.json")
                 if os.path.exists(norm_file):
                     try:
-                        import json
                         with open(norm_file, 'r', encoding='utf-8') as f:
                             norm_params = json.load(f)
                         _apply_norm_from_params(norm_params, symbol=symbol_key)
@@ -317,14 +335,13 @@ def test(dataset, testmodel=None, dataloader_mode=0, norm_symbol=None):
                     except Exception as e:
                         print(f"[WARN] Failed to load normalization params from {norm_file}: {e}")
                 
-                # 尝试加载模型参数配置
+                # 灏濊瘯鍔犺浇妯″瀷鍙傛暟閰嶇疆
                 args_file = candidate.replace("_Model.pkl", "_Model_args.json").replace("_Model_best.pkl", "_Model_best_args.json")
                 if os.path.exists(args_file):
                     try:
-                        import json
                         with open(args_file, 'r', encoding='utf-8') as f:
                             model_args = json.load(f)
-                        # 使用保存的参数重新创建模型
+                        # 浣跨敤淇濆瓨鐨勫弬鏁伴噸鏂板垱寤烘ā鍨?
                         if model_mode == "LSTM":
                             from stock_prediction.models import LSTM
                             test_model = LSTM(**model_args)
@@ -349,7 +366,7 @@ def test(dataset, testmodel=None, dataloader_mode=0, norm_symbol=None):
                         elif model_mode == "CNNLSTM":
                             from stock_prediction.models import CNNLSTM
                             test_model = CNNLSTM(**model_args)
-                        # 将模型移到正确的设备
+                        # 灏嗘ā鍨嬬Щ鍒版纭殑璁惧
                         if args.test_gpu == 0:
                             test_model = test_model.to('cpu', non_blocking=True)
                         else:
@@ -614,10 +631,8 @@ def predict(test_codes):
                 prefix="predict",
             )
         # Metrics collection
-        import json
-        from stock_prediction.metrics import metrics_report
-        print("[DEBUG] Starting metrics collection for predict_days <= 0")
         metrics_out = {}
+        distribution_out = {}
         for col in PLOT_FEATURE_COLUMNS:
             if col not in history_df.columns:
                 continue
@@ -625,16 +640,26 @@ def predict(test_codes):
             prediction_series = pd.Series(dtype=float)
             if not predicted_df.empty and col in predicted_df.columns:
                 prediction_series = predicted_df.set_index('Date')[col].astype(float).dropna()
-            if len(history_series) == len(prediction_series) and len(history_series) > 0:
-                metrics_out[col] = metrics_report(history_series.values, prediction_series.values)
-        print(f"[DEBUG] metrics_out: {metrics_out}")
+            evaluate_feature_metrics(col, history_series, prediction_series, metrics_out, distribution_out)
+
         if metrics_out:
             output_dir = Path("output")
             output_dir.mkdir(exist_ok=True)
             ts = datetime.now().strftime("%Y%m%d%H%M%S")
             metrics_path = output_dir / f"metrics_{symbol_code}_{model_mode}_{ts}.json"
+            payload = {
+                "regression": metrics_out,
+                "distribution": distribution_out,
+                "meta": {
+                    "std_ratio_warning": STD_RATIO_WARNING,
+                    "bias_warning": BIAS_WARNING,
+                    "generated_at": ts,
+                    "symbol": symbol_code,
+                    "mode": model_mode,
+                },
+            }
             with open(metrics_path, "w", encoding="utf-8") as f:
-                json.dump(metrics_out, f, ensure_ascii=False, indent=2)
+                json.dump(payload, f, ensure_ascii=False, indent=2)
             print(f"[LOG] Metrics saved: {metrics_path}")
         return
     else:
@@ -684,9 +709,8 @@ def predict(test_codes):
                 prefix="predict",
             )
         # Metrics collection
-        import json
-        from stock_prediction.metrics import metrics_report
         metrics_out = {}
+        distribution_out = {}
         for col in PLOT_FEATURE_COLUMNS:
             if col not in actual_df.columns:
                 actual_df[col] = np.nan
@@ -694,15 +718,26 @@ def predict(test_codes):
             prediction_series = pd.Series(dtype=float)
             if col in pred_df.columns:
                 prediction_series = pred_df.set_index('Date')[col].astype(float).dropna()
-            if len(history_series) == len(prediction_series) and len(history_series) > 0:
-                metrics_out[col] = metrics_report(history_series.values, prediction_series.values)
+            evaluate_feature_metrics(col, history_series, prediction_series, metrics_out, distribution_out)
+
         if metrics_out:
             output_dir = Path("output")
             output_dir.mkdir(exist_ok=True)
             ts = datetime.now().strftime("%Y%m%d%H%M%S")
             metrics_path = output_dir / f"metrics_{symbol_code}_{model_mode}_{ts}.json"
+            payload = {
+                "regression": metrics_out,
+                "distribution": distribution_out,
+                "meta": {
+                    "std_ratio_warning": STD_RATIO_WARNING,
+                    "bias_warning": BIAS_WARNING,
+                    "generated_at": ts,
+                    "symbol": symbol_code,
+                    "mode": model_mode,
+                },
+            }
             with open(metrics_path, "w", encoding="utf-8") as f:
-                json.dump(metrics_out, f, ensure_ascii=False, indent=2)
+                json.dump(payload, f, ensure_ascii=False, indent=2)
             print(f"[LOG] Metrics saved: {metrics_path}")
         return
 
@@ -768,18 +803,18 @@ def contrast_lines(test_codes):
 
     data = normalize_date_column(data)
     
-    # 保存 ts_code 用于 symbol mapping
+    # 淇濆瓨 ts_code 鐢ㄤ簬 symbol mapping
     ts_code_value = None
     if 'ts_code' in data.columns and not data.empty:
         ts_code_value = str(data['ts_code'].iloc[0])
     
-    # 添加 _symbol_index 列（如果启用了 symbol embedding）
+    # 娣诲姞 _symbol_index 鍒楋紙濡傛灉鍚敤浜?symbol embedding锛?
     from stock_prediction.common import feature_engineer
     if feature_engineer.settings.use_symbol_embedding and ts_code_value:
-        # 使用 feature_engineer 的 symbol mapping
+        # 浣跨敤 feature_engineer 鐨?symbol mapping
         if not hasattr(feature_engineer, 'symbol_to_id') or not feature_engineer.symbol_to_id:
-            # 如果没有 mapping，尝试构建一个简单的
-            symbol_id = hash(ts_code_value) % 4096  # 简单哈希到 0-4095
+            # 濡傛灉娌℃湁 mapping锛屽皾璇曟瀯寤轰竴涓畝鍗曠殑
+            symbol_id = hash(ts_code_value) % 4096  # 绠€鍗曞搱甯屽埌 0-4095
         else:
             symbol_id = feature_engineer.symbol_to_id.get(ts_code_value, 0)
         data['_symbol_index'] = symbol_id
@@ -841,17 +876,17 @@ def contrast_lines(test_codes):
     else:
 
         for i, batch in enumerate(dataloader):
-            # 处理 batch 格式：可能是 (data, label) 或 (data, label, symbol_idx)
+            # 澶勭悊 batch 鏍煎紡锛氬彲鑳芥槸 (data, label) 鎴?(data, label, symbol_idx)
             if isinstance(batch, (list, tuple)):
                 if len(batch) == 3:
                     _, label, _ = batch
                 else:
                     _, label = batch[0], batch[1]
             else:
-                continue  # 跳过无效 batch
+                continue  # 璺宠繃鏃犳晥 batch
                 
-            # 处理 label
-            # 选择用于反归一化的统计量：测试集统计优先，缺失时回退到训练统计
+            # 澶勭悊 label
+            # 閫夋嫨鐢ㄤ簬鍙嶅綊涓€鍖栫殑缁熻閲忥細娴嬭瘯闆嗙粺璁′紭鍏堬紝缂哄け鏃跺洖閫€鍒拌缁冪粺璁?
             use_mean = test_mean_list if 'test_mean_list' in globals() and len(test_mean_list) > 0 else mean_list
             use_std = test_std_list if 'test_std_list' in globals() and len(test_std_list) > 0 else std_list
             for idx in range(label.shape[0]):
@@ -869,13 +904,13 @@ def contrast_lines(test_codes):
                     else:
                         v = value
                     if show_list[index] == 1:
-                        # 在测试模式下优先使用 test_mean/std 反归一化，避免与训练统计不一致导致的刻度偏移
+                        # 鍦ㄦ祴璇曟ā寮忎笅浼樺厛浣跨敤 test_mean/std 鍙嶅綊涓€鍖栵紝閬垮厤涓庤缁冪粺璁′笉涓€鑷村鑷寸殑鍒诲害鍋忕Щ
                         if index < len(use_std) and index < len(use_mean):
                             _tmp.append(v * use_std[index] + use_mean[index])
                         else:
                             print(f"[WARN] Index {index} out of range for denorm stats (mean/std), using raw value")
                             _tmp.append(v)
-                if _tmp:  # 只添加非空结果
+                if _tmp:  # 鍙坊鍔犻潪绌虹粨鏋?
                     real_list.append(np.array(_tmp))
 
         for items in predict_list:
@@ -896,13 +931,13 @@ def contrast_lines(test_codes):
                     values = [idxs]
                 for index, item in enumerate(values):
                     if index < len(show_list) and show_list[index] == 1:
-                        # 与上面真实值一致，预测值也用测试统计做反归一化，确保与 predict 绘图一致
+                        # 涓庝笂闈㈢湡瀹炲€间竴鑷达紝棰勬祴鍊间篃鐢ㄦ祴璇曠粺璁″仛鍙嶅綊涓€鍖栵紝纭繚涓?predict 缁樺浘涓€鑷?
                         if index < len(use_std) and index < len(use_mean):
                             _tmp.append(item * use_std[index] + use_mean[index])
                         else:
                             print(f"[WARN] Index {index} out of range for denorm stats (mean/std), using raw value")
                             _tmp.append(item)
-                if _tmp:  # 只添加非空结果
+                if _tmp:  # 鍙坊鍔犻潪绌虹粨鏋?
                     prediction_list.append(np.array(_tmp))
     selected_features = [name_list[idx] for idx, flag in enumerate(show_list) if flag == 1]
     rename_map = {"open": "Open", "high": "High", "low": "Low", "close": "Close"}
@@ -945,25 +980,34 @@ def contrast_lines(test_codes):
             prefix="test",
         )
     # Metrics collection
-    import json
-    from stock_prediction.metrics import metrics_report
     metrics_out = {}
+    distribution_out = {}
     for col in PLOT_FEATURE_COLUMNS:
         if col in real_df.columns and col in pred_df.columns:
             history_series = real_df.set_index('Date')[col].astype(float).dropna()
             prediction_series = pred_df.set_index('Date')[col].astype(float).dropna()
-            if len(history_series) == len(prediction_series) and len(history_series) > 0:
-                metrics_out[col] = metrics_report(history_series.values, prediction_series.values)
+            evaluate_feature_metrics(col, history_series, prediction_series, metrics_out, distribution_out)
     if metrics_out:
         output_dir = Path("output")
         output_dir.mkdir(exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d%H%M%S")
         metrics_path = output_dir / f"metrics_{symbol_code}_{model_mode}_{ts}.json"
+        payload = {
+            "regression": metrics_out,
+            "distribution": distribution_out,
+            "meta": {
+                "std_ratio_warning": STD_RATIO_WARNING,
+                "bias_warning": BIAS_WARNING,
+                "generated_at": ts,
+                "symbol": symbol_code,
+                "mode": model_mode,
+            },
+        }
         with open(metrics_path, "w", encoding="utf-8") as f:
-            json.dump(metrics_out, f, ensure_ascii=False, indent=2)
+            json.dump(payload, f, ensure_ascii=False, indent=2)
         print(f"[LOG] Metrics saved: {metrics_path}")
     
-    # 返回真实值和预测值供 metrics 计算使用
+    # 杩斿洖鐪熷疄鍊煎拰棰勬祴鍊间緵 metrics 璁＄畻浣跨敤
     y_true = None
     y_pred = None
     if 'Close' in real_df.columns and 'Close' in pred_df.columns:
@@ -1212,7 +1256,17 @@ def main():
             max_symbols=SYMBOL_VOCAB_SIZE,
         )
         save_path = str(config.get_model_path("HYBRID", symbol))
-        criterion = HybridLoss(model, mse_weight=1.0, quantile_weight=0.1, direction_weight=0.05, regime_weight=0.05)
+        criterion = HybridLoss(
+            model,
+            mse_weight=float(getattr(args, "hybrid_mse_weight", 1.0)),
+            quantile_weight=float(getattr(args, "hybrid_quantile_weight", 0.1)),
+            direction_weight=float(getattr(args, "hybrid_direction_weight", 0.05)),
+            regime_weight=float(getattr(args, "hybrid_regime_weight", 0.05)),
+            volatility_weight=float(getattr(args, "hybrid_volatility_weight", 0.12)),
+            extreme_weight=float(getattr(args, "hybrid_extreme_weight", 0.02)),
+            mean_weight=float(getattr(args, "hybrid_mean_weight", 0.05)),
+            return_weight=float(getattr(args, "hybrid_return_weight", 0.08)),
+        )
     elif model_mode == "PTFT_VSSM":
         ensemble_steps = abs(int(args.predict_days)) if int(args.predict_days) > 0 else 1
         model = PTFTVSSMEnsemble(
@@ -1450,7 +1504,7 @@ def main():
         print("total codes: %d, total length: %d"%(codes_len, total_length))
         print("total test codes: %d, total test length: %d"%(test_queue.qsize(), total_test_length))
         
-        # 显示基于实际数据量的模型配置建议
+        # 鏄剧ず鍩轰簬瀹為檯鏁版嵁閲忕殑妯″瀷閰嶇疆寤鸿
         if model_mode == "HYBRID" and total_length > 0:
             if total_length < 500:
                 suggested = "tiny"
@@ -1589,7 +1643,7 @@ def main():
         pbar.close()
         print("Training finished!")
         ensure_checkpoint_ready()
-        # 绘制 Trainer 记录的 loss 曲线
+        # 缁樺埗 Trainer 璁板綍鐨?loss 鏇茬嚎
         if hasattr(train_with_trainer, "last_history") and train_with_trainer.last_history is not None:
             train_loss_list = train_with_trainer.last_history.get("batch_loss", [])
             if train_loss_list:
@@ -1606,18 +1660,28 @@ def main():
             test_code = [test_codes[test_index]]
             # Collect and save metrics
             try:
-                import json
-                from stock_prediction.metrics import metrics_report
                 pred_result = contrast_lines(test_code)
                 if isinstance(pred_result, tuple) and len(pred_result) == 2:
                     y_true, y_pred = pred_result
-                    metrics_out = {"close": metrics_report(y_true, y_pred)}
+                    regression = {"close": metrics_report(y_true, y_pred)}
+                    distribution = {"close": distribution_report(y_true, y_pred)}
                     output_dir = Path("output")
                     output_dir.mkdir(exist_ok=True)
                     ts = datetime.now().strftime("%Y%m%d%H%M%S")
                     metrics_path = output_dir / f"metrics_train_{test_code[0]}_{model_mode}_{ts}.json"
+                    payload = {
+                        "regression": regression,
+                        "distribution": distribution,
+                        "meta": {
+                            "std_ratio_warning": STD_RATIO_WARNING,
+                            "bias_warning": BIAS_WARNING,
+                            "generated_at": ts,
+                            "symbol": test_code[0],
+                            "mode": f"train-{model_mode}",
+                        },
+                    }
                     with open(metrics_path, "w", encoding="utf-8") as f:
-                        json.dump(metrics_out, f, ensure_ascii=False, indent=2)
+                        json.dump(payload, f, ensure_ascii=False, indent=2)
                     print(f"[LOG] Train metrics saved: {metrics_path}")
             except Exception as e:
                 print(f"[WARN] Train metrics collection failed: {e}")
@@ -1659,3 +1723,4 @@ def create_predictor(model_type="lstm", device_type="cpu"):
 
 if __name__ == "__main__":
     main()
+

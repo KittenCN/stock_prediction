@@ -1,128 +1,130 @@
-# stock_prediction
+﻿# stock_prediction
 
-基于 PyTorch 的股票价格预测实验项目，提供从数据采集、预处理到模型训练与推理的全流程示例。当前重点验证多尺度混合模型（TemporalHybridNet）以及 PTFT + Variational SSM 双轨组合。
+鍩轰簬 PyTorch 鐨勮偂绁ㄤ环鏍奸娴嬪疄楠岄」鐩紝鎻愪緵浠庢暟鎹噰闆嗐€侀澶勭悊鍒版ā鍨嬭缁冧笌鎺ㄧ悊鐨勫叏娴佺▼绀轰緥銆傚綋鍓嶉噸鐐归獙璇佸灏哄害娣峰悎妯″瀷锛圱emporalHybridNet锛変互鍙?PTFT + Variational SSM 鍙岃建缁勫悎銆?
 
-## 功能概览
-- **行情采集**：封装 `tushare`/`akshare`/`yfinance` 三类数据源。
-- **数据预处理**：将日线 CSV 聚合为 `pkl_handle/train.pkl` 队列，支持重复加载。
-- **特征工程**：
-  feature_engineering.py 自动生成对数收益与差分特征，按配置合并宏观、行业、舆情外生变量，支持 per-symbol 归一 (enable_symbol_normalization) 并缓存统计量；启用 use_symbol_embedding 时会输出股票 ID 索引，模型可共享可学习的嵌入向量。
-- **模型训练**：`src/stock_prediction/train.py` 提供统一入口，可选择 LSTM、Transformer、TemporalHybridNet、PTFT_VSSM、Diffusion、Graph 等模型，内置 Trainer/LR Scheduler/Early Stopping；Hybrid 默认使用 `HybridLoss`（MSE+分位+方向+Regime）并扩展波动度/极值约束。
-- **Hybrid 总线**：--model hybrid 聚合卷积/GRU/Attention 与 PTFT、VSSM、Diffusion、Graph 分支输出，可通过 ranch_config 设置分支先验权重，软门控自动调节贡献度，并在多股票场景下共享股票嵌入。
-- **推理预测**：src/stock_prediction/predict.py 负责加载模型权重并输出预测结果，保持与训练阶段一致的特征加工与嵌入策略。
-- **评估指标**：`metrics.py` 自动采集 RMSE、MAPE、分位覆盖率、VaR、CVaR 等金融指标，训练/测试后保存至 `output/metrics_*.json`。
-- **技术指标库**：`target.py` 内置常见指标（MACD、KDJ、DMI、ATR 等）。
+## 鍔熻兘姒傝
+- **琛屾儏閲囬泦**锛氬皝瑁?`tushare`/`akshare`/`yfinance` 涓夌被鏁版嵁婧愩€?
+- **鏁版嵁棰勫鐞?*锛氬皢鏃ョ嚎 CSV 鑱氬悎涓?`pkl_handle/train.pkl` 闃熷垪锛屾敮鎸侀噸澶嶅姞杞姐€?
+- **鐗瑰緛宸ョ▼**锛?
+  feature_engineering.py 鑷姩鐢熸垚瀵规暟鏀剁泭涓庡樊鍒嗙壒寰侊紝鎸夐厤缃悎骞跺畯瑙傘€佽涓氥€佽垎鎯呭鐢熷彉閲忥紝鏀寔 per-symbol 褰掍竴 (enable_symbol_normalization) 骞剁紦瀛樼粺璁￠噺锛涘惎鐢?use_symbol_embedding 鏃朵細杈撳嚭鑲＄エ ID 绱㈠紩锛屾ā鍨嬪彲鍏变韩鍙涔犵殑宓屽叆鍚戦噺銆?
+- **模型训练**：`src/stock_prediction/train.py` 提供统一入口，可选择 LSTM、Transformer、TemporalHybridNet、PTFT_VSSM、Diffusion、Graph 等模型，内置 Trainer/LR Scheduler/Early Stopping；Hybrid 默认使用 `HybridLoss`（MSE+分位+方向+Regime）并叠加波动/极值/均值/收益约束（默认权重分别为 0.12/0.02/0.05/0.08）。
+- **Hybrid 鎬荤嚎**锛?-model hybrid 鑱氬悎鍗风Н/GRU/Attention 涓?PTFT銆乂SSM銆丏iffusion銆丟raph 鍒嗘敮杈撳嚭锛屽彲閫氳繃 ranch_config 璁剧疆鍒嗘敮鍏堥獙鏉冮噸锛岃蒋闂ㄦ帶鑷姩璋冭妭璐＄尞搴︼紝骞跺湪澶氳偂绁ㄥ満鏅笅鍏变韩鑲＄エ宓屽叆銆?
+- **鎺ㄧ悊棰勬祴**锛歴rc/stock_prediction/predict.py 璐熻矗鍔犺浇妯″瀷鏉冮噸骞惰緭鍑洪娴嬬粨鏋滐紝淇濇寔涓庤缁冮樁娈典竴鑷寸殑鐗瑰緛鍔犲伐涓庡祵鍏ョ瓥鐣ャ€?
+- **评估指标**：`metrics.py` 自动采集 RMSE、MAPE、分位覆盖率、VaR、CVaR 等金融指标，并输出振幅/均值诊断（distribution_report），训练/测试后保存至 `output/metrics_*.json`。
+- **预测诊断**：`scripts/analyze_predictions.py` 可批量扫描 `png/test` 或 `png/predict` 下的 CSV，标记振幅塌缩（std_ratio）与均值偏移（bias）等问题，便于回归审查。
+- **鎶€鏈寚鏍囧簱**锛歚target.py` 鍐呯疆甯歌鎸囨爣锛圡ACD銆並DJ銆丏MI銆丄TR 绛夛級銆?
   
-  归一化参数持久化与自动回填：
-  - 训练保存模型时总会写出与权重同名的 `*_norm_params*.json`（包含 mean_list/std_list/show_list/name_list）。
-  - 若在 PKL 模式下全局均值/方差列表为空，将自动从 `pkl_handle/train.pkl` 计算并写入（无需手工脚本）。
-  - test()/predict() 在加载权重前会优先读取对应的 `*_norm_params*.json`，确保反归一化正确。
+  褰掍竴鍖栧弬鏁版寔涔呭寲涓庤嚜鍔ㄥ洖濉細
+  - 璁粌淇濆瓨妯″瀷鏃舵€讳細鍐欏嚭涓庢潈閲嶅悓鍚嶇殑 `*_norm_params*.json`锛堝寘鍚?mean_list/std_list/show_list/name_list锛夈€?
+  - 鑻ュ湪 PKL 妯″紡涓嬪叏灞€鍧囧€?鏂瑰樊鍒楄〃涓虹┖锛屽皢鑷姩浠?`pkl_handle/train.pkl` 璁＄畻骞跺啓鍏ワ紙鏃犻渶鎵嬪伐鑴氭湰锛夈€?
+  - test()/predict() 鍦ㄥ姞杞芥潈閲嶅墠浼氫紭鍏堣鍙栧搴旂殑 `*_norm_params*.json`锛岀‘淇濆弽褰掍竴鍖栨纭€?
 
-## 快速开始
+## 蹇€熷紑濮?
 ```bash
 conda activate stock_prediction
 pip install -r requirements.txt
 python scripts/train.py --mode train --model ptft_vssm --pkl 1 --epoch 2
-# 推理示例
+# 鎺ㄧ悊绀轰緥
 python scripts/predict.py --model ptft_vssm --test_code 000001
 ```
-> 首次运行请先执行 `python scripts/getdata.py --api akshare --code 000001.SZ` 与 `python scripts/data_preprocess.py --pklname train.pkl` 准备数据。
+> 棣栨杩愯璇峰厛鎵ц `python scripts/getdata.py --api akshare --code 000001.SZ` 涓?`python scripts/data_preprocess.py --pklname train.pkl` 鍑嗗鏁版嵁銆?
 
-## 目录结构
+## 鐩綍缁撴瀯
 ```
 project-root/
-├─ src/stock_prediction/
-│  ├─ config.py              # 路径与目录管理
-│  ├─ init.py                # 超参数、设备与共享队列
-│  ├─ common.py              # 数据集、可视化、模型保存工具
-│  ├─ models/                # 模型集合（LSTM/Transformer/TemporalHybridNet/PTFT_VSSM 等）
-│  ├─ train.py               # 训练 / 测试主流程
-│  ├─ predict.py             # 推理入口
-│  ├─ getdata.py             # 行情采集脚本
-│  ├─ data_preprocess.py     # 预处理与序列化
-│  └─ target.py              # 技术指标函数库
-├─ scripts/
-│  ├─ train.py               # 命令行训练封装
-│  └─ predict.py             # 命令行推理封装
-├─ tests/                    # PyTest 用例
-├─ docs/                     # 架构、策略、运维文档
-├─ models/                   # 训练后的模型权重
-├─ stock_daily/              # 原始行情数据
-├─ pkl_handle/               # 预处理后的队列文件
-└─ CHANGELOG.md              # 变更记录
+鈹溾攢 src/stock_prediction/
+鈹? 鈹溾攢 config.py              # 璺緞涓庣洰褰曠鐞?
+鈹? 鈹溾攢 init.py                # 瓒呭弬鏁般€佽澶囦笌鍏变韩闃熷垪
+鈹? 鈹溾攢 common.py              # 鏁版嵁闆嗐€佸彲瑙嗗寲銆佹ā鍨嬩繚瀛樺伐鍏?
+鈹? 鈹溾攢 models/                # 妯″瀷闆嗗悎锛圠STM/Transformer/TemporalHybridNet/PTFT_VSSM 绛夛級
+鈹? 鈹溾攢 train.py               # 璁粌 / 娴嬭瘯涓绘祦绋?
+鈹? 鈹溾攢 predict.py             # 鎺ㄧ悊鍏ュ彛
+鈹? 鈹溾攢 getdata.py             # 琛屾儏閲囬泦鑴氭湰
+鈹? 鈹溾攢 data_preprocess.py     # 棰勫鐞嗕笌搴忓垪鍖?
+鈹? 鈹斺攢 target.py              # 鎶€鏈寚鏍囧嚱鏁板簱
+鈹溾攢 scripts/
+鈹? 鈹溾攢 train.py               # 鍛戒护琛岃缁冨皝瑁?
+鈹? 鈹斺攢 predict.py             # 鍛戒护琛屾帹鐞嗗皝瑁?
+鈹溾攢 tests/                    # PyTest 鐢ㄤ緥
+鈹溾攢 docs/                     # 鏋舵瀯銆佺瓥鐣ャ€佽繍缁存枃妗?
+鈹溾攢 models/                   # 璁粌鍚庣殑妯″瀷鏉冮噸
+鈹溾攢 stock_daily/              # 鍘熷琛屾儏鏁版嵁
+鈹溾攢 pkl_handle/               # 棰勫鐞嗗悗鐨勯槦鍒楁枃浠?
+鈹斺攢 CHANGELOG.md              # 鍙樻洿璁板綍
 ```
 
-## 支持模型 (`--model`)
-| 参数 | 结构概述 | 场景 |
+## 鏀寔妯″瀷 (`--model`)
+| 鍙傛暟 | 缁撴瀯姒傝堪 | 鍦烘櫙 |
 | ---- | -------- | ---- |
-| `lstm` | 3 层 LSTM + 全连接 | 基线验证 |
-| `attention_lstm` | LSTM + 注意力 | 关注关键时间片段 |
-| `bilstm` | 双向 LSTM | 加强上下文建模 |
-| `tcn` | 时序卷积网络 | 捕捉局部模式 |
-| `multibranch` | 价格/指标双分支 LSTM | 面向多特征族 |
-| `transformer` | 自定义 Transformer 编解码结构 | 长序列建模 |
-| `cnnlstm` | CNN + LSTM + Attention | 多步预测（需 `predict_days` > 0）|
-| `hybrid` | Hybrid Aggregator（卷积/GRU + PTFT/VSSM/Diffusion/Graph 总线）| 多模态特征融合 |
-| `ptft_vssm` | PTFT + Variational SSM 双轨组合 | 概率预测与风险评估 |
-| `diffusion` | DiffusionForecaster（扩散式去噪解码） | 情景生成、尾部风险分析 |
-| `graph` | GraphTemporalModel（自适应图结构） | 多资产关联建模 |
+| `lstm` | 3 灞?LSTM + 鍏ㄨ繛鎺?| 鍩虹嚎楠岃瘉 |
+| `attention_lstm` | LSTM + 娉ㄦ剰鍔?| 鍏虫敞鍏抽敭鏃堕棿鐗囨 |
+| `bilstm` | 鍙屽悜 LSTM | 鍔犲己涓婁笅鏂囧缓妯?|
+| `tcn` | 鏃跺簭鍗风Н缃戠粶 | 鎹曟崏灞€閮ㄦā寮?|
+| `multibranch` | 浠锋牸/鎸囨爣鍙屽垎鏀?LSTM | 闈㈠悜澶氱壒寰佹棌 |
+| `transformer` | 鑷畾涔?Transformer 缂栬В鐮佺粨鏋?| 闀垮簭鍒楀缓妯?|
+| `cnnlstm` | CNN + LSTM + Attention | 澶氭棰勬祴锛堥渶 `predict_days` > 0锛墊
+| `hybrid` | Hybrid Aggregator锛堝嵎绉?GRU + PTFT/VSSM/Diffusion/Graph 鎬荤嚎锛墊 澶氭ā鎬佺壒寰佽瀺鍚?|
+| `ptft_vssm` | PTFT + Variational SSM 鍙岃建缁勫悎 | 姒傜巼棰勬祴涓庨闄╄瘎浼?|
+| `diffusion` | DiffusionForecaster锛堟墿鏁ｅ紡鍘诲櫔瑙ｇ爜锛?| 鎯呮櫙鐢熸垚銆佸熬閮ㄩ闄╁垎鏋?|
+| `graph` | GraphTemporalModel锛堣嚜閫傚簲鍥剧粨鏋勶級 | 澶氳祫浜у叧鑱斿缓妯?|
 
-批量对比可执行 `scripts\run_all_models.bat`（默认运行训练+测试模式）。
+鎵归噺瀵规瘮鍙墽琛?`scripts\run_all_models.bat`锛堥粯璁よ繍琛岃缁?娴嬭瘯妯″紡锛夈€?
 
-## 特征工程配置
-- 所有特征加工策略由 `config/config.yaml` 的 `features` 节定义：
-  - `target_mode=log_return`、`return_kind=log`：默认对收盘价生成对数收益率标签。
-  - `difference_columns`、`volatility_columns`：控制差分与滑动窗口统计字段。
-  - `external_sources`：白名单式引入宏观/行业/舆情 CSV，按 `trade_date` 对齐并支持前向填充。
-  - `multi_stock: true`：默认在多股票场景聚合训练样本，自动生成方向标签。
-- 若自定义外生特征，保持日期列为八位字符串（如 `20241203`），并放置在 `config/external/` 下即可。
+## 鐗瑰緛宸ョ▼閰嶇疆
+- 鎵€鏈夌壒寰佸姞宸ョ瓥鐣ョ敱 `config/config.yaml` 鐨?`features` 鑺傚畾涔夛細
+  - `target_mode=log_return`銆乣return_kind=log`锛氶粯璁ゅ鏀剁洏浠风敓鎴愬鏁版敹鐩婄巼鏍囩銆?
+  - `difference_columns`銆乣volatility_columns`锛氭帶鍒跺樊鍒嗕笌婊戝姩绐楀彛缁熻瀛楁銆?
+  - `external_sources`锛氱櫧鍚嶅崟寮忓紩鍏ュ畯瑙?琛屼笟/鑸嗘儏 CSV锛屾寜 `trade_date` 瀵归綈骞舵敮鎸佸墠鍚戝～鍏呫€?
+  - `multi_stock: true`锛氶粯璁ゅ湪澶氳偂绁ㄥ満鏅仛鍚堣缁冩牱鏈紝鑷姩鐢熸垚鏂瑰悜鏍囩銆?
+- 鑻ヨ嚜瀹氫箟澶栫敓鐗瑰緛锛屼繚鎸佹棩鏈熷垪涓哄叓浣嶅瓧绗︿覆锛堝 `20241203`锛夛紝骞舵斁缃湪 `config/external/` 涓嬪嵆鍙€?
 
-## 常用命令
+## 甯哥敤鍛戒护
 ```bash
-# 抓取行情
+# 鎶撳彇琛屾儏
 python scripts/getdata.py --api akshare --code 000001.SZ
 
-# 数据预处理
+# 鏁版嵁棰勫鐞?
 python scripts/data_preprocess.py --pklname train.pkl
 
-# 训练示例
+# 璁粌绀轰緥
 python scripts/train.py --mode train --model transformer --epoch 2
 
-# 推理示例
+# 鎺ㄧ悊绀轰緥
 python scripts/predict.py --model transformer --test_code 000001 --predict_days 3
 
-# 运行测试
+# 杩愯娴嬭瘯
 pytest -q
 
-# 查看训练指标（训练后自动生成）
+# 鏌ョ湅璁粌鎸囨爣锛堣缁冨悗鑷姩鐢熸垚锛?
 cat output/metrics_*.json
 ```
 
-## 测试与质量
-- `pytest`：覆盖特征工程、Regime 自适应以及股票嵌入相关单元测试（Diffusion/Graph/Hybrid/PTFT 等），当前 30+ 项均通过。
-- 建议在提交前执行 `pytest -q`，并按需运行 `ruff` / `black` / `mypy`。
-- 暴露 `create_predictor()` 帮助脚本或测试快速构造推理器。
+## 娴嬭瘯涓庤川閲?
+- `pytest`锛氳鐩栫壒寰佸伐绋嬨€丷egime 鑷€傚簲浠ュ強鑲＄エ宓屽叆鐩稿叧鍗曞厓娴嬭瘯锛圖iffusion/Graph/Hybrid/PTFT 绛夛級锛屽綋鍓?30+ 椤瑰潎閫氳繃銆?
+- 寤鸿鍦ㄦ彁浜ゅ墠鎵ц `pytest -q`锛屽苟鎸夐渶杩愯 `ruff` / `black` / `mypy`銆?
+- 鏆撮湶 `create_predictor()` 甯姪鑴氭湰鎴栨祴璇曞揩閫熸瀯閫犳帹鐞嗗櫒銆?
 
-## 文档索引
-- `docs/system_design.md`：架构拓扑与关键决策
-- `docs/model_strategy.md`：模型方案设计与推荐组合
-- `docs/user_guide.md`：命令行/模块用法、运维与多模型测试
-- `docs/maintenance.md`：结构调整、修复记录与改进建议
+## 鏂囨。绱㈠紩
+- `docs/system_design.md`锛氭灦鏋勬嫇鎵戜笌鍏抽敭鍐崇瓥
+- `docs/model_strategy.md`锛氭ā鍨嬫柟妗堣璁′笌鎺ㄨ崘缁勫悎
+- `docs/user_guide.md`锛氬懡浠よ/妯″潡鐢ㄦ硶銆佽繍缁翠笌澶氭ā鍨嬫祴璇?
+- `docs/maintenance.md`锛氱粨鏋勮皟鏁淬€佷慨澶嶈褰曚笌鏀硅繘寤鸿
 
-## 常见问题
-| 问题 | 原因 | 解决方式 |
+## 甯歌闂
+| 闂 | 鍘熷洜 | 瑙ｅ喅鏂瑰紡 |
 | ---- | ---- | -------- |
-| `queue.Queue` 反序列化报错 | Python 3.13+ 属性变更 | 已在 `common.ensure_queue_compatibility()` 兜底；必要时重新生成 `train.pkl` |
-| 导入触发 `SystemExit` | CLI 在导入阶段解析命令行参数 | `predict.py` / `train.py` 已改为默认参数对象，可直接导入 |
-| CPU 模式出现 AMP 提示 | GradScaler 默认针对 CUDA | 推理与训练会自动降级，可忽略或关闭 AMP |
-| 模型保存阻塞 | weight_norm 与深拷贝冲突 | `thread_save_model` 已改为保存 state_dict 并迁移到 CPU |
-| 归一化参数文件为空（旧模型） | 早期版本未保存/计算 mean/std | 对历史模型执行一次 `python scripts\fix_norm_params.py`；新训练的模型在保存时会自动从 PKL 回填并写出 `*_norm_params*.json` |
-| 推理时 30 vs 46 维度不匹配 | 启用 symbol embedding 后需要 `_symbol_index` | 训练/测试/推理已统一在数据管线中注入 symbol 索引；确保 predict/test 读取到了 `*_Model_args.json` 以复现训练配置 |
+| `queue.Queue` 鍙嶅簭鍒楀寲鎶ラ敊 | Python 3.13+ 灞炴€у彉鏇?| 宸插湪 `common.ensure_queue_compatibility()` 鍏滃簳锛涘繀瑕佹椂閲嶆柊鐢熸垚 `train.pkl` |
+| 瀵煎叆瑙﹀彂 `SystemExit` | CLI 鍦ㄥ鍏ラ樁娈佃В鏋愬懡浠よ鍙傛暟 | `predict.py` / `train.py` 宸叉敼涓洪粯璁ゅ弬鏁板璞★紝鍙洿鎺ュ鍏?|
+| CPU 妯″紡鍑虹幇 AMP 鎻愮ず | GradScaler 榛樿閽堝 CUDA | 鎺ㄧ悊涓庤缁冧細鑷姩闄嶇骇锛屽彲蹇界暐鎴栧叧闂?AMP |
+| 妯″瀷淇濆瓨闃诲 | weight_norm 涓庢繁鎷疯礉鍐茬獊 | `thread_save_model` 宸叉敼涓轰繚瀛?state_dict 骞惰縼绉诲埌 CPU |
+| 褰掍竴鍖栧弬鏁版枃浠朵负绌猴紙鏃фā鍨嬶級 | 鏃╂湡鐗堟湰鏈繚瀛?璁＄畻 mean/std | 瀵瑰巻鍙叉ā鍨嬫墽琛屼竴娆?`python scripts\fix_norm_params.py`锛涙柊璁粌鐨勬ā鍨嬪湪淇濆瓨鏃朵細鑷姩浠?PKL 鍥炲～骞跺啓鍑?`*_norm_params*.json` |
+| 鎺ㄧ悊鏃?30 vs 46 缁村害涓嶅尮閰?| 鍚敤 symbol embedding 鍚庨渶瑕?`_symbol_index` | 璁粌/娴嬭瘯/鎺ㄧ悊宸茬粺涓€鍦ㄦ暟鎹绾夸腑娉ㄥ叆 symbol 绱㈠紩锛涚‘淇?predict/test 璇诲彇鍒颁簡 `*_Model_args.json` 浠ュ鐜拌缁冮厤缃?|
 
-## 贡献指南
-1. 新增模型请在 `src/stock_prediction/models/` 中实现，并在训练/推理入口注册。
-2. 同步更新测试（`tests/test_models.py`）与文档（尤其是 `docs/model_strategy.md`、`CHANGELOG.md`）。
-3. 遵循编码规范（PEP8 + 类型注释），提交前请运行 `pytest`。
+## 璐＄尞鎸囧崡
+1. 鏂板妯″瀷璇峰湪 `src/stock_prediction/models/` 涓疄鐜帮紝骞跺湪璁粌/鎺ㄧ悊鍏ュ彛娉ㄥ唽銆?
+2. 鍚屾鏇存柊娴嬭瘯锛坄tests/test_models.py`锛変笌鏂囨。锛堝挨鍏舵槸 `docs/model_strategy.md`銆乣CHANGELOG.md`锛夈€?
+3. 閬靛惊缂栫爜瑙勮寖锛圥EP8 + 绫诲瀷娉ㄩ噴锛夛紝鎻愪氦鍓嶈杩愯 `pytest`銆?
 
 ---
-更多背景与未来计划，请参阅 `docs/model_strategy.md` 与 `docs/system_design.md`。
+鏇村鑳屾櫙涓庢湭鏉ヨ鍒掞紝璇峰弬闃?`docs/model_strategy.md` 涓?`docs/system_design.md`銆?
+
