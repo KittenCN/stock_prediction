@@ -38,7 +38,14 @@ from stock_prediction.models import (
 )
 from stock_prediction.hybrid_config import get_adaptive_hybrid_config
 from stock_prediction.metrics import metrics_report, distribution_report
-from stock_prediction.diagnostics import evaluate_feature_metrics, STD_RATIO_WARNING, BIAS_WARNING
+from stock_prediction.diagnostics import (
+    evaluate_feature_metrics,
+    STD_RATIO_WARNING,
+    BIAS_WARNING,
+    load_bias_corrections,
+    save_bias_corrections,
+    apply_bias_corrections_to_dataframe,
+)
 try:
     from .common import *
 except ImportError:
@@ -614,6 +621,11 @@ def predict(test_codes):
         history_df['Date'] = pd.to_datetime(history_df['Date'])
         history_df = history_df.sort_values('Date').tail(history_window)
 
+        bias_corrections = load_bias_corrections(symbol_code, model_mode)
+        if bias_corrections and not predicted_df.empty:
+            if apply_bias_corrections_to_dataframe(predicted_df, bias_corrections):
+                print(f"[LOG] Applied bias corrections for {symbol_code}: {bias_corrections}")
+
         for col in PLOT_FEATURE_COLUMNS:
             if col not in history_df.columns:
                 continue
@@ -642,6 +654,8 @@ def predict(test_codes):
                 prediction_series = predicted_df.set_index('Date')[col].astype(float).dropna()
             evaluate_feature_metrics(col, history_series, prediction_series, metrics_out, distribution_out)
 
+        if distribution_out:
+            save_bias_corrections(symbol_code, model_mode, distribution_out, smoothing=0.5)
         if metrics_out:
             output_dir = Path("output")
             output_dir.mkdir(exist_ok=True)
@@ -692,6 +706,11 @@ def predict(test_codes):
             pred_df = pred_df.tail(len(actual_df))
         pred_df['Date'] = actual_df['Date'].iloc[:len(pred_df)].values
 
+        bias_corrections = load_bias_corrections(symbol_code, model_mode)
+        if bias_corrections and not pred_df.empty:
+            if apply_bias_corrections_to_dataframe(pred_df, bias_corrections):
+                print(f"[LOG] Applied bias corrections for {symbol_code}: {bias_corrections}")
+
         for col in PLOT_FEATURE_COLUMNS:
             if col not in actual_df.columns:
                 actual_df[col] = np.nan
@@ -720,6 +739,8 @@ def predict(test_codes):
                 prediction_series = pred_df.set_index('Date')[col].astype(float).dropna()
             evaluate_feature_metrics(col, history_series, prediction_series, metrics_out, distribution_out)
 
+        if distribution_out:
+            save_bias_corrections(symbol_code, model_mode, distribution_out, smoothing=0.5)
         if metrics_out:
             output_dir = Path("output")
             output_dir.mkdir(exist_ok=True)
@@ -963,6 +984,10 @@ def contrast_lines(test_codes):
     real_df.sort_values('Date', inplace=True)
     pred_df.sort_values('Date', inplace=True)
     symbol_code = str(test_codes[0]).split('.')[0].zfill(6)
+    bias_corrections = load_bias_corrections(symbol_code, model_mode)
+    if bias_corrections and not pred_df.empty:
+        if apply_bias_corrections_to_dataframe(pred_df, bias_corrections):
+            print(f"[LOG] Applied bias corrections for {symbol_code}: {bias_corrections}")
     for col in PLOT_FEATURE_COLUMNS:
         if col not in real_df.columns:
             continue
@@ -987,6 +1012,8 @@ def contrast_lines(test_codes):
             history_series = real_df.set_index('Date')[col].astype(float).dropna()
             prediction_series = pred_df.set_index('Date')[col].astype(float).dropna()
             evaluate_feature_metrics(col, history_series, prediction_series, metrics_out, distribution_out)
+    if distribution_out:
+        save_bias_corrections(symbol_code, model_mode, distribution_out, smoothing=0.5)
     if metrics_out:
         output_dir = Path("output")
         output_dir.mkdir(exist_ok=True)

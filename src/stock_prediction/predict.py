@@ -40,7 +40,14 @@ from stock_prediction.models import (
     GraphTemporalModel,
 )
 from stock_prediction.metrics import metrics_report, distribution_report
-from stock_prediction.diagnostics import evaluate_feature_metrics, STD_RATIO_WARNING, BIAS_WARNING
+from stock_prediction.diagnostics import (
+    evaluate_feature_metrics,
+    STD_RATIO_WARNING,
+    BIAS_WARNING,
+    load_bias_corrections,
+    save_bias_corrections,
+    apply_bias_corrections_to_dataframe,
+)
 try:
     from .common import *
 except ImportError:
@@ -598,6 +605,11 @@ def predict(test_codes):
         history_df['Date'] = pd.to_datetime(history_df['Date'])
 
         symbol_code = str(test_codes[0]).split('.')[0].zfill(6)
+        bias_corrections = load_bias_corrections(symbol_code, model_mode)
+        if bias_corrections and not predicted_df.empty:
+            if apply_bias_corrections_to_dataframe(predicted_df, bias_corrections):
+                print(f"[LOG] Applied bias corrections for {symbol_code}: {bias_corrections}")
+
         for col in PLOT_FEATURE_COLUMNS:
             if col not in history_df.columns:
                 continue
@@ -624,6 +636,8 @@ def predict(test_codes):
             if not predicted_df.empty and col in predicted_df.columns:
                 prediction_series = predicted_df.set_index('Date')[col].astype(float).dropna()
             evaluate_feature_metrics(col, history_series, prediction_series, metrics_out, distribution_out)
+        if distribution_out:
+            save_bias_corrections(symbol_code, model_mode, distribution_out, smoothing=0.5)
         if metrics_out:
             output_dir = Path("output")
             output_dir.mkdir(exist_ok=True)
@@ -669,6 +683,11 @@ def predict(test_codes):
         actual_df['Date'] = pd.to_datetime(actual_df['Date'])
         pred_df['Date'] = actual_df['Date'].iloc[:len(pred_df)].values
 
+        bias_corrections = load_bias_corrections(symbol_code, model_mode)
+        if bias_corrections and not pred_df.empty:
+            if apply_bias_corrections_to_dataframe(pred_df, bias_corrections):
+                print(f"[LOG] Applied bias corrections for {symbol_code}: {bias_corrections}")
+
         metrics_out = {}
         distribution_out = {}
         for col in PLOT_FEATURE_COLUMNS:
@@ -688,6 +707,8 @@ def predict(test_codes):
                 prefix="predict",
             )
             evaluate_feature_metrics(col, history_series, prediction_series, metrics_out, distribution_out)
+        if distribution_out:
+            save_bias_corrections(symbol_code, model_mode, distribution_out, smoothing=0.5)
         if metrics_out:
             output_dir = Path("output")
             output_dir.mkdir(exist_ok=True)
