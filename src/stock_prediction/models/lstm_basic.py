@@ -25,9 +25,7 @@ class LSTM(nn.Module):
 
     def forward(self, x: torch.Tensor, _tgt: torch.Tensor, predict_days: int = 0) -> torch.Tensor:
         out, _ = self.lstm(x)
-        out = out[:, -1, :]
+        out = out[:, -1:, :]
         out = self.activation(self.linear1(out))
         out = self.linear2(out)
-        if predict_days > 0:
-            out = out.unsqueeze(1)
         return out
