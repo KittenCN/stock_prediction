@@ -1,0 +1,43 @@
+[project]
+name = "stock-prediction"
+version = "0.1.0"
+description = "股票预测系统 - 基于深度学习的股票价格预测"
+requires-python = ">=3.8"
+dependencies = [
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "tqdm>=4.65.0",
+    "numpy>=1.24.0",
+    "matplotlib>=3.7.0",
+    "pandas>=2.0.0",
+    "seaborn>=0.12.0",
+    "tushare>=1.2.0",
+    "mplfinance>=0.12.0",
+    "prefetch-generator>=1.0.0",
+    "dill>=0.3.0",
+    "transformers>=4.30.0",
+    "datasets>=2.12.0",
+    "akshare>=1.11.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.3.0",
+    "pytest-cov>=4.1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

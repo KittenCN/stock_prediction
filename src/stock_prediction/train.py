@@ -325,7 +325,7 @@ def test(dataset, testmodel=None, dataloader_mode=0, norm_symbol=None):
         loaded = False
         for candidate in candidates:
             if os.path.exists(candidate):
-                # 灏濊瘯鍔犺浇褰掍竴鍖栧弬鏁?
+                # 尝试加载归一化参数
                 norm_file = candidate.replace("_Model.pkl", "_norm_params.json").replace("_Model_best.pkl", "_norm_params_best.json")
                 if os.path.exists(norm_file):
                     try:
@@ -342,13 +342,13 @@ def test(dataset, testmodel=None, dataloader_mode=0, norm_symbol=None):
                     except Exception as e:
                         print(f"[WARN] Failed to load normalization params from {norm_file}: {e}")
                 
-                # 灏濊瘯鍔犺浇妯″瀷鍙傛暟閰嶇疆
+                # 尝试加载模型参数配置
                 args_file = candidate.replace("_Model.pkl", "_Model_args.json").replace("_Model_best.pkl", "_Model_best_args.json")
                 if os.path.exists(args_file):
                     try:
                         with open(args_file, 'r', encoding='utf-8') as f:
                             model_args = json.load(f)
-                        # 浣跨敤淇濆瓨鐨勫弬鏁伴噸鏂板垱寤烘ā鍨?
+                        # 使用保存的参数重新创建模型
                         if model_mode == "LSTM":
                             from stock_prediction.models import LSTM
                             test_model = LSTM(**model_args)
@@ -373,7 +373,7 @@ def test(dataset, testmodel=None, dataloader_mode=0, norm_symbol=None):
                         elif model_mode == "CNNLSTM":
                             from stock_prediction.models import CNNLSTM
                             test_model = CNNLSTM(**model_args)
-                        # 灏嗘ā鍨嬬Щ鍒版纭殑璁惧
+                        # 将模型移到正确的设备
                         if args.test_gpu == 0:
                             test_model = test_model.to('cpu', non_blocking=True)
                         else:
@@ -382,7 +382,7 @@ def test(dataset, testmodel=None, dataloader_mode=0, norm_symbol=None):
                     except Exception as e:
                         print(f"[WARN] Failed to load model args from {args_file}: {e}, using default test_model")
                 
-                test_model.load_state_dict(torch.load(candidate))
+                test_model.load_state_dict(torch.load(candidate, map_location=device))
                 loaded = True
                 break
         if not loaded:
@@ -824,18 +824,18 @@ def contrast_lines(test_codes):
 
     data = normalize_date_column(data)
     
-    # 淇濆瓨 ts_code 鐢ㄤ簬 symbol mapping
+    # 保存 ts_code 用于 symbol mapping
     ts_code_value = None
     if 'ts_code' in data.columns and not data.empty:
         ts_code_value = str(data['ts_code'].iloc[0])
     
-    # 娣诲姞 _symbol_index 鍒楋紙濡傛灉鍚敤浜?symbol embedding锛?
+    # 添加 _symbol_index 列（如果启用了 symbol embedding）
     from stock_prediction.common import feature_engineer
     if feature_engineer.settings.use_symbol_embedding and ts_code_value:
-        # 浣跨敤 feature_engineer 鐨?symbol mapping
+        # 使用 feature_engineer 的 symbol mapping
         if not hasattr(feature_engineer, 'symbol_to_id') or not feature_engineer.symbol_to_id:
-            # 濡傛灉娌℃湁 mapping锛屽皾璇曟瀯寤轰竴涓畝鍗曠殑
-            symbol_id = hash(ts_code_value) % 4096  # 绠€鍗曞搱甯屽埌 0-4095
+            # 如果没有 mapping，尝试构建一个简单的
+            symbol_id = hash(ts_code_value) % 4096  # 简单哈希到 0-4095
         else:
             symbol_id = feature_engineer.symbol_to_id.get(ts_code_value, 0)
         data['_symbol_index'] = symbol_id
@@ -897,17 +897,17 @@ def contrast_lines(test_codes):
     else:
 
         for i, batch in enumerate(dataloader):
-            # 澶勭悊 batch 鏍煎紡锛氬彲鑳芥槸 (data, label) 鎴?(data, label, symbol_idx)
+            # 处理 batch 格式：可能是 (data, label) 或 (data, label, symbol_idx)
             if isinstance(batch, (list, tuple)):
                 if len(batch) == 3:
                     _, label, _ = batch
                 else:
                     _, label = batch[0], batch[1]
             else:
-                continue  # 璺宠繃鏃犳晥 batch
+                continue  # 跳过无效 batch
                 
-            # 澶勭悊 label
-            # 閫夋嫨鐢ㄤ簬鍙嶅綊涓€鍖栫殑缁熻閲忥細娴嬭瘯闆嗙粺璁′紭鍏堬紝缂哄け鏃跺洖閫€鍒拌缁冪粺璁?
+            # 处理 label
+            # 选择用于反归一化的统计量：测试集统计优先，缺失时回退到训练统计
             use_mean = test_mean_list if 'test_mean_list' in globals() and len(test_mean_list) > 0 else mean_list
             use_std = test_std_list if 'test_std_list' in globals() and len(test_std_list) > 0 else std_list
             for idx in range(label.shape[0]):
@@ -925,13 +925,13 @@ def contrast_lines(test_codes):
                     else:
                         v = value
                     if show_list[index] == 1:
-                        # 鍦ㄦ祴璇曟ā寮忎笅浼樺厛浣跨敤 test_mean/std 鍙嶅綊涓€鍖栵紝閬垮厤涓庤缁冪粺璁′笉涓€鑷村鑷寸殑鍒诲害鍋忕Щ
+                        # 在测试模式下优先使用 test_mean/std 反归一化，避免与训练统计不一致导致的刻度偏移
                         if index < len(use_std) and index < len(use_mean):
                             _tmp.append(v * use_std[index] + use_mean[index])
                         else:
                             print(f"[WARN] Index {index} out of range for denorm stats (mean/std), using raw value")
                             _tmp.append(v)
-                if _tmp:  # 鍙坊鍔犻潪绌虹粨鏋?
+                if _tmp:  # 只添加非空结果
                     real_list.append(np.array(_tmp))
 
         for items in predict_list:
@@ -952,13 +952,13 @@ def contrast_lines(test_codes):
                     values = [idxs]
                 for index, item in enumerate(values):
                     if index < len(show_list) and show_list[index] == 1:
-                        # 涓庝笂闈㈢湡瀹炲€间竴鑷达紝棰勬祴鍊间篃鐢ㄦ祴璇曠粺璁″仛鍙嶅綊涓€鍖栵紝纭繚涓?predict 缁樺浘涓€鑷?
+                        # 与上面真实值一致，预测值也用测试统计做反归一化，确保与 predict 绘图一致
                         if index < len(use_std) and index < len(use_mean):
                             _tmp.append(item * use_std[index] + use_mean[index])
                         else:
                             print(f"[WARN] Index {index} out of range for denorm stats (mean/std), using raw value")
                             _tmp.append(item)
-                if _tmp:  # 鍙坊鍔犻潪绌虹粨鏋?
+                if _tmp:  # 只添加非空结果
                     prediction_list.append(np.array(_tmp))
     selected_features = [name_list[idx] for idx, flag in enumerate(show_list) if flag == 1]
     rename_map = {"open": "Open", "high": "High", "low": "Low", "close": "Close"}
@@ -1434,15 +1434,15 @@ def main():
     if int(args.predict_days) > 0:
         if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Optimizer.pkl"):
             print("Load model and optimizer from file")
-            model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Model.pkl"))
-            optimizer.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Optimizer.pkl"))
+            model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Model.pkl", map_location=device))
+            optimizer.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_pre" + str(args.predict_days) + "_Optimizer.pkl", map_location=device))
         else:
             print("No model and optimizer file, train from scratch")
     else:
         if os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl") and os.path.exists(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"):
             print("Load model and optimizer from file")
-            model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl"))
-            optimizer.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl"))
+            model.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Model.pkl", map_location=device))
+            optimizer.load_state_dict(torch.load(save_path + "_out" + str(OUTPUT_DIMENSION) + "_time" + str(SEQ_LEN) + "_Optimizer.pkl", map_location=device))
         else:
             print("No model and optimizer file, train from scratch")
 
