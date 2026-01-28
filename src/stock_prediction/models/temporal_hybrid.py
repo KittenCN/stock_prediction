@@ -124,7 +124,7 @@ class TemporalHybridNet(nn.Module):
         branch_feature_dim = hidden_dim * 2
         self.branch_dim = branch_feature_dim
         self.branch_projs = nn.ModuleDict()
-        self.branches: Dict[str, nn.Module] = {}
+        self.branches = nn.ModuleDict()
         self.regime_proj: Optional[nn.Sequential] = None
         self.active_branch_names: list[str] = []
 
