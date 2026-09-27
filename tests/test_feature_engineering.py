@@ -28,6 +28,10 @@ def _sample_dataframe() -> pd.DataFrame:
 
 
 def test_feature_engineer_generates_returns_and_windows(tmp_path):
+    macro_path = tmp_path / "macro_sample.csv"
+    pd.DataFrame(
+        {"trade_date": [20240101 + i for i in range(6)], "rate": [2.0 + i * 0.1 for i in range(6)]}
+    ).to_csv(macro_path, index=False)
     settings = FeatureSettings(
         price_columns=["close"],
         difference_columns=["close"],
@@ -36,7 +40,7 @@ def test_feature_engineer_generates_returns_and_windows(tmp_path):
         external_sources=[
             ExternalFeatureConfig(
                 name="macro",
-                path=str(root_dir / "config" / "external" / "macro_sample.csv"),
+                path=str(macro_path),
                 join_on="trade_date",
                 forward_fill=True,
                 domain="macro",
