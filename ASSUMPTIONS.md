@@ -29,3 +29,7 @@
 ## 工具与脚本假设（2025-10-22）
 - 新增 `scripts/analyze_predictions.py` 用于批量诊断 png/test、png/predict 中的 CSV，默认阈值 `std_ratio<0.8`、`|bias|>0.5`。
 - 诊断输出依赖 `distribution_report`，脚本要求 CSV 提供 `Date`、`Actual`、`Forecast` 三列。
+
+## 2026-09-27 开源维护整理的假设
+- 本次仅处理可以直接核实的文档、依赖与 CI 真实性问题；不假设过往的绿色 CI 等于通过测试。
+- 在完整环境通过测试且维护者审核兼容性之前，不创建正式 Release，也不声明主分支持续维护已经得到证明。

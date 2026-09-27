@@ -1,8 +1,15 @@
-﻿# Changelog
+# Changelog
 
 遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与语义化版本（SemVer）。
 
-## [Unreleased] - 2025-10-21
+## [Unreleased]
+### Changed (2026-09-27)
+- 清理 README 中错位和重复的中英文内容，统一安装、验证与贡献说明。
+- CI 不再忽略依赖安装或测试失败；增加 Python 语法检查，并补齐配置模块依赖。
+- 将安全策略模板替换为当前项目实际的支持范围与私下报告流程。
+- 记录申请开源维护支持计划前的真实维护状态和后续任务。
+
+### Changed (2025-10-21)
 ### Added
 - 新增 per-symbol 归一化实现：Stock_Data、stock_queue_dataset 支持 
 orm_symbol，模型保存的 *_norm_params*.json 写入 per_symbol 映射；scripts/verify_normalization.py 支持 --norm_file 与 --ts_code 参数。

@@ -4,6 +4,8 @@ tqdm
 numpy
 matplotlib
 pandas
+PyYAML
+pydantic>=2,<3
 seaborn
 ## torch
 tushare
@@ -16,6 +18,5 @@ akshare
 ## yfinance 
 #该模块已放在压缩包中，请在anaconda prompt进入本文件目录
 #并输入：pip install yfinance-0.1.59.tar.gz
-
 
 
