@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python
+#!/usr/bin/env python
 # coding: utf-8
 import argparse
 import copy
@@ -70,24 +70,18 @@ if SYMBOL_EMBED_ENABLED:
 else:
     SYMBOL_VOCAB_SIZE = max(_symbol_vocab, 1)
 
-# Load symbol mapping for embedding
-import dill
-train_data = dill.load(open(train_pkl_path, 'rb'))
-if isinstance(train_data, queue.Queue):
-    temp_queue = deep_copy_queue(train_data)
-    all_data = []
-    while not temp_queue.empty():
-        item = temp_queue.get()
-        all_data.append(item)
-    if all_data:
-        train_df = pd.concat(all_data, ignore_index=True)
-        unique_symbols = train_df['ts_code'].unique()
-        symbol_to_id = {symbol: i for i, symbol in enumerate(unique_symbols)}
-    else:
-        symbol_to_id = {}
-else:
-    unique_symbols = train_data['ts_code'].unique()
-symbol_to_id = {symbol: i for i, symbol in enumerate(unique_symbols)}
+# 仅在实际需要嵌入索引时读取训练数据，允许无 PKL 的新用户导入 CLI。
+def _load_symbol_to_id(path):
+    with open(path, 'rb') as file:
+        train_data = ensure_queue_compatibility(dill.load(file))
+    if isinstance(train_data, queue.Queue):
+        frames = []
+        while not train_data.empty():
+            frames.append(train_data.get())
+        train_data = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    if 'ts_code' not in train_data.columns:
+        return {}
+    return {symbol: i for i, symbol in enumerate(train_data['ts_code'].unique())}
 
 
 def _apply_norm_from_params(norm_params, symbol=None):
@@ -542,6 +536,7 @@ def predict(test_codes):
 
     symbol_index = None
     if SYMBOL_EMBED_ENABLED:
+        symbol_to_id = _load_symbol_to_id(train_pkl_path) if PKL else {}
         symbol_lookup = raw_code if raw_code in symbol_to_id else (symbol_key or symbol_code)
         symbol_index = torch.tensor([symbol_to_id.get(symbol_lookup, 0)])
     if int(args.predict_days) <= 0:
@@ -780,5 +775,4 @@ def create_predictor(model_type='lstm', device_type='cpu'):
 
 if __name__ == '__main__':
     main()
-
 

@@ -39,3 +39,10 @@
 ---
 **更新时间**：2025-10-21  
 **维护者**：项目团队
+
+## 2026-09-27 维护整理
+- 清理 README 错位内容，修正 SECURITY 模板；增加 `docs/oss_maintenance_2026-09.md` 记录已知状态与真实待办。
+- CI 去掉忽略依赖/测试错误的 `|| true`，检查 Python 语法；`requirements.txt` 加入配置代码实际使用的 PyYAML 和 Pydantic 2。
+- 本地 `python -m compileall -q src scripts tests` 通过，CI YAML 可解析，`git diff --check` 通过。
+- 本地完整 `pytest` 因初始环境缺少 PyTorch、mplfinance 等依赖在测试收集阶段失败。需待依赖安装完成后复核，不能声称测试已绿或覆盖率达标。
+- 安装 `requirements.txt` 后复跑发现并修复两个真实失败：预测模块导入副作用和不存在的宏观 CSV 测试文件；本地 Python 3.12 下 `pytest -q` 49 项通过。CI 的 Python 3.10 结果需要单独验证。

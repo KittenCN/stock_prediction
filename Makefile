@@ -1,7 +1,7 @@
 PYTHON ?= python
 PIP ?= pip
 
-.PHONY: setup fmt lint test run build ci clean help
+.PHONY: setup fmt lint check-syntax test run build ci clean help
 
 help:
 	@echo "Available commands:"
@@ -16,16 +16,20 @@ help:
 	@echo "  bert-getdata    Download BERT datasets"
 	@echo "  clean          Clean generated files"
 	@echo "  ci             Run CI pipeline"
+	@echo "  check-syntax   Check Python syntax"
 
 setup:
 	$(PIP) install -r requirements.txt
 	@echo "Setup completed. Recommend using conda environment: stock_prediction"
 
 fmt:
-	@echo "Code formatting (placeholder - add black/ruff if needed)"
+	@echo "No automatic formatter is configured."
 
 lint:
-	@echo "Code linting (placeholder - add ruff/mypy if needed)"
+	@echo "No style or type linter is configured; use check-syntax for the enforced syntax check."
+
+check-syntax:
+	$(PYTHON) -m compileall -q src scripts tests
 
 test:
 	$(PYTHON) -m pytest -v
@@ -61,5 +65,5 @@ clean:
 	find . -type f -name "*.pyo" -delete 2>/dev/null || true
 	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
 
-ci: fmt lint test build
+ci: check-syntax test build
 	@echo "CI pipeline completed successfully"
