@@ -94,15 +94,10 @@ def test_scripts_exist():
 
 def test_predictor_creation():
     """测试预测器能正常创建"""
-    try:
-        from stock_prediction.predict import create_predictor
-        
-        # 测试创建LSTM预测器
-        predictor = create_predictor("lstm", "cpu")
-        assert predictor is not None
-        assert predictor.model_type == "LSTM"
-        
-    except Exception as e:
-        # 如果缺少某些依赖（如torch），这是可以接受的
-        print(f"Predictor creation test skipped due to: {e}")
-        assert True
+    from stock_prediction.predict import create_predictor
+
+    # 测试创建LSTM预测器
+    predictor = create_predictor("lstm", "cpu")
+    assert predictor is not None
+    assert predictor.args.model == "lstm"
+    assert predictor.args.cpu == 1
